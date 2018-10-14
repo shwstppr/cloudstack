@@ -17,7 +17,7 @@
 
 package org.apache.cloudstack.api.command.user.fizzbuzz;
 
-import java.util.Random;
+import javax.inject.Inject;
 
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.BaseCmd;
@@ -25,17 +25,22 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.response.FizzBuzzResponse;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.fizzbuzz.FizzBuzzService;
+
 
 @APICommand(name = FizzBuzzCmd.APINAME, description = "FizzBuzz example in CloudStack", responseObject = FizzBuzzResponse.class, requestHasSensitiveInfo = false, responseHasSensitiveInfo = false, since = "4.11", authorized = {RoleType.User})
 public class FizzBuzzCmd extends BaseCmd {
     public static final String APINAME = "fizzBuzz";
+
+    @Inject
+    private FizzBuzzService fizzBuzzService;
 
     /////////////////////////////////////////////////////
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
     @Parameter(name = "number", type = CommandType.INTEGER, description = "FizzBuzz input number")
-    private Integer number = 0;
+    private Integer number = null;
 
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
@@ -59,20 +64,15 @@ public class FizzBuzzCmd extends BaseCmd {
         return CallContext.current().getCallingAccount().getId();
     }
 
+
     @Override
     public void execute() {
         FizzBuzzResponse response = new FizzBuzzResponse(getCommandName());
-        String result = "";
-        if (getNumber()  > 0) {
-            if(getNumber()%(3*5) == 0)
-               result = "FizzBuzz";
-            else if(getNumber()%3 == 0)
-               result = "Fizz";
-            else if(getNumber()%5 == 0)
-               result = "Buzz";
+        Integer number = getNumber();
+        if (number==null) {
+            number = fizzBuzzService.getVMCount();
         }
-        if (result.length() == 0)
-            result = String.valueOf((new Random()).nextInt(100-1)+1);
+        String result = fizzBuzzService.fizzBuzz(number);
         response.setAnswer(result);
         setResponseObject(response);
     }
