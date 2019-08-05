@@ -38,7 +38,7 @@ import com.cloud.exception.NetworkRuleConflictException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
 
-@APICommand(name = "listUnmanagedInstances",
+@APICommand(name = ListUnmanagedInstancesCmd.API_NAME,
         description = "Lists unmanaged virtual machines for a given cluster/host.",
         responseObject = UnmanagedInstanceResponse.class,
         responseView = ResponseObject.ResponseView.Full,
@@ -46,7 +46,7 @@ import com.cloud.exception.ResourceUnavailableException;
         requestHasSensitiveInfo = false, responseHasSensitiveInfo = true)
 public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
     public static final Logger s_logger = Logger.getLogger(ListUnmanagedInstancesCmd.class.getName());
-    private static final String s_commandName = "listUnmanagedInstances";
+    public static final String API_NAME = "listUnmanagedInstances";
 
     @Inject
     public VmIngestionService vmIngestionService;
@@ -90,7 +90,7 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
 
     @Override
     public String getCommandName() {
-        return s_commandName;
+        return API_NAME.toLowerCase() + BaseAsyncCmd.RESPONSE_SUFFIX;
     }
 
     @Override
