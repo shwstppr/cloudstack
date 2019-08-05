@@ -21,6 +21,8 @@ import org.apache.cloudstack.api.command.admin.ingestion.ListUnmanagedInstancesC
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 
-public interface VmIngestionService {
+import com.cloud.utils.component.PluggableService;
+
+public interface VmIngestionService extends PluggableService {
     ListResponse<UnmanagedInstanceResponse> listUnmanagedInstances(ListUnmanagedInstancesCmd cmd);
 }

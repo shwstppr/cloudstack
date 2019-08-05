@@ -24,6 +24,7 @@ import java.util.Set;
 
 import javax.inject.Inject;
 
+import org.apache.cloudstack.api.command.admin.ingestion.ImportUnmanageInstanceCmd;
 import org.apache.cloudstack.api.command.admin.ingestion.ListUnmanagedInstancesCmd;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
@@ -87,5 +88,13 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         ListResponse<UnmanagedInstanceResponse> listResponses = new ListResponse<>();
         listResponses.setResponses(responses);
         return listResponses;
+    }
+
+    @Override
+    public List<Class<?>> getCommands() {
+        final List<Class<?>> cmdList = new ArrayList<Class<?>>();
+        cmdList.add(ListUnmanagedInstancesCmd.class);
+        cmdList.add(ImportUnmanageInstanceCmd.class);
+        return cmdList;
     }
 }
