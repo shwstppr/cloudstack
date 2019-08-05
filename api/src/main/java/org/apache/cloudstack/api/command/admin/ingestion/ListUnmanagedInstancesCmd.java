@@ -25,7 +25,6 @@ import org.apache.cloudstack.api.BaseAsyncCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
-import org.apache.cloudstack.api.command.admin.AdminCmd;
 import org.apache.cloudstack.api.response.ClusterResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.ingestion.UnmanagedInstance;
@@ -44,7 +43,7 @@ import com.cloud.exception.ResourceUnavailableException;
         responseView = ResponseObject.ResponseView.Full,
         entityType = {UnmanagedInstance.class},
         requestHasSensitiveInfo = false, responseHasSensitiveInfo = true)
-public class ListUnmanagedInstancesCmd extends BaseAsyncCmd implements AdminCmd {
+public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
     public static final Logger s_logger = Logger.getLogger(ListUnmanagedInstancesCmd.class.getName());
 
     @Inject
@@ -92,10 +91,5 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd implements AdminCmd 
     @Override
     public long getEntityOwnerId() {
         return 0;
-    }
-
-    @Override
-    public ResponseObject.ResponseView getResponseView() {
-        return ResponseObject.ResponseView.Full;
     }
 }
