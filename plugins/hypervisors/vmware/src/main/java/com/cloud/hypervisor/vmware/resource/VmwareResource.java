@@ -45,6 +45,7 @@ import javax.naming.ConfigurationException;
 import javax.xml.datatype.XMLGregorianCalendar;
 
 import org.apache.cloudstack.api.ApiConstants;
+import org.apache.cloudstack.ingestion.UnmanagedInstance;
 import org.apache.cloudstack.storage.command.CopyCommand;
 import org.apache.cloudstack.storage.command.StorageSubSystemCommand;
 import org.apache.cloudstack.storage.configdrive.ConfigDrive;
@@ -88,6 +89,8 @@ import com.cloud.agent.api.GetHostStatsAnswer;
 import com.cloud.agent.api.GetHostStatsCommand;
 import com.cloud.agent.api.GetStorageStatsAnswer;
 import com.cloud.agent.api.GetStorageStatsCommand;
+import com.cloud.agent.api.GetUnmanagedInstancesAnswer;
+import com.cloud.agent.api.GetUnmanagedInstancesCommand;
 import com.cloud.agent.api.GetVmDiskStatsAnswer;
 import com.cloud.agent.api.GetVmDiskStatsCommand;
 import com.cloud.agent.api.GetVmIpAddressCommand;
@@ -529,6 +532,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                 return execute((GetVmIpAddressCommand)cmd);
             } else if (clz == UnregisterNicCommand.class) {
                 answer = execute((UnregisterNicCommand)cmd);
+            } else if (clz == GetUnmanagedInstancesCommand.class) {
+                answer = execute((GetUnmanagedInstancesCommand)cmd);
             } else {
                 answer = Answer.createUnsupportedCommandAnswer(cmd);
             }
@@ -6665,5 +6670,35 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             s_logger.error("Unable to locate id_rsa.cloud in your setup at " + keyFile.toString());
         }
         return keyFile;
+    }
+
+    private Answer execute(GetUnmanagedInstancesCommand cmd) {
+
+        if (s_logger.isInfoEnabled()) {
+            s_logger.info("Executing resource GetUnmanagedInstancesCommand " + _gson.toJson(cmd));
+        }
+
+        VmwareContext context = getServiceContext();
+        HashMap<String, UnmanagedInstance> unmanagedInstances = new HashMap<>();
+        try {
+            VmwareHypervisorHost hyperHost = getHyperHost(context);
+
+            String vmName = cmd.getInstanceName();
+            List<VirtualMachineMO> vmMos = hyperHost.listVmsOnHyperHost(vmName);
+
+            if (vmMos != null && vmMos.isEmpty()) {
+                for (VirtualMachineMO vmMO : vmMos) {
+                    if (vmMO != null) {
+                        UnmanagedInstance instance = new UnmanagedInstance();
+                        instance.setName(vmMO.getVmName());
+                        instance.setPowerState(vmMO.getPowerState().toString());
+                        unmanagedInstances.put(vmMO.getVmName(), instance);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            s_logger.info("GetUnmanagedInstancesCommand failed due to " + VmwareHelper.getExceptionMessage(e));
+        }
+        return new  GetUnmanagedInstancesAnswer(cmd, "", unmanagedInstances);
     }
 }

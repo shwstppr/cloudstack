@@ -17,16 +17,75 @@
 
 package org.apache.cloudstack.ingestion;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
+
+import javax.inject.Inject;
+
 import org.apache.cloudstack.api.command.admin.ingestion.ListUnmanagedInstancesCmd;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.log4j.Logger;
 
+import com.cloud.agent.AgentManager;
+import com.cloud.agent.api.Answer;
+import com.cloud.agent.api.GetUnmanagedInstancesAnswer;
+import com.cloud.agent.api.GetUnmanagedInstancesCommand;
+import com.cloud.dc.dao.ClusterDao;
+import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.host.HostVO;
+import com.cloud.host.Status;
+import com.cloud.org.Cluster;
+import com.cloud.resource.ResourceManager;
+
 public class VmIngestionManagerImpl implements VmIngestionService {
     private static final Logger LOGGER = Logger.getLogger(VmIngestionManagerImpl.class);
 
+    @Inject
+    private AgentManager agentManager;
+    @Inject
+    private ClusterDao clusterDao;
+    @Inject
+    private ResourceManager resourceManager;
+
     @Override
     public ListResponse<UnmanagedInstanceResponse> listUnmanagedInstances(ListUnmanagedInstancesCmd cmd) {
-        return null;
+        final Long clusterId = cmd.getClusterId();
+        if (clusterId == null) {
+            throw  new InvalidParameterValueException(String.format("Cluster ID cannot be null!"));
+        }
+        final Cluster cluster = clusterDao.findById(clusterId);
+        if (cluster == null) {
+            throw  new InvalidParameterValueException(String.format("Cluster ID: %d cannot be found!", clusterId));
+        }
+
+        List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
+
+        HashMap<String, UnmanagedInstance> unmanagedInstances = new HashMap<>();
+        for (HostVO host : hosts) {
+
+            GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
+
+            Answer answer = agentManager.easySend(host.getId(), command);
+
+            if (answer instanceof GetUnmanagedInstancesAnswer){
+                GetUnmanagedInstancesAnswer unmanagedInstancesAnswer = (GetUnmanagedInstancesAnswer)answer;
+                unmanagedInstances.putAll(unmanagedInstancesAnswer.getUnmanagedInstances());
+            }
+        }
+
+        Set<String> keys = unmanagedInstances.keySet();
+        List<UnmanagedInstanceResponse> responses = new ArrayList<>();
+        for (String key : keys) {
+            UnmanagedInstanceResponse response = new UnmanagedInstanceResponse();
+            UnmanagedInstance instance = unmanagedInstances.get(key);
+            response.setName(instance.getName());
+            responses.add(response);
+        }
+        ListResponse<UnmanagedInstanceResponse> listResponses = new ListResponse<>();
+        listResponses.setResponses(responses);
+        return listResponses;
     }
 }

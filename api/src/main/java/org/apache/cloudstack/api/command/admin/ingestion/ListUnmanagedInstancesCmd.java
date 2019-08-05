@@ -26,6 +26,7 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ClusterResponse;
+import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.ingestion.UnmanagedInstance;
 import org.apache.cloudstack.ingestion.VmIngestionService;
@@ -45,6 +46,7 @@ import com.cloud.exception.ResourceUnavailableException;
         requestHasSensitiveInfo = false, responseHasSensitiveInfo = true)
 public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
     public static final Logger s_logger = Logger.getLogger(ListUnmanagedInstancesCmd.class.getName());
+    private static final String s_commandName = "listUnmanagedInstances";
 
     @Inject
     public VmIngestionService vmIngestionService;
@@ -52,6 +54,7 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
     @Parameter(name = ApiConstants.CLUSTER_ID,
             type = CommandType.UUID,
             entityType = ClusterResponse.class,
+            required = true,
             description = "the cluster ID")
     private Long clusterId;
 
@@ -80,12 +83,14 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
 
     @Override
     public void execute() throws ResourceUnavailableException, InsufficientCapacityException, ServerApiException, ConcurrentOperationException, ResourceAllocationException, NetworkRuleConflictException {
-
+        ListResponse<UnmanagedInstanceResponse> response = vmIngestionService.listUnmanagedInstances(this);
+        response.setResponseName(getCommandName());
+        setResponseObject(response);
     }
 
     @Override
     public String getCommandName() {
-        return null;
+        return s_commandName;
     }
 
     @Override

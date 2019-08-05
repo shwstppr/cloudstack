@@ -15,27 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.cloudstack.ingestion;
+package com.cloud.agent.api;
 
-public class UnmanagedInstance {
+@LogLevel(LogLevel.Log4jLevel.Trace)
+public class GetUnmanagedInstancesCommand extends Command {
 
-    private String name;
+    String instanceName;
 
-    private String  powerState;
-
-    public String getName() {
-        return name;
+    public GetUnmanagedInstancesCommand() {
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public GetUnmanagedInstancesCommand(String instanceName) {
+        this.instanceName = instanceName;
     }
 
-    public String getPowerState() {
-        return powerState;
+    public String getInstanceName() {
+        return instanceName;
     }
 
-    public void setPowerState(String powerState) {
-        this.powerState = powerState;
+    public void setInstanceName(String instanceName) {
+        this.instanceName = instanceName;
+    }
+
+    @Override
+    public boolean executeInSequence() {
+        return false;
+    }
+
+    public String getString() {
+        return "GetUnmanagedInstancesCommand [instanceName=" + instanceName + "]";
     }
 }
