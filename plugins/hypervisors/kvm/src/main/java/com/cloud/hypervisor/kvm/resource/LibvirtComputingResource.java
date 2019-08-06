@@ -46,8 +46,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
-import com.cloud.resource.RequestWrapper;
+import org.apache.cloudstack.ingestion.UnmanagedInstance;
 import org.apache.cloudstack.storage.to.PrimaryDataStoreTO;
 import org.apache.cloudstack.storage.to.TemplateObjectTO;
 import org.apache.cloudstack.storage.to.VolumeObjectTO;
@@ -112,6 +111,7 @@ import com.cloud.dc.Vlan;
 import com.cloud.exception.InternalErrorException;
 import com.cloud.host.Host.Type;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
+import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ChannelDef;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ClockDef;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ConsoleDef;
@@ -148,6 +148,7 @@ import com.cloud.hypervisor.kvm.storage.KVMStorageProcessor;
 import com.cloud.network.Networks.BroadcastDomainType;
 import com.cloud.network.Networks.RouterPrivateIpStrategy;
 import com.cloud.network.Networks.TrafficType;
+import com.cloud.resource.RequestWrapper;
 import com.cloud.resource.ServerResource;
 import com.cloud.resource.ServerResourceBase;
 import com.cloud.storage.JavaStorageLayer;
@@ -3857,5 +3858,120 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             return false;
         }
         return true;
+    }
+
+    public HashMap<String, UnmanagedInstance> getHostVms() {
+        final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
+        Connect conn = null;
+
+        if (_hypervisorType == HypervisorType.LXC) {
+            try {
+                conn = LibvirtConnection.getConnectionByType(HypervisorType.LXC.toString());
+                hostVms.putAll(getHostVms(conn));
+                conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
+                hostVms.putAll(getHostVms(conn));
+            } catch (final LibvirtException e) {
+                s_logger.debug("Failed to get connection: " + e.getMessage());
+            }
+        } else if (_hypervisorType == HypervisorType.KVM) {
+            try {
+                conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
+                hostVms.putAll(getHostVms(conn));
+            } catch (final LibvirtException e) {
+                s_logger.debug("Failed to get connection: " + e.getMessage());
+            }
+        }
+
+        return hostVms;
+    }
+
+    private HashMap<String, UnmanagedInstance> getHostVms(final Connect conn) {
+        final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
+
+        String[] vms = null;
+        int[] ids = null;
+
+        try {
+            ids = conn.listDomains();
+        } catch (final LibvirtException e) {
+            s_logger.warn("Unable to listDomains", e);
+            return null;
+        }
+        try {
+            vms = conn.listDefinedDomains();
+        } catch (final LibvirtException e) {
+            s_logger.warn("Unable to listDomains", e);
+            return null;
+        }
+
+        Domain dm = null;
+        for (int i = 0; i < ids.length; i++) {
+            try {
+                dm = conn.domainLookupByID(ids[i]);
+
+                final DomainState ps = dm.getInfo().state;
+
+                final PowerState state = convertToPowerState(ps);
+
+                s_logger.trace("VM " + dm.getName() + ": powerstate = " + ps + "; vm state=" + state.toString());
+                final String vmName = dm.getName();
+                UnmanagedInstance instance = new UnmanagedInstance();
+                instance.setName(vmName);
+                hostVms.put(vmName, instance);
+
+                // TODO : for XS/KVM (host-based resource), we require to remove
+                // VM completely from host, for some reason, KVM seems to still keep
+                // Stopped VM around, to work-around that, reporting only powered-on VM
+                //
+//                if (state == PowerState.PowerOn) {
+//                    vmStates.put(vmName, new HostVmStateReportEntry(state, conn.getHostName()));
+//                }
+            } catch (final LibvirtException e) {
+                s_logger.warn("Unable to get vms", e);
+            } finally {
+                try {
+                    if (dm != null) {
+                        dm.free();
+                    }
+                } catch (final LibvirtException e) {
+                    s_logger.trace("Ignoring libvirt error.", e);
+                }
+            }
+        }
+
+        for (int i = 0; i < vms.length; i++) {
+            try {
+
+                dm = conn.domainLookupByName(vms[i]);
+
+                final DomainState ps = dm.getInfo().state;
+                final PowerState state = convertToPowerState(ps);
+                final String vmName = dm.getName();
+                s_logger.trace("VM " + vmName + ": powerstate = " + ps + "; vm state=" + state.toString());
+                UnmanagedInstance instance = new UnmanagedInstance();
+                instance.setName(vmName);
+                hostVms.put(vmName, instance);
+
+                // TODO : for XS/KVM (host-based resource), we require to remove
+                // VM completely from host, for some reason, KVM seems to still keep
+                // Stopped VM around, to work-around that, reporting only powered-on VM
+                //
+//                if (state == PowerState.PowerOn) {
+//                    vmStates.put(vmName, new HostVmStateReportEntry(state, conn.getHostName()));
+//                }
+            } catch (final LibvirtException e) {
+                s_logger.warn("Unable to get vms", e);
+            } finally {
+                try {
+                    if (dm != null) {
+                        dm.free();
+                    }
+                } catch (final LibvirtException e) {
+                    s_logger.trace("Ignoring libvirt error.", e);
+                }
+            }
+        }
+
+        return hostVms;
     }
 }

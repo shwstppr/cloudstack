@@ -74,16 +74,6 @@ public class ListUnmanagedInstancesCmd extends BaseListCmd {
         return name;
     }
 
-//    @Override
-//    public String getEventType() {
-//        return EventTypes.EVENT_INGESTION_UNMANAGED_INSTANCE_LIST;
-//    }
-//
-//    @Override
-//    public String getEventDescription() {
-//        return String.format("Listing unmanaged instances for cluster ID: %s", _uuidMgr.getUuid(Cluster.class, getClusterId()));
-//    }
-
     @Override
     public void execute() throws ResourceUnavailableException, InsufficientCapacityException, ServerApiException, ConcurrentOperationException, ResourceAllocationException, NetworkRuleConflictException {
         ListResponse<UnmanagedInstanceResponse> response = vmIngestionService.listUnmanagedInstances(this);
