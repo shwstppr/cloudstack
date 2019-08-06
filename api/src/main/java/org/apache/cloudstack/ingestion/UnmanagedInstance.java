@@ -17,11 +17,27 @@
 
 package org.apache.cloudstack.ingestion;
 
+import java.util.List;
+
 public class UnmanagedInstance {
 
     private String name;
 
     private String  powerState;
+
+    private Integer cpuCores;
+
+    private Integer cpuCoresPerSocket;
+
+    private Integer memory;
+
+    private Integer cpuSpeed;
+
+    private String operatingSystem;
+
+    private List<Disk> disks;
+
+    private List<Nic> nics;
 
     public String getName() {
         return name;
@@ -37,5 +53,85 @@ public class UnmanagedInstance {
 
     public void setPowerState(String powerState) {
         this.powerState = powerState;
+    }
+
+    public Integer getCpuCores() {
+        return cpuCores;
+    }
+
+    public void setCpuCores(Integer cpuCores) {
+        this.cpuCores = cpuCores;
+    }
+
+    public Integer getCpuCoresPerSocket() {
+        return cpuCoresPerSocket;
+    }
+
+    public void setCpuCoresPerSocket(Integer cpuCoresPerSocket) {
+        this.cpuCoresPerSocket = cpuCoresPerSocket;
+    }
+
+    public Integer getMemory() {
+        return memory;
+    }
+
+    public void setMemory(Integer memory) {
+        this.memory = memory;
+    }
+
+    public Integer getCpuSpeed() {
+        return cpuSpeed;
+    }
+
+    public void setCpuSpeed(Integer cpuSpeed) {
+        this.cpuSpeed = cpuSpeed;
+    }
+
+    public String getOperatingSystem() {
+        return operatingSystem;
+    }
+
+    public void setOperatingSystem(String operatingSystem) {
+        this.operatingSystem = operatingSystem;
+    }
+
+    public List<Disk> getDisks() {
+        return disks;
+    }
+
+    public void setDisks(List<Disk> disks) {
+        this.disks = disks;
+    }
+
+    public List<Nic> getNics() {
+        return nics;
+    }
+
+    public void setNics(List<Nic> nics) {
+        this.nics = nics;
+    }
+
+    public static class Disk {
+        private String diskId;
+
+        public String getDiskId() {
+            return diskId;
+        }
+
+        public void setDiskId(String diskId) {
+            this.diskId = diskId;
+        }
+    }
+
+    public static class Nic {
+        private String nicId;
+
+        public String getNicId() {
+            return nicId;
+        }
+
+        public void setNicId(String nicId) {
+            this.nicId = nicId;
+        }
     }
 }

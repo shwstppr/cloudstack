@@ -32,11 +32,88 @@ public class UnmanagedInstanceResponse extends BaseResponse {
     @Param(description = "the name of the virtual machine")
     private String name;
 
+
+    @SerializedName(ApiConstants.POWER_STATE)
+    @Param(description = "the power state of the virtual machine")
+    private String  powerState;
+
+
+    @SerializedName(ApiConstants.CPU_NUMBER)
+    @Param(description = "the CPU cores of the virtual machine")
+    private Integer cpuCores;
+
+
+    @SerializedName("cpuCoresPerSocket")
+    @Param(description = "the CPU cores per socket for the virtual machine. VMware specific")
+    private Integer cpuCoresPerSocket;
+
+
+    @SerializedName(ApiConstants.CPU_SPEED)
+    @Param(description = "the CPU speed of the virtual machine")
+    private Integer cpuSpeed;
+
+
+    @SerializedName(ApiConstants.MEMORY)
+    @Param(description = "the memory of the virtual machine")
+    private Integer memory;
+
+    @SerializedName(ApiConstants.OS_DISPLAY_NAME)
+    @Param(description = "the operating system of the virtual machine")
+    private String operatingSystem;
+
     public String getName() {
         return name;
     }
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getPowerState() {
+        return powerState;
+    }
+
+    public void setPowerState(String powerState) {
+        this.powerState = powerState;
+    }
+
+    public Integer getCpuCores() {
+        return cpuCores;
+    }
+
+    public void setCpuCores(Integer cpuCores) {
+        this.cpuCores = cpuCores;
+    }
+
+    public Integer getCpuCoresPerSocket() {
+        return cpuCoresPerSocket;
+    }
+
+    public void setCpuCoresPerSocket(Integer cpuCoresPerSocket) {
+        this.cpuCoresPerSocket = cpuCoresPerSocket;
+    }
+
+    public Integer getCpuSpeed() {
+        return cpuSpeed;
+    }
+
+    public void setCpuSpeed(Integer cpuSpeed) {
+        this.cpuSpeed = cpuSpeed;
+    }
+
+    public Integer getMemory() {
+        return memory;
+    }
+
+    public void setMemory(Integer memory) {
+        this.memory = memory;
+    }
+
+    public String getOperatingSystem() {
+        return operatingSystem;
+    }
+
+    public void setOperatingSystem(String operatingSystem) {
+        this.operatingSystem = operatingSystem;
     }
 }

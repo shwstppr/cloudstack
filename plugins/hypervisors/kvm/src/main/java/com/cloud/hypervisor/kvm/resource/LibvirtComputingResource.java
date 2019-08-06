@@ -3917,6 +3917,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 final String vmName = dm.getName();
                 UnmanagedInstance instance = new UnmanagedInstance();
                 instance.setName(vmName);
+                instance.setPowerState(state.toString());
                 hostVms.put(vmName, instance);
 
                 // TODO : for XS/KVM (host-based resource), we require to remove

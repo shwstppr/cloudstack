@@ -80,11 +80,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         Set<String> keys = unmanagedInstances.keySet();
         List<UnmanagedInstanceResponse> responses = new ArrayList<>();
         for (String key : keys) {
-            UnmanagedInstanceResponse response = new UnmanagedInstanceResponse();
-            UnmanagedInstance instance = unmanagedInstances.get(key);
-            response.setName(instance.getName());
-            response.setObjectName(UnmanagedInstance.class.getSimpleName().toLowerCase());
-            responses.add(response);
+            responses.add(createUnmanagedInstanceResponse(unmanagedInstances.get(key)));
         }
         ListResponse<UnmanagedInstanceResponse> listResponses = new ListResponse<>();
         listResponses.setResponses(responses, keys.size());
@@ -97,5 +93,18 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         cmdList.add(ListUnmanagedInstancesCmd.class);
         cmdList.add(ImportUnmanageInstanceCmd.class);
         return cmdList;
+    }
+
+    private UnmanagedInstanceResponse createUnmanagedInstanceResponse(UnmanagedInstance instance) {
+        UnmanagedInstanceResponse response = new UnmanagedInstanceResponse();
+        response.setName(instance.getName());
+        response.setPowerState(instance.getPowerState());
+        response.setCpuCores(instance.getCpuCores());
+        response.setCpuSpeed(instance.getCpuSpeed());
+        response.setCpuCoresPerSocket(instance.getCpuCoresPerSocket());
+        response.setMemory(instance.getMemory());
+        response.setOperatingSystem(instance.getOperatingSystem());
+        response.setObjectName(UnmanagedInstance.class.getSimpleName().toLowerCase());
+        return response;
     }
 }
