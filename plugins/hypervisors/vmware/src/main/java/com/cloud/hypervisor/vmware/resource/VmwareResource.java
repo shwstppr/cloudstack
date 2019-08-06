@@ -6696,40 +6696,42 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         instance.setCpuSpeed(vmMO.getConfigSummary().getCpuReservation());
                         instance.setMemory(vmMO.getConfigSummary().getMemorySizeMB());
                         instance.setOperatingSystem(vmMO.getVmGuestInfo().getGuestFullName());
-                        VirtualDisk[] disks = vmMO.getAllDiskDevice();
-                        List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
-                        for (VirtualDevice diskDevice : disks) {
-                            if (diskDevice instanceof VirtualDisk) {
-                                UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
-                                VirtualDisk disk = (VirtualDisk) diskDevice;
-                                instanceDisk.setDiskId(disk.getVDiskId().toString());
-                                disk.getDeviceInfo();
-                                disk.getBacking();
-                                instanceDisks.add(instanceDisk);
-                            }
-                        }
-                        List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
-                        VirtualDevice[] nics = vmMO.getNicDevices();
-                        for (VirtualDevice nic : nics) {
-                            if (nic instanceof VirtualEthernetCard) {
-                                UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
-                                VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
-                                instanceNic.setNicId(ethCardDevice.getExternalId());
-                                ethCardDevice.getMacAddress();
-                                ethCardDevice.getSlotInfo().toString();
-                                VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
-                                if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
-                                    VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
-                                    //
-                                } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
-                                    VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
-                                    backingInfo.getDeviceName();
-                                }
-                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
-                                backingInfo.getNetwork().getValue();
-                                instanceNics.add(instanceNic);
-                            }
-                        }
+//                        VirtualDisk[] disks = vmMO.getAllDiskDevice();
+//                        List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
+//                        for (VirtualDevice diskDevice : disks) {
+//                            if (diskDevice instanceof VirtualDisk) {
+//                                UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
+//                                VirtualDisk disk = (VirtualDisk) diskDevice;
+//                                instanceDisk.setDiskId(disk.getVDiskId().toString());
+//                                disk.getDeviceInfo();
+//                                disk.getBacking();
+//                                instanceDisks.add(instanceDisk);
+//                            }
+//                        }
+//                        instance.setDisks(instanceDisks);
+//                        List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
+//                        VirtualDevice[] nics = vmMO.getNicDevices();
+//                        for (VirtualDevice nic : nics) {
+//                            if (nic instanceof VirtualEthernetCard) {
+//                                UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
+//                                VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
+//                                instanceNic.setNicId(ethCardDevice.getExternalId());
+//                                ethCardDevice.getMacAddress();
+//                                ethCardDevice.getSlotInfo().toString();
+//                                VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
+//                                if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
+//                                    VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
+//                                    //
+//                                } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
+//                                    VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
+//                                    backingInfo.getDeviceName();
+//                                }
+//                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
+//                                backingInfo.getNetwork().getValue();
+//                                instanceNics.add(instanceNic);
+//                            }
+//                        }
+//                        instance.setNics(instanceNics);
                         instance.setPowerState(vmMO.getPowerState().toString());
                         unmanagedInstances.put(vmMO.getVmName(), instance);
                     }
