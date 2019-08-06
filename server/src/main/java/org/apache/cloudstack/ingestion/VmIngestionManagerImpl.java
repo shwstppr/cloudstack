@@ -83,10 +83,11 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             UnmanagedInstanceResponse response = new UnmanagedInstanceResponse();
             UnmanagedInstance instance = unmanagedInstances.get(key);
             response.setName(instance.getName());
+            response.setObjectName(UnmanagedInstance.class.getSimpleName().toLowerCase());
             responses.add(response);
         }
         ListResponse<UnmanagedInstanceResponse> listResponses = new ListResponse<>();
-        listResponses.setResponses(responses);
+        listResponses.setResponses(responses, keys.size());
         return listResponses;
     }
 

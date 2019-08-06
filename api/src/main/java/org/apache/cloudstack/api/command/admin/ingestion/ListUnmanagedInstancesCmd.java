@@ -22,12 +22,14 @@ import javax.inject.Inject;
 import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.BaseAsyncCmd;
+import org.apache.cloudstack.api.BaseListCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ClusterResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.ingestion.UnmanagedInstance;
 import org.apache.cloudstack.ingestion.VmIngestionService;
 import org.apache.log4j.Logger;
@@ -37,6 +39,7 @@ import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.NetworkRuleConflictException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.user.Account;
 
 @APICommand(name = ListUnmanagedInstancesCmd.API_NAME,
         description = "Lists unmanaged virtual machines for a given cluster/host.",
@@ -44,7 +47,7 @@ import com.cloud.exception.ResourceUnavailableException;
         responseView = ResponseObject.ResponseView.Full,
         entityType = {UnmanagedInstance.class},
         requestHasSensitiveInfo = false, responseHasSensitiveInfo = true)
-public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
+public class ListUnmanagedInstancesCmd extends BaseListCmd {
     public static final Logger s_logger = Logger.getLogger(ListUnmanagedInstancesCmd.class.getName());
     public static final String API_NAME = "listUnmanagedInstances";
 
@@ -71,15 +74,15 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
         return name;
     }
 
-    @Override
-    public String getEventType() {
-        return null;
-    }
-
-    @Override
-    public String getEventDescription() {
-        return null;
-    }
+//    @Override
+//    public String getEventType() {
+//        return EventTypes.EVENT_INGESTION_UNMANAGED_INSTANCE_LIST;
+//    }
+//
+//    @Override
+//    public String getEventDescription() {
+//        return String.format("Listing unmanaged instances for cluster ID: %s", _uuidMgr.getUuid(Cluster.class, getClusterId()));
+//    }
 
     @Override
     public void execute() throws ResourceUnavailableException, InsufficientCapacityException, ServerApiException, ConcurrentOperationException, ResourceAllocationException, NetworkRuleConflictException {
@@ -95,6 +98,10 @@ public class ListUnmanagedInstancesCmd extends BaseAsyncCmd {
 
     @Override
     public long getEntityOwnerId() {
-        return 0;
+        Account account = CallContext.current().getCallingAccount();
+        if (account != null) {
+            return account.getId();
+        }
+        return Account.ACCOUNT_ID_SYSTEM;
     }
 }
