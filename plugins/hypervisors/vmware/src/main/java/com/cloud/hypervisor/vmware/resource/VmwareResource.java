@@ -6686,7 +6686,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             String vmName = cmd.getInstanceName();
             List<VirtualMachineMO> vmMos = hyperHost.listVmsOnHyperHost(vmName);
 
-            if (vmMos != null && vmMos.isEmpty()) {
+            if (vmMos != null && !vmMos.isEmpty()) {
                 for (VirtualMachineMO vmMO : vmMos) {
                     if (vmMO != null) {
                         UnmanagedInstance instance = new UnmanagedInstance();
