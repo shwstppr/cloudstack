@@ -17,6 +17,7 @@
 
 package org.apache.cloudstack.ingestion;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,10 +25,17 @@ import java.util.Set;
 
 import javax.inject.Inject;
 
+import org.apache.cloudstack.api.BaseListDomainResourcesCmd;
 import org.apache.cloudstack.api.command.admin.ingestion.ImportUnmanageInstanceCmd;
 import org.apache.cloudstack.api.command.admin.ingestion.ListUnmanagedInstancesCmd;
+import org.apache.cloudstack.api.command.admin.router.ListRoutersCmd;
+import org.apache.cloudstack.api.command.admin.systemvm.ListSystemVMsCmd;
+import org.apache.cloudstack.api.command.admin.vm.ListVMsCmdByAdmin;
+import org.apache.cloudstack.api.response.DomainRouterResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
+import org.apache.cloudstack.api.response.UserVmResponse;
+import org.apache.cloudstack.query.QueryService;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
@@ -40,6 +48,10 @@ import com.cloud.host.HostVO;
 import com.cloud.host.Status;
 import com.cloud.org.Cluster;
 import com.cloud.resource.ResourceManager;
+import com.cloud.server.ManagementService;
+import com.cloud.utils.Pair;
+import com.cloud.utils.component.ComponentContext;
+import com.cloud.vm.VirtualMachine;
 
 public class VmIngestionManagerImpl implements VmIngestionService {
     private static final Logger LOGGER = Logger.getLogger(VmIngestionManagerImpl.class);
@@ -48,6 +60,10 @@ public class VmIngestionManagerImpl implements VmIngestionService {
     private AgentManager agentManager;
     @Inject
     private ClusterDao clusterDao;
+    @Inject
+    public ManagementService managementService;
+    @Inject
+    public QueryService queryService;
     @Inject
     private ResourceManager resourceManager;
 
@@ -66,11 +82,55 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         HashMap<String, UnmanagedInstance> unmanagedInstances = new HashMap<>();
         for (HostVO host : hosts) {
-
+            List<String> managedVms = new ArrayList<>();
+            try {
+                ListVMsCmdByAdmin vmsCmd = new ListVMsCmdByAdmin();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Field listAllField = BaseListDomainResourcesCmd.class.getDeclaredField("listAll");
+                listAllField.setAccessible(true);
+                listAllField.set(vmsCmd, true);
+                ListResponse<UserVmResponse> vmsResponse = queryService.searchForUserVMs(vmsCmd);
+                for (UserVmResponse vmResponse : vmsResponse.getResponses()) {
+                    managedVms.add(vmResponse.getInstanceName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve user vms for host ID: %s", host.getUuid()));
+            }
+            try {
+                ListSystemVMsCmd vmsCmd = new ListSystemVMsCmd();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Pair<List<? extends VirtualMachine>, Integer> systemVMs = managementService.searchForSystemVm(vmsCmd);
+                for (VirtualMachine systemVM : systemVMs.first()) {
+                    managedVms.add(systemVM.getInstanceName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve system vms for host ID: %s", host.getUuid()));
+            }
+            try {
+                ListRoutersCmd vmsCmd = new ListRoutersCmd();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Field listAllField = BaseListDomainResourcesCmd.class.getDeclaredField("listAll");
+                listAllField.setAccessible(true);
+                listAllField.set(vmsCmd, true);
+                ListResponse<DomainRouterResponse> routersResponse = queryService.searchForRouters(vmsCmd);
+                for (DomainRouterResponse routerResponse : routersResponse.getResponses()) {
+                    managedVms.add(routerResponse.getName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve virtual router vms for host ID: %s", host.getUuid()));
+            }
             GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
-
+            command.setManagedInstancesNames(managedVms);
             Answer answer = agentManager.easySend(host.getId(), command);
-
             if (answer instanceof GetUnmanagedInstancesAnswer){
                 GetUnmanagedInstancesAnswer unmanagedInstancesAnswer = (GetUnmanagedInstancesAnswer)answer;
                 unmanagedInstances.putAll(unmanagedInstancesAnswer.getUnmanagedInstances());

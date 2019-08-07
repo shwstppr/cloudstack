@@ -17,10 +17,14 @@
 
 package com.cloud.agent.api;
 
+import java.util.List;
+
 @LogLevel(LogLevel.Log4jLevel.Trace)
 public class GetUnmanagedInstancesCommand extends Command {
 
     String instanceName;
+
+    List<String> managedInstancesNames;
 
     public GetUnmanagedInstancesCommand() {
     }
@@ -35,6 +39,21 @@ public class GetUnmanagedInstancesCommand extends Command {
 
     public void setInstanceName(String instanceName) {
         this.instanceName = instanceName;
+    }
+
+    public List<String> getManagedInstancesNames() {
+        return managedInstancesNames;
+    }
+
+    public void setManagedInstancesNames(List<String> managedInstancesNames) {
+        this.managedInstancesNames = managedInstancesNames;
+    }
+
+    public boolean hasManagedInstance(String name) {
+        if (managedInstancesNames!=null && !managedInstancesNames.isEmpty()) {
+            return managedInstancesNames.contains(name);
+        }
+        return false;
     }
 
     @Override

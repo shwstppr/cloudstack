@@ -82,6 +82,7 @@ import org.xml.sax.SAXException;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
+import com.cloud.agent.api.GetUnmanagedInstancesCommand;
 import com.cloud.agent.api.HostVmStateReportEntry;
 import com.cloud.agent.api.PingCommand;
 import com.cloud.agent.api.PingRoutingCommand;
@@ -3860,32 +3861,59 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         return true;
     }
 
-    public HashMap<String, UnmanagedInstance> getHostVms() {
+    public HashMap<String, UnmanagedInstance> getHostVms(final GetUnmanagedInstancesCommand cmd) {
         final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
         Connect conn = null;
 
-        if (_hypervisorType == HypervisorType.LXC) {
+        List<Domain> domains = new ArrayList<>();
+        if (!Strings.isNullOrEmpty(cmd.getInstanceName())) {
             try {
-                conn = LibvirtConnection.getConnectionByType(HypervisorType.LXC.toString());
-                hostVms.putAll(getHostVms(conn));
-                conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
-                hostVms.putAll(getHostVms(conn));
-            } catch (final LibvirtException e) {
-                s_logger.debug("Failed to get connection: " + e.getMessage());
+                conn = libvirtUtilitiesHelper.getConnection();
+                Domain dm = null;
+                try {
+                    dm = conn.domainLookupByName(cmd.getInstanceName());
+                    if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
+                        hostVms.put(dm.getName(), getUnmanagedInstance(dm));
+                    }
+                } catch (final LibvirtException e) {
+                    s_logger.warn("Unable to get vms", e);
+                } finally {
+                    try {
+                        if (dm != null) {
+                            dm.free();
+                        }
+                    } catch (final LibvirtException e) {
+                        s_logger.trace("Ignoring libvirt error.", e);
+                    }
+                }
+            } catch (LibvirtException e) {
+                s_logger.warn("Unable to get vms", e);
             }
-        } else if (_hypervisorType == HypervisorType.KVM) {
-            try {
-                conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
-                hostVms.putAll(getHostVms(conn));
-            } catch (final LibvirtException e) {
-                s_logger.debug("Failed to get connection: " + e.getMessage());
+        } else {
+
+            if (_hypervisorType == HypervisorType.LXC) {
+                try {
+                    conn = LibvirtConnection.getConnectionByType(HypervisorType.LXC.toString());
+                    hostVms.putAll(getHostVms(conn, cmd));
+                    conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
+                    hostVms.putAll(getHostVms(conn, cmd));
+                } catch (final LibvirtException e) {
+                    s_logger.debug("Failed to get connection: " + e.getMessage());
+                }
+            } else if (_hypervisorType == HypervisorType.KVM) {
+                try {
+                    conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
+                    hostVms.putAll(getHostVms(conn, cmd));
+                } catch (final LibvirtException e) {
+                    s_logger.debug("Failed to get connection: " + e.getMessage());
+                }
             }
         }
 
         return hostVms;
     }
 
-    private HashMap<String, UnmanagedInstance> getHostVms(final Connect conn) {
+    private HashMap<String, UnmanagedInstance> getHostVms(final Connect conn, final GetUnmanagedInstancesCommand cmd) {
         final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
 
         String[] vms = null;
@@ -3895,38 +3923,22 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             ids = conn.listDomains();
         } catch (final LibvirtException e) {
             s_logger.warn("Unable to listDomains", e);
-            return null;
+            return hostVms;
         }
         try {
             vms = conn.listDefinedDomains();
         } catch (final LibvirtException e) {
             s_logger.warn("Unable to listDomains", e);
-            return null;
+            return hostVms;
         }
 
         Domain dm = null;
         for (int i = 0; i < ids.length; i++) {
             try {
                 dm = conn.domainLookupByID(ids[i]);
-
-                final DomainState ps = dm.getInfo().state;
-
-                final PowerState state = convertToPowerState(ps);
-
-                s_logger.trace("VM " + dm.getName() + ": powerstate = " + ps + "; vm state=" + state.toString());
-                final String vmName = dm.getName();
-                UnmanagedInstance instance = new UnmanagedInstance();
-                instance.setName(vmName);
-                instance.setPowerState(state.toString());
-                hostVms.put(vmName, instance);
-
-                // TODO : for XS/KVM (host-based resource), we require to remove
-                // VM completely from host, for some reason, KVM seems to still keep
-                // Stopped VM around, to work-around that, reporting only powered-on VM
-                //
-//                if (state == PowerState.PowerOn) {
-//                    vmStates.put(vmName, new HostVmStateReportEntry(state, conn.getHostName()));
-//                }
+                if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
+                    hostVms.put(dm.getName(), getUnmanagedInstance(dm));
+                }
             } catch (final LibvirtException e) {
                 s_logger.warn("Unable to get vms", e);
             } finally {
@@ -3942,24 +3954,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
 
         for (int i = 0; i < vms.length; i++) {
             try {
-
                 dm = conn.domainLookupByName(vms[i]);
-
-                final DomainState ps = dm.getInfo().state;
-                final PowerState state = convertToPowerState(ps);
-                final String vmName = dm.getName();
-                s_logger.trace("VM " + vmName + ": powerstate = " + ps + "; vm state=" + state.toString());
-                UnmanagedInstance instance = new UnmanagedInstance();
-                instance.setName(vmName);
-                hostVms.put(vmName, instance);
-
-                // TODO : for XS/KVM (host-based resource), we require to remove
-                // VM completely from host, for some reason, KVM seems to still keep
-                // Stopped VM around, to work-around that, reporting only powered-on VM
-                //
-//                if (state == PowerState.PowerOn) {
-//                    vmStates.put(vmName, new HostVmStateReportEntry(state, conn.getHostName()));
-//                }
+                if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
+                    hostVms.put(dm.getName(), getUnmanagedInstance(dm));
+                }
             } catch (final LibvirtException e) {
                 s_logger.warn("Unable to get vms", e);
             } finally {
@@ -3974,5 +3972,25 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
         }
 
         return hostVms;
+    }
+
+    private UnmanagedInstance getUnmanagedInstance(Domain dm) {
+        UnmanagedInstance instance = null;
+        if (dm!=null) {
+            try {
+                DomainInfo dmInfo = dm.getInfo();
+                final DomainState ps = dm.getInfo().state;
+                final PowerState state = convertToPowerState(ps);
+                final String vmName = dm.getName();
+                instance = new UnmanagedInstance();
+                instance.setName(vmName);
+                instance.setPowerState(state.toString());
+                instance.setCpuCores(dmInfo.nrVirtCpu);
+                //instance.setMemory(dmInfo.memory);
+            } catch (final LibvirtException e) {
+                s_logger.warn("Unable to get vms", e);
+            }
+        }
+        return instance;
     }
 }

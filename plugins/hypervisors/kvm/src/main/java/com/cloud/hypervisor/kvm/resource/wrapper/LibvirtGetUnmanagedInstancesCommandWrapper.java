@@ -37,7 +37,7 @@ public class LibvirtGetUnmanagedInstancesCommandWrapper extends CommandWrapper<G
     public Answer execute(final GetUnmanagedInstancesCommand cmd, final LibvirtComputingResource libvirtComputingResource) {
         final LibvirtUtilitiesHelper libvirtUtilitiesHelper = libvirtComputingResource.getLibvirtUtilitiesHelper();
 
-        final HashMap<String, UnmanagedInstance> hostVmsMap = libvirtComputingResource.getHostVms();
+        final HashMap<String, UnmanagedInstance> hostVmsMap = libvirtComputingResource.getHostVms(cmd);
         return new GetUnmanagedInstancesAnswer(cmd, "", hostVmsMap);
     }
 }
