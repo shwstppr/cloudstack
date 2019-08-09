@@ -114,12 +114,32 @@ public class UnmanagedInstance {
     public static class Disk {
         private String diskId;
 
+        private Long capacity;
+
+        private String imagePath;
+
         public String getDiskId() {
             return diskId;
         }
 
         public void setDiskId(String diskId) {
             this.diskId = diskId;
+        }
+
+        public Long getCapacity() {
+            return capacity;
+        }
+
+        public void setCapacity(Long capacity) {
+            this.capacity = capacity;
+        }
+
+        public String getImagePath() {
+            return imagePath;
+        }
+
+        public void setImagePath(String imagePath) {
+            this.imagePath = imagePath;
         }
     }
 

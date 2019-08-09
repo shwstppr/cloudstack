@@ -6696,19 +6696,22 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         instance.setCpuSpeed(vmMO.getConfigSummary().getCpuReservation());
                         instance.setMemory(vmMO.getConfigSummary().getMemorySizeMB());
                         instance.setOperatingSystem(vmMO.getVmGuestInfo().getGuestFullName());
-//                        VirtualDisk[] disks = vmMO.getAllDiskDevice();
-//                        List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
-//                        for (VirtualDevice diskDevice : disks) {
-//                            if (diskDevice instanceof VirtualDisk) {
-//                                UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
-//                                VirtualDisk disk = (VirtualDisk) diskDevice;
-//                                instanceDisk.setDiskId(disk.getVDiskId().toString());
-//                                disk.getDeviceInfo();
-//                                disk.getBacking();
-//                                instanceDisks.add(instanceDisk);
-//                            }
-//                        }
-//                        instance.setDisks(instanceDisks);
+                        VirtualDisk[] disks = vmMO.getAllDiskDevice();
+                        List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
+                        for (VirtualDevice diskDevice : disks) {
+                            if (diskDevice instanceof VirtualDisk) {
+                                UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
+                                VirtualDisk disk = (VirtualDisk) diskDevice;
+                                vmMO.getDeviceBusName(vmMO.getAllDeviceList(), diskDevice);
+                                final String diskBusName = vmMO.getDeviceBusName(vmMO.getAllDeviceList(), disk);
+                                instanceDisk.setDiskId(disk.getDiskObjectId());
+                                disk.getBacking();
+                                instanceDisk.setImagePath(getAbsoluteVmdkFile(disk));
+                                instanceDisk.setCapacity(disk.getCapacityInKB());
+                                instanceDisks.add(instanceDisk);
+                            }
+                        }
+                        instance.setDisks(instanceDisks);
 //                        List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
 //                        VirtualDevice[] nics = vmMO.getNicDevices();
 //                        for (VirtualDevice nic : nics) {
