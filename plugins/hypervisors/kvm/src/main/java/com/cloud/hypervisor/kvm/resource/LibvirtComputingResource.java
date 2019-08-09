@@ -3986,7 +3986,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 instance.setName(vmName);
                 instance.setPowerState(state.toString());
                 instance.setCpuCores(dmInfo.nrVirtCpu);
-                //instance.setMemory(dmInfo.memory);
+                instance.setMemory((int)(dmInfo.memory/1024));
             } catch (final LibvirtException e) {
                 s_logger.warn("Unable to get vms", e);
             }

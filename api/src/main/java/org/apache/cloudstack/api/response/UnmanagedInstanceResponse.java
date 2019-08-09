@@ -54,7 +54,7 @@ public class UnmanagedInstanceResponse extends BaseResponse {
 
 
     @SerializedName(ApiConstants.MEMORY)
-    @Param(description = "the memory of the virtual machine")
+    @Param(description = "the memory of the virtual machine in MB")
     private Integer memory;
 
     @SerializedName(ApiConstants.OS_DISPLAY_NAME)
