@@ -35,26 +35,29 @@ public class UnmanagedInstanceResponse extends BaseResponse {
     @Param(description = "the name of the virtual machine")
     private String name;
 
+    @SerializedName(ApiConstants.CLUSTER_ID)
+    @Param(description = "the ID of the cluster to which virtual machine belongs")
+    private String clusterId;
+
+    @SerializedName(ApiConstants.HOST_ID)
+    @Param(description = "the ID of the host to which virtual machine belongs")
+    private String hostId;
 
     @SerializedName(ApiConstants.POWER_STATE)
     @Param(description = "the power state of the virtual machine")
     private String  powerState;
 
-
     @SerializedName(ApiConstants.CPU_NUMBER)
     @Param(description = "the CPU cores of the virtual machine")
     private Integer cpuCores;
-
 
     @SerializedName("cpuCoresPerSocket")
     @Param(description = "the CPU cores per socket for the virtual machine. VMware specific")
     private Integer cpuCoresPerSocket;
 
-
     @SerializedName(ApiConstants.CPU_SPEED)
     @Param(description = "the CPU speed of the virtual machine")
     private Integer cpuSpeed;
-
 
     @SerializedName(ApiConstants.MEMORY)
     @Param(description = "the memory of the virtual machine in MB")
@@ -78,6 +81,22 @@ public class UnmanagedInstanceResponse extends BaseResponse {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getClusterId() {
+        return clusterId;
+    }
+
+    public void setClusterId(String clusterId) {
+        this.clusterId = clusterId;
+    }
+
+    public String getHostId() {
+        return hostId;
+    }
+
+    public void setHostId(String hostId) {
+        this.hostId = hostId;
     }
 
     public String getPowerState() {

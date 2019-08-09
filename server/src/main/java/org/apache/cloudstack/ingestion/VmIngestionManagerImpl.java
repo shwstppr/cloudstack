@@ -45,6 +45,7 @@ import com.cloud.agent.api.GetUnmanagedInstancesAnswer;
 import com.cloud.agent.api.GetUnmanagedInstancesCommand;
 import com.cloud.dc.dao.ClusterDao;
 import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
 import com.cloud.org.Cluster;
@@ -81,7 +82,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
 
-        HashMap<String, UnmanagedInstance> unmanagedInstances = new HashMap<>();
+        List<UnmanagedInstanceResponse> responses = new ArrayList<>();
         for (HostVO host : hosts) {
             List<String> managedVms = new ArrayList<>();
             try {
@@ -134,17 +135,16 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             Answer answer = agentManager.easySend(host.getId(), command);
             if (answer instanceof GetUnmanagedInstancesAnswer){
                 GetUnmanagedInstancesAnswer unmanagedInstancesAnswer = (GetUnmanagedInstancesAnswer)answer;
+                HashMap<String, UnmanagedInstance> unmanagedInstances = new HashMap<>();
                 unmanagedInstances.putAll(unmanagedInstancesAnswer.getUnmanagedInstances());
+                Set<String> keys = unmanagedInstances.keySet();
+                for (String key : keys) {
+                    responses.add(createUnmanagedInstanceResponse(unmanagedInstances.get(key), cluster, host));
+                }
             }
         }
-
-        Set<String> keys = unmanagedInstances.keySet();
-        List<UnmanagedInstanceResponse> responses = new ArrayList<>();
-        for (String key : keys) {
-            responses.add(createUnmanagedInstanceResponse(unmanagedInstances.get(key)));
-        }
         ListResponse<UnmanagedInstanceResponse> listResponses = new ListResponse<>();
-        listResponses.setResponses(responses, keys.size());
+        listResponses.setResponses(responses, responses.size());
         return listResponses;
     }
 
@@ -156,9 +156,15 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         return cmdList;
     }
 
-    private UnmanagedInstanceResponse createUnmanagedInstanceResponse(UnmanagedInstance instance) {
+    private UnmanagedInstanceResponse createUnmanagedInstanceResponse(UnmanagedInstance instance, Cluster cluster, Host host) {
         UnmanagedInstanceResponse response = new UnmanagedInstanceResponse();
         response.setName(instance.getName());
+        if (cluster != null) {
+            response.setClusterId(cluster.getUuid());
+        }
+        if (host != null) {
+            response.setHostId(host.getUuid());
+        }
         response.setPowerState(instance.getPowerState());
         response.setCpuCores(instance.getCpuCores());
         response.setCpuSpeed(instance.getCpuSpeed());
