@@ -17,6 +17,9 @@
 
 package org.apache.cloudstack.api.response;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.BaseResponse;
 import org.apache.cloudstack.api.EntityReference;
@@ -60,6 +63,14 @@ public class UnmanagedInstanceResponse extends BaseResponse {
     @SerializedName(ApiConstants.OS_DISPLAY_NAME)
     @Param(description = "the operating system of the virtual machine")
     private String operatingSystem;
+
+    @SerializedName("nic")
+    @Param(description = "the list of nics associated with the virtual machine", responseObject = NicResponse.class)
+    private Set<NicResponse> nics;
+
+    public UnmanagedInstanceResponse() {
+        nics = new LinkedHashSet<NicResponse>();
+    }
 
     public String getName() {
         return name;
@@ -115,5 +126,17 @@ public class UnmanagedInstanceResponse extends BaseResponse {
 
     public void setOperatingSystem(String operatingSystem) {
         this.operatingSystem = operatingSystem;
+    }
+
+    public Set<NicResponse> getNics() {
+        return nics;
+    }
+
+    public void setNics(Set<NicResponse> nics) {
+        this.nics = nics;
+    }
+
+    public void addNic(NicResponse nic) {
+        this.nics.add(nic);
     }
 }

@@ -278,6 +278,7 @@ import com.vmware.vim25.HostInternetScsiHba;
 import com.vmware.vim25.ManagedObjectReference;
 import com.vmware.vim25.ObjectContent;
 import com.vmware.vim25.OptionValue;
+import com.vmware.vim25.ParaVirtualSCSIController;
 import com.vmware.vim25.PerfCounterInfo;
 import com.vmware.vim25.PerfEntityMetric;
 import com.vmware.vim25.PerfEntityMetricBase;
@@ -289,6 +290,7 @@ import com.vmware.vim25.RuntimeFaultFaultMsg;
 import com.vmware.vim25.ToolsUnavailableFaultMsg;
 import com.vmware.vim25.VMwareDVSPortSetting;
 import com.vmware.vim25.VimPortType;
+import com.vmware.vim25.VirtualBusLogicController;
 import com.vmware.vim25.VirtualDevice;
 import com.vmware.vim25.VirtualDeviceBackingInfo;
 import com.vmware.vim25.VirtualDeviceConfigSpec;
@@ -299,6 +301,9 @@ import com.vmware.vim25.VirtualEthernetCard;
 import com.vmware.vim25.VirtualEthernetCardDistributedVirtualPortBackingInfo;
 import com.vmware.vim25.VirtualEthernetCardNetworkBackingInfo;
 import com.vmware.vim25.VirtualEthernetCardOpaqueNetworkBackingInfo;
+import com.vmware.vim25.VirtualIDEController;
+import com.vmware.vim25.VirtualLsiLogicController;
+import com.vmware.vim25.VirtualLsiLogicSASController;
 import com.vmware.vim25.VirtualMachineConfigSpec;
 import com.vmware.vim25.VirtualMachineFileInfo;
 import com.vmware.vim25.VirtualMachineFileLayoutEx;
@@ -310,6 +315,7 @@ import com.vmware.vim25.VirtualMachineRelocateSpecDiskLocator;
 import com.vmware.vim25.VirtualMachineRuntimeInfo;
 import com.vmware.vim25.VirtualMachineToolsStatus;
 import com.vmware.vim25.VirtualMachineVideoCard;
+import com.vmware.vim25.VirtualSCSIController;
 import com.vmware.vim25.VirtualUSBController;
 import com.vmware.vim25.VmwareDistributedVirtualSwitchVlanIdSpec;
 
@@ -6687,56 +6693,79 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
             List<VirtualMachineMO> vmMos = hyperHost.listVmsOnHyperHost(vmName);
 
             if (vmMos != null && !vmMos.isEmpty()) {
-                for (VirtualMachineMO vmMO : vmMos) {
-                    if (vmMO != null && !vmMO.isTemplate() && !cmd.hasManagedInstance(vmMO.getName())) {
+                for (VirtualMachineMO vmMo : vmMos) {
+                    if (vmMo != null && !vmMo.isTemplate() && !cmd.hasManagedInstance(vmMo.getName())) {
                         UnmanagedInstance instance = new UnmanagedInstance();
-                        instance.setName(vmMO.getVmName());
-                        instance.setCpuCores(vmMO.getConfigSummary().getNumCpu());
-                        instance.setCpuCoresPerSocket(vmMO.getCoresPerSocket());
-                        instance.setCpuSpeed(vmMO.getConfigSummary().getCpuReservation());
-                        instance.setMemory(vmMO.getConfigSummary().getMemorySizeMB());
-                        instance.setOperatingSystem(vmMO.getVmGuestInfo().getGuestFullName());
-                        VirtualDisk[] disks = vmMO.getAllDiskDevice();
+                        instance.setName(vmMo.getVmName());
+                        instance.setCpuCores(vmMo.getConfigSummary().getNumCpu());
+                        instance.setCpuCoresPerSocket(vmMo.getCoresPerSocket());
+                        instance.setCpuSpeed(vmMo.getConfigSummary().getCpuReservation());
+                        instance.setMemory(vmMo.getConfigSummary().getMemorySizeMB());
+                        instance.setOperatingSystem(vmMo.getVmGuestInfo().getGuestFullName());
+                        VirtualDisk[] disks = vmMo.getAllDiskDevice();
                         List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
                         for (VirtualDevice diskDevice : disks) {
                             if (diskDevice instanceof VirtualDisk) {
                                 UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
                                 VirtualDisk disk = (VirtualDisk) diskDevice;
-                                vmMO.getDeviceBusName(vmMO.getAllDeviceList(), diskDevice);
-                                final String diskBusName = vmMO.getDeviceBusName(vmMO.getAllDeviceList(), disk);
                                 instanceDisk.setDiskId(disk.getDiskObjectId());
-                                disk.getBacking();
                                 instanceDisk.setImagePath(getAbsoluteVmdkFile(disk));
                                 instanceDisk.setCapacity(disk.getCapacityInKB());
+                                for (VirtualDevice device: vmMo.getAllDeviceList()) {
+                                    if (diskDevice.getControllerKey() == device.getKey()) {
+                                        if (device instanceof VirtualIDEController) {
+                                            instanceDisk.setController(DiskControllerType.getType(VirtualIDEController.class.getName()).toString());
+                                            instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
+                                        } else if (device instanceof VirtualSCSIController) {
+                                            instanceDisk.setController(DiskControllerType.getType(VirtualSCSIController.class.getName()).toString());
+                                            if (device instanceof VirtualLsiLogicController) {
+                                                instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicController.class.getName()).toString());
+                                            } else if (device instanceof ParaVirtualSCSIController) {
+                                                instanceDisk.setController(DiskControllerType.getType(ParaVirtualSCSIController.class.getName()).toString());
+                                            } else if (device instanceof VirtualBusLogicController) {
+                                                instanceDisk.setController(DiskControllerType.getType(VirtualBusLogicController.class.getName()).toString());
+                                            } else if (device instanceof VirtualLsiLogicSASController) {
+                                                instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicSASController.class.getName()).toString());
+                                            } else {
+                                                instanceDisk.setController(DiskControllerType.getType(VirtualSCSIController.class.getName()).toString());
+                                            }
+                                            instanceDisk.setControllerUnit(((VirtualSCSIController)device).getBusNumber());
+                                        } else {
+                                            instanceDisk.setController(DiskControllerType.none.toString());
+                                        }
+                                        instanceDisk.setControllerUnit(diskDevice.getUnitNumber());
+                                        break;
+                                    }
+                                }
                                 instanceDisks.add(instanceDisk);
                             }
                         }
                         instance.setDisks(instanceDisks);
-//                        List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
-//                        VirtualDevice[] nics = vmMO.getNicDevices();
-//                        for (VirtualDevice nic : nics) {
-//                            if (nic instanceof VirtualEthernetCard) {
-//                                UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
-//                                VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
-//                                instanceNic.setNicId(ethCardDevice.getExternalId());
-//                                ethCardDevice.getMacAddress();
-//                                ethCardDevice.getSlotInfo().toString();
-//                                VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
-//                                if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
-//                                    VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
-//                                    //
-//                                } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
-//                                    VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
-//                                    backingInfo.getDeviceName();
-//                                }
-//                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
-//                                backingInfo.getNetwork().getValue();
-//                                instanceNics.add(instanceNic);
-//                            }
-//                        }
-//                        instance.setNics(instanceNics);
-                        instance.setPowerState(vmMO.getPowerState().toString());
-                        unmanagedInstances.put(vmMO.getVmName(), instance);
+                        List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
+                        VirtualDevice[] nics = vmMo.getNicDevices();
+                        for (VirtualDevice nic : nics) {
+                            if (nic instanceof VirtualEthernetCard) {
+                                UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
+                                VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
+                                instanceNic.setNicId(ethCardDevice.getExternalId());
+                                ethCardDevice.getMacAddress();
+                                ethCardDevice.getSlotInfo().toString();
+                                VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
+                                if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
+                                    VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
+                                    //
+                                } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
+                                    VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
+                                    backingInfo.getDeviceName();
+                                }
+                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
+                                backingInfo.getNetwork().getValue();
+                                instanceNics.add(instanceNic);
+                            }
+                        }
+                        instance.setNics(instanceNics);
+                        instance.setPowerState(vmMo.getPowerState().toString());
+                        unmanagedInstances.put(vmMo.getVmName(), instance);
                     }
                 }
             }

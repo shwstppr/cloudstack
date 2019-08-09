@@ -118,6 +118,12 @@ public class UnmanagedInstance {
 
         private String imagePath;
 
+        private String controller;
+
+        private Integer controllerUnit;
+
+        private Integer position;
+
         public String getDiskId() {
             return diskId;
         }
@@ -141,10 +147,36 @@ public class UnmanagedInstance {
         public void setImagePath(String imagePath) {
             this.imagePath = imagePath;
         }
+
+        public String getController() {
+            return controller;
+        }
+
+        public void setController(String controller) {
+            this.controller = controller;
+        }
+
+        public Integer getControllerUnit() {
+            return controllerUnit;
+        }
+
+        public void setControllerUnit(Integer controllerUnit) {
+            this.controllerUnit = controllerUnit;
+        }
+
+        public Integer getPosition() {
+            return position;
+        }
+
+        public void setPosition(Integer position) {
+            this.position = position;
+        }
     }
 
     public static class Nic {
         private String nicId;
+
+        private String macAddress;
 
         public String getNicId() {
             return nicId;
@@ -152,6 +184,14 @@ public class UnmanagedInstance {
 
         public void setNicId(String nicId) {
             this.nicId = nicId;
+        }
+
+        public String getMacAddress() {
+            return macAddress;
+        }
+
+        public void setMacAddress(String macAddress) {
+            this.macAddress = macAddress;
         }
     }
 }

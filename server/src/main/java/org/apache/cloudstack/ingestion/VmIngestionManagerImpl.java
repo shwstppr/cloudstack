@@ -33,6 +33,7 @@ import org.apache.cloudstack.api.command.admin.systemvm.ListSystemVMsCmd;
 import org.apache.cloudstack.api.command.admin.vm.ListVMsCmdByAdmin;
 import org.apache.cloudstack.api.response.DomainRouterResponse;
 import org.apache.cloudstack.api.response.ListResponse;
+import org.apache.cloudstack.api.response.NicResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.query.QueryService;
@@ -165,6 +166,15 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         response.setMemory(instance.getMemory());
         response.setOperatingSystem(instance.getOperatingSystem());
         response.setObjectName(UnmanagedInstance.class.getSimpleName().toLowerCase());
+
+        if (instance.getNics() != null) {
+            for (UnmanagedInstance.Nic nic : instance.getNics()) {
+                NicResponse nicResponse = new NicResponse();
+                nicResponse.setDeviceId(nic.getNicId());
+                nicResponse.setMacAddress(nic.getMacAddress());
+                response.addNic(nicResponse);
+            }
+        }
         return response;
     }
 }
