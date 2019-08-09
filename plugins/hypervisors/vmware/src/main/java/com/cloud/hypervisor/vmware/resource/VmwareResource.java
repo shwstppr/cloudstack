@@ -6679,7 +6679,6 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
     }
 
     private Answer execute(GetUnmanagedInstancesCommand cmd) {
-
         if (s_logger.isInfoEnabled()) {
             s_logger.info("Executing resource GetUnmanagedInstancesCommand " + _gson.toJson(cmd));
         }
@@ -6713,6 +6712,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 instanceDisk.setCapacity(disk.getCapacityInKB());
                                 for (VirtualDevice device: vmMo.getAllDeviceList()) {
                                     if (diskDevice.getControllerKey() == device.getKey()) {
+                                        s_logger.info(device.getClass().getCanonicalName());
                                         if (device instanceof VirtualIDEController) {
                                             instanceDisk.setController(DiskControllerType.getType(VirtualIDEController.class.getName()).toString());
                                             instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
@@ -6744,6 +6744,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
                         VirtualDevice[] nics = vmMo.getNicDevices();
                         for (VirtualDevice nic : nics) {
+                            s_logger.info(nic.getClass().getCanonicalName());
                             if (nic instanceof VirtualEthernetCard) {
                                 UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
                                 VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
