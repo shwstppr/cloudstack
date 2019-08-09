@@ -6712,26 +6712,27 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 instanceDisk.setCapacity(disk.getCapacityInKB());
                                 for (VirtualDevice device: vmMo.getAllDeviceList()) {
                                     if (diskDevice.getControllerKey() == device.getKey()) {
-                                        s_logger.info(device.getClass().getCanonicalName());
+                                        s_logger.info(device.getClass().getCanonicalName() + " " + (device instanceof VirtualSCSIController));
                                         if (device instanceof VirtualIDEController) {
                                             instanceDisk.setController(DiskControllerType.getType(VirtualIDEController.class.getName()).toString());
                                             instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
-                                        } else if (device instanceof VirtualSCSIController) {
+                                        } else {
                                             instanceDisk.setController(DiskControllerType.getType(VirtualSCSIController.class.getName()).toString());
                                             if (device instanceof VirtualLsiLogicController) {
                                                 instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicController.class.getName()).toString());
+                                                instanceDisk.setControllerUnit(((VirtualLsiLogicController)device).getBusNumber());
                                             } else if (device instanceof ParaVirtualSCSIController) {
                                                 instanceDisk.setController(DiskControllerType.getType(ParaVirtualSCSIController.class.getName()).toString());
+                                                instanceDisk.setControllerUnit(((ParaVirtualSCSIController)device).getBusNumber());
                                             } else if (device instanceof VirtualBusLogicController) {
                                                 instanceDisk.setController(DiskControllerType.getType(VirtualBusLogicController.class.getName()).toString());
+                                                instanceDisk.setControllerUnit(((VirtualBusLogicController)device).getBusNumber());
                                             } else if (device instanceof VirtualLsiLogicSASController) {
                                                 instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicSASController.class.getName()).toString());
+                                                instanceDisk.setControllerUnit(((VirtualLsiLogicSASController)device).getBusNumber());
                                             } else {
-                                                instanceDisk.setController(DiskControllerType.getType(VirtualSCSIController.class.getName()).toString());
+                                                instanceDisk.setController(DiskControllerType.none.toString());
                                             }
-                                            instanceDisk.setControllerUnit(((VirtualSCSIController)device).getBusNumber());
-                                        } else {
-                                            instanceDisk.setController(DiskControllerType.none.toString());
                                         }
                                         instanceDisk.setControllerUnit(diskDevice.getUnitNumber());
                                         break;
@@ -6744,8 +6745,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
                         VirtualDevice[] nics = vmMo.getNicDevices();
                         for (VirtualDevice nic : nics) {
-                            s_logger.info(nic.getClass().getCanonicalName());
-                            if (nic instanceof VirtualEthernetCard) {
+                            try {
                                 UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
                                 VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
                                 instanceNic.setNicId(ethCardDevice.getExternalId());
@@ -6762,6 +6762,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
                                 backingInfo.getNetwork().getValue();
                                 instanceNics.add(instanceNic);
+                            } catch (Exception e) {
+                                s_logger.error(nic.getClass().getCanonicalName() + e.getMessage());
                             }
                         }
                         instance.setNics(instanceNics);

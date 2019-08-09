@@ -67,11 +67,16 @@ public class UnmanagedInstanceResponse extends BaseResponse {
     @Param(description = "the operating system of the virtual machine")
     private String operatingSystem;
 
+    @SerializedName("disk")
+    @Param(description = "the list of disks associated with the virtual machine", responseObject = UnmanagedInstanceDiskResponse.class)
+    private Set<UnmanagedInstanceDiskResponse> disks;
+
     @SerializedName("nic")
     @Param(description = "the list of nics associated with the virtual machine", responseObject = NicResponse.class)
     private Set<NicResponse> nics;
 
     public UnmanagedInstanceResponse() {
+        disks = new LinkedHashSet<UnmanagedInstanceDiskResponse>();
         nics = new LinkedHashSet<NicResponse>();
     }
 
@@ -145,6 +150,18 @@ public class UnmanagedInstanceResponse extends BaseResponse {
 
     public void setOperatingSystem(String operatingSystem) {
         this.operatingSystem = operatingSystem;
+    }
+
+    public Set<UnmanagedInstanceDiskResponse> getDisks() {
+        return disks;
+    }
+
+    public void setDisks(Set<UnmanagedInstanceDiskResponse> disks) {
+        this.disks = disks;
+    }
+
+    public void addDisk(UnmanagedInstanceDiskResponse disk) {
+        this.disks.add(disk);
     }
 
     public Set<NicResponse> getNics() {

@@ -34,6 +34,7 @@ import org.apache.cloudstack.api.command.admin.vm.ListVMsCmdByAdmin;
 import org.apache.cloudstack.api.response.DomainRouterResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.NicResponse;
+import org.apache.cloudstack.api.response.UnmanagedInstanceDiskResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.query.QueryService;
@@ -172,6 +173,19 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         response.setMemory(instance.getMemory());
         response.setOperatingSystem(instance.getOperatingSystem());
         response.setObjectName(UnmanagedInstance.class.getSimpleName().toLowerCase());
+
+        if (instance.getDisks() != null) {
+            for (UnmanagedInstance.Disk disk : instance.getDisks()) {
+                UnmanagedInstanceDiskResponse diskResponse = new UnmanagedInstanceDiskResponse();
+                diskResponse.setDiskId(disk.getDiskId());
+                diskResponse.setCapacity(disk.getCapacity());
+                diskResponse.setController(disk.getController());
+                diskResponse.setControllerUnit(disk.getControllerUnit());
+                diskResponse.setPosition(disk.getPosition());
+                diskResponse.setImagePath(disk.getImagePath());
+                response.addDisk(diskResponse);
+            }
+        }
 
         if (instance.getNics() != null) {
             for (UnmanagedInstance.Nic nic : instance.getNics()) {
