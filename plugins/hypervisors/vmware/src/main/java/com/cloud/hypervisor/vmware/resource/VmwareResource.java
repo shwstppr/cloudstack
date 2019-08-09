@@ -258,6 +258,7 @@ import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachine.PowerState;
 import com.cloud.vm.VirtualMachineName;
 import com.cloud.vm.VmDetailConstants;
+import com.google.common.base.Strings;
 import com.google.gson.Gson;
 import com.vmware.vim25.AboutInfo;
 import com.vmware.vim25.BoolPolicy;
@@ -278,7 +279,6 @@ import com.vmware.vim25.HostInternetScsiHba;
 import com.vmware.vim25.ManagedObjectReference;
 import com.vmware.vim25.ObjectContent;
 import com.vmware.vim25.OptionValue;
-import com.vmware.vim25.ParaVirtualSCSIController;
 import com.vmware.vim25.PerfCounterInfo;
 import com.vmware.vim25.PerfEntityMetric;
 import com.vmware.vim25.PerfEntityMetricBase;
@@ -290,7 +290,6 @@ import com.vmware.vim25.RuntimeFaultFaultMsg;
 import com.vmware.vim25.ToolsUnavailableFaultMsg;
 import com.vmware.vim25.VMwareDVSPortSetting;
 import com.vmware.vim25.VimPortType;
-import com.vmware.vim25.VirtualBusLogicController;
 import com.vmware.vim25.VirtualDevice;
 import com.vmware.vim25.VirtualDeviceBackingInfo;
 import com.vmware.vim25.VirtualDeviceConfigSpec;
@@ -302,8 +301,6 @@ import com.vmware.vim25.VirtualEthernetCardDistributedVirtualPortBackingInfo;
 import com.vmware.vim25.VirtualEthernetCardNetworkBackingInfo;
 import com.vmware.vim25.VirtualEthernetCardOpaqueNetworkBackingInfo;
 import com.vmware.vim25.VirtualIDEController;
-import com.vmware.vim25.VirtualLsiLogicController;
-import com.vmware.vim25.VirtualLsiLogicSASController;
 import com.vmware.vim25.VirtualMachineConfigSpec;
 import com.vmware.vim25.VirtualMachineFileInfo;
 import com.vmware.vim25.VirtualMachineFileLayoutEx;
@@ -6701,6 +6698,9 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         instance.setCpuSpeed(vmMo.getConfigSummary().getCpuReservation());
                         instance.setMemory(vmMo.getConfigSummary().getMemorySizeMB());
                         instance.setOperatingSystem(vmMo.getVmGuestInfo().getGuestFullName());
+                        if (Strings.isNullOrEmpty(instance.getOperatingSystem())) {
+                            instance.setOperatingSystem(vmMo.getConfigSummary().getGuestFullName());
+                        }
                         VirtualDisk[] disks = vmMo.getAllDiskDevice();
                         List<UnmanagedInstance.Disk> instanceDisks = new ArrayList<>();
                         for (VirtualDevice diskDevice : disks) {
@@ -6714,27 +6714,15 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                     if (diskDevice.getControllerKey() == device.getKey()) {
                                         s_logger.info(device.getClass().getCanonicalName() + " " + (device instanceof VirtualSCSIController));
                                         if (device instanceof VirtualIDEController) {
-                                            instanceDisk.setController(DiskControllerType.getType(VirtualIDEController.class.getName()).toString());
+                                            instanceDisk.setController(DiskControllerType.getType(device.getClass().getSimpleName()).toString());
                                             instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
+                                        } else if (device instanceof VirtualSCSIController) {
+                                            instanceDisk.setController(DiskControllerType.getType(device.getClass().getSimpleName()).toString());
+                                            instanceDisk.setControllerUnit(((VirtualSCSIController)device).getBusNumber());
                                         } else {
-                                            instanceDisk.setController(DiskControllerType.getType(VirtualSCSIController.class.getName()).toString());
-                                            if (device instanceof VirtualLsiLogicController) {
-                                                instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicController.class.getName()).toString());
-                                                instanceDisk.setControllerUnit(((VirtualLsiLogicController)device).getBusNumber());
-                                            } else if (device instanceof ParaVirtualSCSIController) {
-                                                instanceDisk.setController(DiskControllerType.getType(ParaVirtualSCSIController.class.getName()).toString());
-                                                instanceDisk.setControllerUnit(((ParaVirtualSCSIController)device).getBusNumber());
-                                            } else if (device instanceof VirtualBusLogicController) {
-                                                instanceDisk.setController(DiskControllerType.getType(VirtualBusLogicController.class.getName()).toString());
-                                                instanceDisk.setControllerUnit(((VirtualBusLogicController)device).getBusNumber());
-                                            } else if (device instanceof VirtualLsiLogicSASController) {
-                                                instanceDisk.setController(DiskControllerType.getType(VirtualLsiLogicSASController.class.getName()).toString());
-                                                instanceDisk.setControllerUnit(((VirtualLsiLogicSASController)device).getBusNumber());
-                                            } else {
-                                                instanceDisk.setController(DiskControllerType.none.toString());
-                                            }
+                                            instanceDisk.setController(DiskControllerType.none.toString());
                                         }
-                                        instanceDisk.setControllerUnit(diskDevice.getUnitNumber());
+                                        instanceDisk.setPosition(diskDevice.getUnitNumber());
                                         break;
                                     }
                                 }
@@ -6745,12 +6733,12 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
                         VirtualDevice[] nics = vmMo.getNicDevices();
                         for (VirtualDevice nic : nics) {
-                            try {
+                            s_logger.error(nic.getClass().getCanonicalName() + " " + nic.getBacking().getClass().getCanonicalName());
+                            if (nic instanceof VirtualEthernetCard) {
                                 UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
                                 VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
                                 instanceNic.setNicId(ethCardDevice.getExternalId());
-                                ethCardDevice.getMacAddress();
-                                ethCardDevice.getSlotInfo().toString();
+                                instanceNic.setMacAddress(ethCardDevice.getMacAddress());
                                 VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
                                 if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
                                     VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
@@ -6762,8 +6750,6 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
                                 backingInfo.getNetwork().getValue();
                                 instanceNics.add(instanceNic);
-                            } catch (Exception e) {
-                                s_logger.error(nic.getClass().getCanonicalName() + e.getMessage());
                             }
                         }
                         instance.setNics(instanceNics);
