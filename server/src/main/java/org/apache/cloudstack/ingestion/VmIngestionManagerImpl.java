@@ -150,6 +150,11 @@ public class VmIngestionManagerImpl implements VmIngestionService {
     }
 
     @Override
+    public UserVmResponse importUnmanagedInstance(ImportUnmanageInstanceCmd cmd) {
+        return null;
+    }
+
+    @Override
     public List<Class<?>> getCommands() {
         final List<Class<?>> cmdList = new ArrayList<Class<?>>();
         cmdList.add(ListUnmanagedInstancesCmd.class);
@@ -190,6 +195,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         if (instance.getNics() != null) {
             for (UnmanagedInstance.Nic nic : instance.getNics()) {
                 NicResponse nicResponse = new NicResponse();
+                nicResponse.setId(nic.getNicId());
                 nicResponse.setDeviceId(nic.getNicId());
                 nicResponse.setMacAddress(nic.getMacAddress());
                 response.addNic(nicResponse);

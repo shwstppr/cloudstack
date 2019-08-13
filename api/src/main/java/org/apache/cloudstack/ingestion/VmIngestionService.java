@@ -17,12 +17,15 @@
 
 package org.apache.cloudstack.ingestion;
 
+import org.apache.cloudstack.api.command.admin.ingestion.ImportUnmanageInstanceCmd;
 import org.apache.cloudstack.api.command.admin.ingestion.ListUnmanagedInstancesCmd;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
+import org.apache.cloudstack.api.response.UserVmResponse;
 
 import com.cloud.utils.component.PluggableService;
 
 public interface VmIngestionService extends PluggableService {
     ListResponse<UnmanagedInstanceResponse> listUnmanagedInstances(ListUnmanagedInstancesCmd cmd);
+    UserVmResponse importUnmanagedInstance(ImportUnmanageInstanceCmd cmd);
 }

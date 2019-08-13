@@ -34,22 +34,25 @@ import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ClusterResponse;
 import org.apache.cloudstack.api.response.DomainResponse;
-import org.apache.cloudstack.api.response.ImportUnmanagedInstanceResponse;
 import org.apache.cloudstack.api.response.NetworkResponse;
 import org.apache.cloudstack.api.response.ProjectResponse;
 import org.apache.cloudstack.api.response.ServiceOfferingResponse;
+import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.ingestion.VmIngestionService;
 import org.apache.log4j.Logger;
 
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientCapacityException;
+import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.exception.NetworkRuleConflictException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.offering.ServiceOffering;
+import com.cloud.org.Cluster;
 
 @APICommand(name = "importUnmanagedInstances",
         description = "Import unmanaged virtual machine from a given cluster/host.",
-        responseObject = ImportUnmanagedInstanceResponse.class,
+        responseObject = UserVmResponse.class,
         responseView = ResponseObject.ResponseView.Full,
         requestHasSensitiveInfo = false,
         responseHasSensitiveInfo = true)
@@ -62,11 +65,13 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     @Parameter(name = ApiConstants.CLUSTER_ID,
             type = CommandType.UUID,
             entityType = ClusterResponse.class,
+            required = true,
             description = "the cluster ID")
     private Long clusterId;
 
     @Parameter(name = ApiConstants.NAME,
             type = CommandType.UUID,
+            required = true,
             description = "the hypervisor name of the instance")
     private Long name;
 
@@ -161,7 +166,9 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
 
     @Override
     public void execute() throws ResourceUnavailableException, InsufficientCapacityException, ServerApiException, ConcurrentOperationException, ResourceAllocationException, NetworkRuleConflictException {
-
+        UserVmResponse response = vmIngestionService.importUnmanagedInstance(this);
+        response.setResponseName(getCommandName());
+        setResponseObject(response);
     }
 
     @Override
@@ -172,5 +179,14 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     @Override
     public long getEntityOwnerId() {
         return 0;
+    }
+
+    private void validateInput() {
+        if (_entityMgr.findById(Cluster.class, clusterId) == null) {
+            throw new InvalidParameterValueException(String.format("Unable to find cluster with ID: %d", clusterId));
+        }
+        if (_entityMgr.findById(ServiceOffering.class, serviceOfferingId) == null) {
+            throw new InvalidParameterValueException(String.format("Unable to find service offering with ID: %d", serviceOfferingId));
+        }
     }
 }

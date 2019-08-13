@@ -6741,7 +6741,36 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                             VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
                             if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
                                 VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
-                                //
+                                DistributedVirtualSwitchPortConnection port = backingInfo.getPort();
+                                String portKey = port.getPortKey();
+                                String portGroupKey = port.getPortgroupKey();
+                                String dvSwitchUuid = port.getSwitchUuid();
+
+                                s_logger.debug("NIC " + nic.toString() + " is connected to dvSwitch " + dvSwitchUuid + " pg " + portGroupKey + " port " + portKey);
+
+                                ManagedObjectReference dvSwitchManager = vmMo.getContext().getVimClient().getServiceContent().getDvSwitchManager();
+                                ManagedObjectReference dvSwitch = vmMo.getContext().getVimClient().getService().queryDvsByUuid(dvSwitchManager, dvSwitchUuid);
+
+                                // Get all ports
+                                DistributedVirtualSwitchPortCriteria criteria = new DistributedVirtualSwitchPortCriteria();
+                                criteria.setInside(true);
+                                criteria.getPortgroupKey().add(portGroupKey);
+                                List<DistributedVirtualPort> dvPorts = vmMo.getContext().getVimClient().getService().fetchDVPorts(dvSwitch, criteria);
+
+                                DistributedVirtualPort vmDvPort = null;
+                                List<Integer> usedVlans = new ArrayList<Integer>();
+                                for (DistributedVirtualPort dvPort : dvPorts) {
+                                    // Find the port for this NIC by portkey
+                                    if (portKey.equals(dvPort.getKey())) {
+                                        vmDvPort = dvPort;
+                                    }
+                                    VMwareDVSPortSetting settings = (VMwareDVSPortSetting)dvPort.getConfig().getSetting();
+                                    VmwareDistributedVirtualSwitchVlanIdSpec vlanId = (VmwareDistributedVirtualSwitchVlanIdSpec)settings.getVlan();
+                                    s_logger.trace("Found port " + dvPort.getKey() + " with vlan " + vlanId.getVlanId());
+                                    if (vlanId.getVlanId() > 0 && vlanId.getVlanId() < 4095) {
+                                        usedVlans.add(vlanId.getVlanId());
+                                    }
+                                }
                             } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
                                 VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
                                 backingInfo.getDeviceName();
