@@ -6733,24 +6733,22 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                         List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
                         VirtualDevice[] nics = vmMo.getNicDevices();
                         for (VirtualDevice nic : nics) {
-                            s_logger.error(nic.getClass().getCanonicalName() + " " + nic.getBacking().getClass().getCanonicalName());
-                            if (nic instanceof VirtualEthernetCard) {
-                                UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
-                                VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
-                                instanceNic.setNicId(ethCardDevice.getExternalId());
-                                instanceNic.setMacAddress(ethCardDevice.getMacAddress());
-                                VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
-                                if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
-                                    VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
-                                    //
-                                } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
-                                    VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
-                                    backingInfo.getDeviceName();
-                                }
-                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
-                                backingInfo.getNetwork().getValue();
-                                instanceNics.add(instanceNic);
+                            VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
+                            s_logger.error(nic.getClass().getCanonicalName() + " " + nic.getBacking().getClass().getCanonicalName() + " " + ethCardDevice.getMacAddress());
+                            UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
+                            instanceNic.setNicId(ethCardDevice.getMacAddress());
+                            instanceNic.setMacAddress(ethCardDevice.getMacAddress());
+                            VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
+                            if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
+                                VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
+                                //
+                            } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
+                                VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
+                                backingInfo.getDeviceName();
                             }
+                            VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
+                            backingInfo.getNetwork().getValue();
+                            instanceNics.add(instanceNic);
                         }
                         instance.setNics(instanceNics);
                         instance.setPowerState(vmMo.getPowerState().toString());
