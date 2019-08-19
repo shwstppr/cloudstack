@@ -176,7 +176,17 @@ public class UnmanagedInstance {
     public static class Nic {
         private String nicId;
 
+        private String adapterType;
+
         private String macAddress;
+
+        private String network;
+
+        private Integer vlan;
+
+        private String ipAddress;
+
+        private String pciSlot;
 
         public String getNicId() {
             return nicId;
@@ -186,12 +196,52 @@ public class UnmanagedInstance {
             this.nicId = nicId;
         }
 
+        public String getAdapterType() {
+            return adapterType;
+        }
+
+        public void setAdapterType(String adapterType) {
+            this.adapterType = adapterType;
+        }
+
         public String getMacAddress() {
             return macAddress;
         }
 
         public void setMacAddress(String macAddress) {
             this.macAddress = macAddress;
+        }
+
+        public String getNetwork() {
+            return network;
+        }
+
+        public void setNetwork(String network) {
+            this.network = network;
+        }
+
+        public Integer getVlan() {
+            return vlan;
+        }
+
+        public void setVlan(Integer vlan) {
+            this.vlan = vlan;
+        }
+
+        public String getIpAddress() {
+            return ipAddress;
+        }
+
+        public void setIpAddress(String ipAddress) {
+            this.ipAddress = ipAddress;
+        }
+
+        public String getPciSlot() {
+            return pciSlot;
+        }
+
+        public void setPciSlot(String pciSlot) {
+            this.pciSlot = pciSlot;
         }
     }
 }

@@ -196,8 +196,10 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             for (UnmanagedInstance.Nic nic : instance.getNics()) {
                 NicResponse nicResponse = new NicResponse();
                 nicResponse.setId(nic.getNicId());
-                nicResponse.setDeviceId(nic.getNicId());
+                nicResponse.setNetworkName(nic.getNetwork());
                 nicResponse.setMacAddress(nic.getMacAddress());
+                //nicResponse.setIpaddress(nic.getIpAddress());
+                nicResponse.setVlanId(nic.getVlan());
                 response.addNic(nicResponse);
             }
         }

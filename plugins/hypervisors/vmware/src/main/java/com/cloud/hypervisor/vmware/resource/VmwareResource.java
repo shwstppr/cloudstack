@@ -276,6 +276,7 @@ import com.vmware.vim25.GuestInfo;
 import com.vmware.vim25.HostCapability;
 import com.vmware.vim25.HostHostBusAdapter;
 import com.vmware.vim25.HostInternetScsiHba;
+import com.vmware.vim25.HostPortGroupSpec;
 import com.vmware.vim25.ManagedObjectReference;
 import com.vmware.vim25.ObjectContent;
 import com.vmware.vim25.OptionValue;
@@ -6736,8 +6737,10 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                             VirtualEthernetCard ethCardDevice = (VirtualEthernetCard) nic;
                             s_logger.error(nic.getClass().getCanonicalName() + " " + nic.getBacking().getClass().getCanonicalName() + " " + ethCardDevice.getMacAddress());
                             UnmanagedInstance.Nic instanceNic = new UnmanagedInstance.Nic();
-                            instanceNic.setNicId(ethCardDevice.getMacAddress());
+                            instanceNic.setNicId(ethCardDevice.getDeviceInfo().getLabel());
+                            instanceNic.setAdapterType(nic.getClass().getSimpleName());
                             instanceNic.setMacAddress(ethCardDevice.getMacAddress());
+                            instanceNic.setPciSlot(ethCardDevice.getSlotInfo().toString());
                             VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
                             if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
                                 VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
@@ -6757,26 +6760,29 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 criteria.getPortgroupKey().add(portGroupKey);
                                 List<DistributedVirtualPort> dvPorts = vmMo.getContext().getVimClient().getService().fetchDVPorts(dvSwitch, criteria);
 
-                                DistributedVirtualPort vmDvPort = null;
-                                List<Integer> usedVlans = new ArrayList<Integer>();
                                 for (DistributedVirtualPort dvPort : dvPorts) {
                                     // Find the port for this NIC by portkey
                                     if (portKey.equals(dvPort.getKey())) {
-                                        vmDvPort = dvPort;
-                                    }
-                                    VMwareDVSPortSetting settings = (VMwareDVSPortSetting)dvPort.getConfig().getSetting();
-                                    VmwareDistributedVirtualSwitchVlanIdSpec vlanId = (VmwareDistributedVirtualSwitchVlanIdSpec)settings.getVlan();
-                                    s_logger.trace("Found port " + dvPort.getKey() + " with vlan " + vlanId.getVlanId());
-                                    if (vlanId.getVlanId() > 0 && vlanId.getVlanId() < 4095) {
-                                        usedVlans.add(vlanId.getVlanId());
+                                        VMwareDVSPortSetting settings = (VMwareDVSPortSetting)dvPort.getConfig().getSetting();
+                                        VmwareDistributedVirtualSwitchVlanIdSpec vlanId = (VmwareDistributedVirtualSwitchVlanIdSpec)settings.getVlan();
+                                        s_logger.trace("Found port " + dvPort.getKey() + " with vlan " + vlanId.getVlanId());
+                                        if (vlanId.getVlanId() > 0 && vlanId.getVlanId() < 4095) {
+                                            instanceNic.setVlan(vlanId.getVlanId());
+                                        }
+                                        break;
                                     }
                                 }
                             } else if (backing instanceof VirtualEthernetCardNetworkBackingInfo) {
                                 VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) backing;
-                                backingInfo.getDeviceName();
+                                instanceNic.setNetwork(backingInfo.getDeviceName());
+                                ManagedObjectReference mor = backingInfo.getNetwork();
+                                if (hyperHost instanceof HostMO) {
+                                    HostMO hostMo = (HostMO)hyperHost;
+                                    HostPortGroupSpec portGroupSpec = hostMo.getHostPortGroupSpec(backingInfo.getDeviceName());
+                                    instanceNic.setVlan(portGroupSpec.getVlanId());
+                                    instanceNic.setIpAddress("");
+                                }
                             }
-                            VirtualEthernetCardNetworkBackingInfo backingInfo = (VirtualEthernetCardNetworkBackingInfo) ethCardDevice.getBacking();
-                            backingInfo.getNetwork().getValue();
                             instanceNics.add(instanceNic);
                         }
                         instance.setNics(instanceNics);
