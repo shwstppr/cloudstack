@@ -6783,4 +6783,106 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
             }
         }
     }
+
+    @Override
+    public UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName, final Account owner,
+                         final Long diskOfferingId, final Long diskSize, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
+                         final long accountId, final long userId, final ServiceOffering serviceOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
+                         final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final Map<Long, DiskOffering> dataDiskTemplateToDiskOfferingMap) throws InsufficientCapacityException {
+
+
+        final long id = _vmDao.getNextInSequence(Long.class, "id");
+
+        final DiskOffering rootDiskOffering = _diskOfferingDao.findById(diskOfferingId);
+
+        if (hostName != null) {
+            // Check is hostName is RFC compliant
+            checkNameForRFCCompliance(hostName);
+        }
+
+        final String uuidName = _uuidMgr.generateUuid(UserVm.class, null);
+        return Transaction.execute(new TransactionCallbackWithException<UserVmVO, InsufficientCapacityException>() {
+               @Override
+               public UserVmVO doInTransaction(TransactionStatus status) throws InsufficientCapacityException {
+                   // TODO: Default values?
+                   long templateId = 7;
+                   long guestOSId = 12;
+                   if (template != null) {
+                       templateId = template.getId();
+                       guestOSId = template.getGuestOSId();
+                   }
+
+                   UserVmVO vm = new UserVmVO(id, instanceName, displayName, templateId, hypervisorType, guestOSId, serviceOffering.isOfferHA(),
+                           serviceOffering.getLimitCpuUse(), owner.getDomainId(), owner.getId(), userId, serviceOffering.getId(), userData, hostName, diskOfferingId);
+                   vm.setUuid(uuidName);
+                   if (template != null) {
+                       vm.setDynamicallyScalable(template.isDynamicallyScalable());
+                       Map<String, String> details = template.getDetails();
+                       if (details != null && !details.isEmpty()) {
+                           vm.details.putAll(details);
+                       }
+                   }
+
+                   if (sshPublicKey != null) {
+                       vm.setDetail(VmDetailConstants.SSH_PUBLIC_KEY, sshPublicKey);
+                   }
+
+                   if (keyboard != null && !keyboard.isEmpty()) {
+                       vm.setDetail(VmDetailConstants.KEYBOARD, keyboard);
+                   }
+
+                   if (isDisplayVm != null) {
+                       vm.setDisplayVm(isDisplayVm);
+                   } else {
+                       vm.setDisplayVm(true);
+                   }
+
+                   GuestOSVO guestOS = _guestOSDao.findById(guestOSId);
+                   long guestOSCategoryId = guestOS.getCategoryId();
+                   GuestOSCategoryVO guestOSCategory = _guestOSCategoryDao.findById(guestOSCategoryId);
+
+                   // If hypervisor is vSphere and OS is OS X, set special settings.
+                   if (hypervisorType.equals(HypervisorType.VMware)) {
+                       if (guestOS.getDisplayName().toLowerCase().contains("apple mac os")) {
+                           vm.setDetail(VmDetailConstants.SMC_PRESENT, "TRUE");
+                           vm.setDetail(VmDetailConstants.ROOT_DISK_CONTROLLER, "scsi");
+                           vm.setDetail(VmDetailConstants.DATA_DISK_CONTROLLER, "scsi");
+                           vm.setDetail(VmDetailConstants.FIRMWARE, "efi");
+                           s_logger.info("guestOS is OSX : overwrite root disk controller to scsi, use smc and efi");
+                       } else {
+                           String controllerSetting = _configDao.getValue("vmware.root.disk.controller");
+                           // Don't override if VM already has root/data disk controller detail
+                           if (vm.getDetail(VmDetailConstants.ROOT_DISK_CONTROLLER) == null) {
+                               vm.setDetail(VmDetailConstants.ROOT_DISK_CONTROLLER, controllerSetting);
+                           }
+                           if (vm.getDetail(VmDetailConstants.DATA_DISK_CONTROLLER) == null) {
+                               if (controllerSetting.equalsIgnoreCase("scsi")) {
+                                   vm.setDetail(VmDetailConstants.DATA_DISK_CONTROLLER, "scsi");
+                               } else {
+                                   vm.setDetail(VmDetailConstants.DATA_DISK_CONTROLLER, "osdefault");
+                               }
+                           }
+                       }
+                   }
+
+                   vm = _vmDao.persist(vm);
+                   for (String key : customParameters.keySet()) {
+                       if (key.equalsIgnoreCase(VmDetailConstants.CPU_NUMBER) ||
+                               key.equalsIgnoreCase(VmDetailConstants.CPU_SPEED) ||
+                               key.equalsIgnoreCase(VmDetailConstants.MEMORY)) {
+                           // handle double byte strings.
+                           vm.setDetail(key, Integer.toString(Integer.parseInt(customParameters.get(key))));
+                       } else {
+                           vm.setDetail(key, customParameters.get(key));
+                       }
+                   }
+                   _vmDao.saveDetails(vm);
+
+//                   volumeMgr.allocateRawVolume(Volume.Type.ROOT, "ROOT-" + vm.getId(), rootDiskOffering, diskSize,
+//                           rootDiskOffering.getMinIops(), rootDiskOffering.getMaxIops(), vm, template, owner, null);
+
+                   return vm;
+               }
+           });
+    }
 }

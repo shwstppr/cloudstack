@@ -20,7 +20,6 @@ package org.apache.cloudstack.api.command.admin.ingestion;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import javax.inject.Inject;
@@ -33,14 +32,17 @@ import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ResponseObject;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.response.ClusterResponse;
+import org.apache.cloudstack.api.response.DiskOfferingResponse;
 import org.apache.cloudstack.api.response.DomainResponse;
-import org.apache.cloudstack.api.response.NetworkResponse;
 import org.apache.cloudstack.api.response.ProjectResponse;
 import org.apache.cloudstack.api.response.ServiceOfferingResponse;
+import org.apache.cloudstack.api.response.TemplateResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
+import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.ingestion.VmIngestionService;
 import org.apache.log4j.Logger;
 
+import com.cloud.event.EventTypes;
 import com.cloud.exception.ConcurrentOperationException;
 import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.InvalidParameterValueException;
@@ -49,8 +51,9 @@ import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
 import com.cloud.offering.ServiceOffering;
 import com.cloud.org.Cluster;
+import com.cloud.user.Account;
 
-@APICommand(name = "importUnmanagedInstances",
+@APICommand(name = ImportUnmanageInstanceCmd.API_NAME,
         description = "Import unmanaged virtual machine from a given cluster/host.",
         responseObject = UserVmResponse.class,
         responseView = ResponseObject.ResponseView.Full,
@@ -58,6 +61,7 @@ import com.cloud.org.Cluster;
         responseHasSensitiveInfo = true)
 public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     public static final Logger s_logger = Logger.getLogger(ImportUnmanageInstanceCmd.class.getName());
+    public static final String API_NAME = "importUnmanagedInstance";
 
     @Inject
     public VmIngestionService vmIngestionService;
@@ -70,10 +74,10 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     private Long clusterId;
 
     @Parameter(name = ApiConstants.NAME,
-            type = CommandType.UUID,
+            type = CommandType.STRING,
             required = true,
             description = "the hypervisor name of the instance")
-    private Long name;
+    private String name;
 
     @Parameter(name = ApiConstants.DOMAIN_ID,
             type = CommandType.UUID,
@@ -88,6 +92,14 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     private Long projectId;
 
     @ACL
+    @Parameter(name = ApiConstants.TEMPLATE_ID,
+            type = CommandType.UUID,
+            entityType = TemplateResponse.class,
+            required = true,
+            description = "the ID of the template for the virtual machine")
+    private Long templateId;
+
+    @ACL
     @Parameter(name = ApiConstants.SERVICE_OFFERING_ID,
             type = CommandType.UUID,
             entityType = ServiceOfferingResponse.class,
@@ -95,11 +107,18 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
             description = "the ID of the service offering for the virtual machine")
     private Long serviceOfferingId;
 
-    @Parameter(name = ApiConstants.NETWORK_ID,
+    @ACL
+    @Parameter(name = ApiConstants.DISK_OFFERING_ID,
             type = CommandType.UUID,
-            entityType = NetworkResponse.class,
-            description = "network id used by virtual machine")
-    private List<Long> networkIds;
+            entityType = DiskOfferingResponse.class,
+            required = true,
+            description = "the ID of the root disk offering for the virtual machine")
+    private Long diskOfferingId;
+
+    @Parameter(name = "nicNetworkList",
+            type = CommandType.MAP,
+            description = "VM nic to network id mapping")
+    private Map nicNetworkList;
 
     @Parameter(name = ApiConstants.DATADISK_OFFERING_LIST,
             type = CommandType.MAP,
@@ -115,12 +134,16 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
         return clusterId;
     }
 
-    public Long getName() {
+    public String getName() {
         return name;
     }
 
     public Long getDomainId() {
         return domainId;
+    }
+
+    public Long getTemplateId() {
+        return templateId;
     }
 
     public Long getProjectId() {
@@ -131,8 +154,12 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
         return serviceOfferingId;
     }
 
-    public List<Long> getNetworkIds() {
-        return networkIds;
+    public Long getDiskOfferingId() {
+        return diskOfferingId;
+    }
+
+    public Map getNicNetworkList() {
+        return nicNetworkList;
     }
 
     public Map getDataDiskToDiskOfferingList() {
@@ -156,16 +183,17 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
 
     @Override
     public String getEventType() {
-        return null;
+        return EventTypes.EVENT_VM_INGEST;
     }
 
     @Override
     public String getEventDescription() {
-        return null;
+        return "Importing unmanaged VM";
     }
 
     @Override
     public void execute() throws ResourceUnavailableException, InsufficientCapacityException, ServerApiException, ConcurrentOperationException, ResourceAllocationException, NetworkRuleConflictException {
+        validateInput();
         UserVmResponse response = vmIngestionService.importUnmanagedInstance(this);
         response.setResponseName(getCommandName());
         setResponseObject(response);
@@ -173,12 +201,16 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
 
     @Override
     public String getCommandName() {
-        return null;
+        return API_NAME.toLowerCase() + BaseAsyncCmd.RESPONSE_SUFFIX;
     }
 
     @Override
     public long getEntityOwnerId() {
-        return 0;
+        Account account = CallContext.current().getCallingAccount();
+        if (account != null) {
+            return account.getId();
+        }
+        return Account.ACCOUNT_ID_SYSTEM;
     }
 
     private void validateInput() {

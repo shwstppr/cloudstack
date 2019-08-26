@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.vm;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -509,5 +510,10 @@ public interface UserVmService {
     void collectVmDiskStatistics(UserVm userVm);
 
     void collectVmNetworkStatistics (UserVm userVm);
+
+    UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName, final Account owner,
+                  final Long diskOfferingId, final Long diskSize, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
+                  final long accountId, final long userId, final ServiceOffering serviceOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
+                  final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final Map<Long, DiskOffering> dataDiskTemplateToDiskOfferingMap) throws InsufficientCapacityException;
 
 }
