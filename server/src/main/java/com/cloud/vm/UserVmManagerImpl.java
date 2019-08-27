@@ -40,8 +40,6 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
-import com.cloud.storage.TemplateOVFPropertyVO;
-import com.cloud.storage.dao.TemplateOVFPropertiesDao;
 import org.apache.cloudstack.acl.ControlledEntity.ACLType;
 import org.apache.cloudstack.acl.SecurityChecker.AccessType;
 import org.apache.cloudstack.affinity.AffinityGroupService;
@@ -243,6 +241,7 @@ import com.cloud.storage.Storage.StoragePoolType;
 import com.cloud.storage.Storage.TemplateType;
 import com.cloud.storage.StoragePool;
 import com.cloud.storage.StoragePoolStatus;
+import com.cloud.storage.TemplateOVFPropertyVO;
 import com.cloud.storage.VMTemplateStorageResourceAssoc;
 import com.cloud.storage.VMTemplateVO;
 import com.cloud.storage.VMTemplateZoneVO;
@@ -253,6 +252,7 @@ import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.GuestOSCategoryDao;
 import com.cloud.storage.dao.GuestOSDao;
 import com.cloud.storage.dao.SnapshotDao;
+import com.cloud.storage.dao.TemplateOVFPropertiesDao;
 import com.cloud.storage.dao.VMTemplateDao;
 import com.cloud.storage.dao.VMTemplateZoneDao;
 import com.cloud.storage.dao.VolumeDao;
@@ -6843,7 +6843,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     public UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName,
                            final Account owner, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
                            final long accountId, final long userId, final ServiceOffering serviceOffering, final DiskOffering rootDiskOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
-                           final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters) throws InsufficientCapacityException {
+                           final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final VirtualMachine.PowerState powerState) throws InsufficientCapacityException {
 
 
         final long id = _vmDao.getNextInSequence(Long.class, "id");
@@ -6867,6 +6867,8 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
 
                    UserVmVO vm = new UserVmVO(id, instanceName, displayName, templateId, hypervisorType, guestOSId, serviceOffering.isOfferHA(),
                            serviceOffering.getLimitCpuUse(), owner.getDomainId(), owner.getId(), userId, serviceOffering.getId(), userData, hostName, rootDiskOffering.getId());
+                   vm.setDataCenterId(zone.getId());
+                   vm.setPowerState(powerState);
                    vm.setUuid(uuidName);
                    if (template != null) {
                        vm.setDynamicallyScalable(template.isDynamicallyScalable());

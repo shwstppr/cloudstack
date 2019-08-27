@@ -49,6 +49,7 @@ import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.exception.NetworkRuleConflictException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.offering.DiskOffering;
 import com.cloud.offering.ServiceOffering;
 import com.cloud.org.Cluster;
 import com.cloud.user.Account;
@@ -163,7 +164,22 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     }
 
     public Map<String, Long> getDataDiskToDiskOfferingList() {
-        return dataDiskToDiskOfferingList;
+        Map<String, Long> dataDiskToDiskOfferingMap = new HashMap<>();
+        if (dataDiskToDiskOfferingList != null && !dataDiskToDiskOfferingList.isEmpty()) {
+            Collection parameterCollection = dataDiskToDiskOfferingList.values();
+            Iterator iter = parameterCollection.iterator();
+            while (iter.hasNext()) {
+                HashMap<String, String> value = (HashMap<String, String>)iter.next();
+                String disk = value.get("disk");
+                String offeringUuid = value.get("diskOffering");
+                if (_entityMgr.findByUuid(DiskOffering.class, offeringUuid) != null) {
+                    dataDiskToDiskOfferingMap.put(disk, _entityMgr.findByUuid(DiskOffering.class, offeringUuid).getId());
+                } else {
+                    throw new InvalidParameterValueException(String.format("Unable to find disk offering ID: %s for data disk ID: %s", offeringUuid, disk));
+                }
+            }
+        }
+        return dataDiskToDiskOfferingMap;
     }
 
     public Map getDetails() {
