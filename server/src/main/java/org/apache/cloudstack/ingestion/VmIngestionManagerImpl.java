@@ -239,7 +239,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         if (serviceOfferingId == null) {
             throw new InvalidParameterValueException(String.format("Service offering ID cannot be null!"));
         }
-        final ServiceOffering serviceOffering = serviceOfferingDao.findById(templateId);
+        final ServiceOffering serviceOffering = serviceOfferingDao.findById(serviceOfferingId);
         if (serviceOffering == null) {
             throw new InvalidParameterValueException(String.format("Service offering ID: %d cannot be found!", serviceOfferingId));
         }
