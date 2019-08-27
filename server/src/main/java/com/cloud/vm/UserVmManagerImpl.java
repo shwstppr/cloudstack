@@ -99,7 +99,6 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
-import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
 import com.cloud.agent.AgentManager;
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
@@ -184,6 +183,7 @@ import com.cloud.host.dao.HostDao;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
 import com.cloud.hypervisor.HypervisorCapabilitiesVO;
 import com.cloud.hypervisor.dao.HypervisorCapabilitiesDao;
+import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
 import com.cloud.network.IpAddressManager;
 import com.cloud.network.Network;
 import com.cloud.network.Network.IpAddresses;
@@ -311,6 +311,7 @@ import com.cloud.vm.snapshot.VMSnapshotManager;
 import com.cloud.vm.snapshot.VMSnapshotVO;
 import com.cloud.vm.snapshot.dao.VMSnapshotDao;
 import com.google.common.base.Strings;
+import com.google.gson.Gson;
 
 public class UserVmManagerImpl extends ManagerBase implements UserVmManager, VirtualMachineGuru, UserVmService, Configurable {
     private static final Logger s_logger = Logger.getLogger(UserVmManagerImpl.class);
@@ -484,6 +485,8 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     private DpdkHelper dpdkHelper;
     @Inject
     private ResourceTagDao resourceTagDao;
+
+    protected Gson gson;
 
     private ScheduledExecutorService _executor = null;
     private ScheduledExecutorService _vmIpFetchExecutor = null;
@@ -6785,15 +6788,13 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     }
 
     @Override
-    public UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName, final Account owner,
-                         final Long diskOfferingId, final Long diskSize, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
-                         final long accountId, final long userId, final ServiceOffering serviceOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
-                         final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final Map<Long, DiskOffering> dataDiskTemplateToDiskOfferingMap) throws InsufficientCapacityException {
+    public UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName,
+                           final Account owner, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
+                           final long accountId, final long userId, final ServiceOffering serviceOffering, final DiskOffering rootDiskOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
+                           final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters) throws InsufficientCapacityException {
 
 
         final long id = _vmDao.getNextInSequence(Long.class, "id");
-
-        final DiskOffering rootDiskOffering = _diskOfferingDao.findById(diskOfferingId);
 
         if (hostName != null) {
             // Check is hostName is RFC compliant
@@ -6813,7 +6814,7 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
                    }
 
                    UserVmVO vm = new UserVmVO(id, instanceName, displayName, templateId, hypervisorType, guestOSId, serviceOffering.isOfferHA(),
-                           serviceOffering.getLimitCpuUse(), owner.getDomainId(), owner.getId(), userId, serviceOffering.getId(), userData, hostName, diskOfferingId);
+                           serviceOffering.getLimitCpuUse(), owner.getDomainId(), owner.getId(), userId, serviceOffering.getId(), userData, hostName, rootDiskOffering.getId());
                    vm.setUuid(uuidName);
                    if (template != null) {
                        vm.setDynamicallyScalable(template.isDynamicallyScalable());
@@ -6877,9 +6878,6 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
                        }
                    }
                    _vmDao.saveDetails(vm);
-
-//                   volumeMgr.allocateRawVolume(Volume.Type.ROOT, "ROOT-" + vm.getId(), rootDiskOffering, diskSize,
-//                           rootDiskOffering.getMinIops(), rootDiskOffering.getMaxIops(), vm, template, owner, null);
 
                    return vm;
                }

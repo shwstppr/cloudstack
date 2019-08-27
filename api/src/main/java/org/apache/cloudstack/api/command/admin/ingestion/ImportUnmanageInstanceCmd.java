@@ -162,7 +162,7 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
         return nicNetworkList;
     }
 
-    public Map getDataDiskToDiskOfferingList() {
+    public Map<String, Long> getDataDiskToDiskOfferingList() {
         return dataDiskToDiskOfferingList;
     }
 

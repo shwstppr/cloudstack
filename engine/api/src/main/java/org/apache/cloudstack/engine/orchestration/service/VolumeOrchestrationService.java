@@ -127,4 +127,7 @@ public interface VolumeOrchestrationService {
     StoragePool findStoragePool(DiskProfile dskCh, DataCenter dc, Pod pod, Long clusterId, Long hostId, VirtualMachine vm, Set<StoragePool> avoid);
 
     void updateVolumeDiskChain(long volumeId, String path, String chainInfo);
+
+    DiskProfile ingestVolume(Type type, String name, DiskOffering offering, Long size, Long minIops, Long maxIops, VirtualMachine vm, VirtualMachineTemplate template,
+                             Account owner, Long deviceId, String path, String chainInfo);
 }

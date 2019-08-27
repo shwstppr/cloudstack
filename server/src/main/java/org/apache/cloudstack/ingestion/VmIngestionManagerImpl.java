@@ -43,7 +43,10 @@ import org.apache.cloudstack.api.response.UnmanagedInstanceDiskResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.engine.orchestration.service.VolumeOrchestrationService;
 import org.apache.cloudstack.query.QueryService;
+import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
+import org.apache.cloudstack.utils.volume.VirtualMachineDiskInfo;
 import org.apache.log4j.Logger;
 
 import com.cloud.agent.AgentManager;
@@ -64,6 +67,7 @@ import com.cloud.org.Cluster;
 import com.cloud.resource.ResourceManager;
 import com.cloud.server.ManagementService;
 import com.cloud.service.dao.ServiceOfferingDao;
+import com.cloud.storage.Volume;
 import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.VMTemplateDao;
 import com.cloud.template.VirtualMachineTemplate;
@@ -74,9 +78,11 @@ import com.cloud.user.dao.UserDao;
 import com.cloud.uservm.UserVm;
 import com.cloud.utils.Pair;
 import com.cloud.utils.component.ComponentContext;
+import com.cloud.vm.DiskProfile;
 import com.cloud.vm.UserVmService;
 import com.cloud.vm.VirtualMachine;
 import com.google.common.base.Strings;
+import com.google.gson.Gson;
 
 public class VmIngestionManagerImpl implements VmIngestionService {
     private static final Logger LOGGER = Logger.getLogger(VmIngestionManagerImpl.class);
@@ -107,6 +113,12 @@ public class VmIngestionManagerImpl implements VmIngestionService {
     private UserVmService userVmService;
     @Inject
     public ResponseGenerator responseGenerator;
+    @Inject
+    private VolumeOrchestrationService volumeManager;
+    @Inject
+    private PrimaryDataStoreDao primaryDataStoreDao;
+
+    protected Gson gson;
 
     @Override
     public ListResponse<UnmanagedInstanceResponse> listUnmanagedInstances(ListUnmanagedInstancesCmd cmd) {
@@ -237,7 +249,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         // TODO
         final Map networkNicProfileMap = cmd.getNicNetworkList();
-        final Map dataDiskOfferingMap = cmd.getDataDiskToDiskOfferingList();
+        final Map<String, Long> dataDiskOfferingMap = cmd.getDataDiskToDiskOfferingList();
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
 
@@ -261,9 +273,23 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                             final UnmanagedInstance.Disk rootDisk = unmanagedInstance.getDisks().get(0);
                             final long rootDiskSize = diskOffering.isCustomized() ? rootDisk.getCapacity() : (diskOffering.getDiskSize()/(1024*1024));
                             try {
-                                userVm = userVmService.ingestVm(zone, template, instanceName, instanceName, owner, diskOfferingId, rootDiskSize,
-                                        null, caller, true, null, owner.getAccountId(), userId, serviceOffering, null, null, instanceName, cluster.getHypervisorType(),
-                                        new HashMap<>(), new HashMap<>());
+                                userVm = userVmService.ingestVm(zone, template, instanceName, instanceName, owner,
+                                        null, caller, true, null, owner.getAccountId(), userId,
+                                        serviceOffering, diskOffering, null, null, instanceName,
+                                        cluster.getHypervisorType(), new HashMap<>());
+                                if (userVm != null) {
+                                    ingestDisk(rootDisk, userVm, diskOffering, Volume.Type.ROOT, String.format("ROOT-%d", userVm.getId()), rootDiskSize, template, owner, null);
+                                    Set<String> disks = dataDiskOfferingMap.keySet();
+                                    for (String diskId : disks) {
+                                        for (UnmanagedInstance.Disk unmanagedDisk: unmanagedInstance.getDisks()) {
+                                            if (unmanagedDisk.getDiskId().equals(diskId)) {
+                                                DiskOffering offering = diskOfferingDao.findById(dataDiskOfferingMap.get(diskId));
+                                                ingestDisk(rootDisk, userVm, diskOffering, Volume.Type.DATADISK, String.format("DATA-%d-%s", userVm.getId(), unmanagedDisk.getDiskId()), offering.isCustomized() ? (unmanagedDisk.getCapacity()/(1024*1024)) : offering.getDiskSize(), template, owner, null);
+
+                                            }
+                                        }
+                                    }
+                                }
                             } catch (InsufficientCapacityException ice) {
                                 throw new ServerApiException(ApiErrorCode.INSUFFICIENT_CAPACITY_ERROR, ice.getMessage());
                             }
@@ -331,5 +357,23 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             }
         }
         return response;
+    }
+
+    private DiskProfile ingestDisk(UnmanagedInstance.Disk disk, VirtualMachine vm, DiskOffering diskOffering,
+                                   Volume.Type type, String name, Long diskSize, VirtualMachineTemplate template,
+                                   Account owner, Long deviceId) {
+        VirtualMachineDiskInfo diskInfo = new VirtualMachineDiskInfo();
+        diskInfo.setDiskDeviceBusName(String.format("%s%d:%d", disk.getController(), disk.getControllerUnit(), disk.getPosition()));
+        diskInfo.setDiskChain(new String[] {disk.getImagePath()});
+        String path = disk.getImagePath();
+        String[] splits = path.split(" ");
+        String poolUuid = splits[0];
+        path = splits[splits.length-1];
+        splits = path.split("/");
+        path = splits[splits.length-1];
+        splits = path.split(".");
+        path = splits[0];
+        return volumeManager.ingestVolume(type, name, diskOffering, diskSize,
+                diskOffering.getMinIops(), diskOffering.getMaxIops(), vm, template, owner, deviceId, path, gson.toJson(diskInfo));
     }
 }
