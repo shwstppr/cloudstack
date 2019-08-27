@@ -6718,7 +6718,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                             instanceDisk.setController(DiskControllerType.getType(device.getClass().getSimpleName()).toString());
                                             instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
                                         } else if (device instanceof VirtualSCSIController) {
-                                            instanceDisk.setController(DiskControllerType.getType(device.getClass().getSimpleName()).toString());
+                                            instanceDisk.setController("scsi");
                                             instanceDisk.setControllerUnit(((VirtualSCSIController)device).getBusNumber());
                                         } else {
                                             instanceDisk.setController(DiskControllerType.none.toString());
@@ -6740,7 +6740,9 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                             instanceNic.setNicId(ethCardDevice.getDeviceInfo().getLabel());
                             instanceNic.setAdapterType(nic.getClass().getSimpleName());
                             instanceNic.setMacAddress(ethCardDevice.getMacAddress());
-                            instanceNic.setPciSlot(ethCardDevice.getSlotInfo().toString());
+                            if (ethCardDevice.getSlotInfo() != null) {
+                                instanceNic.setPciSlot(ethCardDevice.getSlotInfo().toString());
+                            }
                             VirtualDeviceBackingInfo backing = ethCardDevice.getBacking();
                             if (backing instanceof VirtualEthernetCardDistributedVirtualPortBackingInfo) {
                                 VirtualEthernetCardDistributedVirtualPortBackingInfo backingInfo = (VirtualEthernetCardDistributedVirtualPortBackingInfo) backing;
