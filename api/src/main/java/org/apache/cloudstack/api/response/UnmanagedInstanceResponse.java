@@ -51,7 +51,7 @@ public class UnmanagedInstanceResponse extends BaseResponse {
     @Param(description = "the CPU cores of the virtual machine")
     private Integer cpuCores;
 
-    @SerializedName("cpuCoresPerSocket")
+    @SerializedName("cpucorespersocket")
     @Param(description = "the CPU cores per socket for the virtual machine. VMware specific")
     private Integer cpuCoresPerSocket;
 

@@ -127,7 +127,7 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
             description = "the ID of the root disk offering for the virtual machine")
     private Long diskOfferingId;
 
-    @Parameter(name = "nicNetworkList",
+    @Parameter(name = "nicnetworklist",
             type = CommandType.MAP,
             description = "VM nic to network id mapping")
     private Map nicNetworkList;
@@ -178,7 +178,7 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
         return diskOfferingId;
     }
 
-    public Map getNicNetworkList() {
+    public Map<String, Long> getNicNetworkList() {
         Map<String, Long> nicNetworkMap = new HashMap<>();
         if (nicNetworkList != null && !nicNetworkList.isEmpty()) {
             Collection parameterCollection = nicNetworkList.values();

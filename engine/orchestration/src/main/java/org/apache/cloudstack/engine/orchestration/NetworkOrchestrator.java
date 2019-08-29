@@ -3957,4 +3957,28 @@ public class NetworkOrchestrator extends ManagerBase implements NetworkOrchestra
                 GuestDomainSuffix, NetworkThrottlingRate, MinVRVersion,
                 PromiscuousMode, MacAddressChanges, ForgedTransmits, RollingRestartEnabled};
     }
+
+    @DB
+    @Override
+    public Pair<NicProfile, Integer> ingestNic(final String macAddress, int deviceId, final Network network, final Boolean isDefaultNic, final VirtualMachine vm)
+            throws ConcurrentOperationException {
+        s_logger.debug("Allocating nic for vm " + vm.getUuid() + " in network " + network + " during ingestion");
+
+        NicVO vo = new NicVO(network.getGuruName(), vm.getId(), network.getId(), vm.getType());
+        vo.setAddressFormat(Networks.AddressFormat.Ip4);
+        vo.setBroadcastUri(network.getBroadcastUri());
+        vo.setState(Nic.State.Reserved);
+        vo.setReservationStrategy(ReservationStrategy.Start);
+        vo.setReservationId(UUID.randomUUID().toString());
+        vo.setDeviceId(deviceId);
+        vo.setIsolationUri(network.getBroadcastUri());
+        vo.setDeviceId(isDefaultNic ? 1 : 0);
+        vo = _nicDao.persist(vo);
+
+        final Integer networkRate = _networkModel.getNetworkRate(network.getId(), vm.getId());
+        final NicProfile vmNic = new NicProfile(vo, network, vo.getBroadcastUri(), vo.getIsolationUri(), networkRate, _networkModel.isSecurityGroupSupportedInNetwork(network),
+                _networkModel.getNetworkTag(vm.getHypervisorType(), network));
+
+        return new Pair<NicProfile, Integer>(vmNic, Integer.valueOf(deviceId));
+    }
 }

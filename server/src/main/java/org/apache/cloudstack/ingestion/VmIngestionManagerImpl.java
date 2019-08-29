@@ -43,6 +43,7 @@ import org.apache.cloudstack.api.response.UnmanagedInstanceDiskResponse;
 import org.apache.cloudstack.api.response.UnmanagedInstanceResponse;
 import org.apache.cloudstack.api.response.UserVmResponse;
 import org.apache.cloudstack.context.CallContext;
+import org.apache.cloudstack.engine.orchestration.service.NetworkOrchestrationService;
 import org.apache.cloudstack.engine.orchestration.service.VolumeOrchestrationService;
 import org.apache.cloudstack.query.QueryService;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
@@ -61,6 +62,8 @@ import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
+import com.cloud.network.Network;
+import com.cloud.network.dao.NetworkDao;
 import com.cloud.offering.DiskOffering;
 import com.cloud.offering.ServiceOffering;
 import com.cloud.org.Cluster;
@@ -81,6 +84,7 @@ import com.cloud.uservm.UserVm;
 import com.cloud.utils.Pair;
 import com.cloud.utils.component.ComponentContext;
 import com.cloud.vm.DiskProfile;
+import com.cloud.vm.NicProfile;
 import com.cloud.vm.UserVmService;
 import com.cloud.vm.VirtualMachine;
 import com.google.common.base.Strings;
@@ -119,6 +123,10 @@ public class VmIngestionManagerImpl implements VmIngestionService {
     private VolumeOrchestrationService volumeManager;
     @Inject
     private PrimaryDataStoreDao primaryDataStoreDao;
+    @Inject
+    private NetworkDao networkDao;
+    @Inject
+    private NetworkOrchestrationService networkOrchestrationService;
 
     protected Gson gson;
 
@@ -261,8 +269,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             hostName = instanceName;
         }
 
-        // TODO
-        final Map networkNicProfileMap = cmd.getNicNetworkList();
+        final Map<String, Long> nicNetworkMap = cmd.getNicNetworkList();
         final Map<String, Long> dataDiskOfferingMap = cmd.getDataDiskToDiskOfferingList();
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
@@ -306,6 +313,19 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                                 ingestDisk(rootDisk, userVm, diskOffering, Volume.Type.DATADISK, String.format("DATA-%d-%s", userVm.getId(), unmanagedDisk.getDiskId()), offering.isCustomized() ? (unmanagedDisk.getCapacity() / (1024 * 1024)) : offering.getDiskSize(), template, owner, null);
                                             }
                                         }
+                                    }
+
+                                    Set<String> nics = nicNetworkMap.keySet();
+                                    int i = 0;
+                                    for (String nicId : nics) {
+                                        Network network = networkDao.findById(nicNetworkMap.get(nicId));
+                                        for (UnmanagedInstance.Nic unmanagedNic : unmanagedInstance.getNics()) {
+                                            if (unmanagedNic.getNicId().equals(nicId) &&
+                                                    network.getBroadcastUri().toString().equals(String.format("vlan://%d", unmanagedNic.getVlan()))) {
+                                                ingestNic(unmanagedNic, userVm, network,i == 0);
+                                            }
+                                        }
+                                        i++;
                                     }
                                 }
                             } catch (InsufficientCapacityException ice) {
@@ -405,5 +425,13 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         path = splits[0];
         return volumeManager.ingestVolume(type, name, diskOffering, diskSize,
                 diskOffering.getMinIops(), diskOffering.getMaxIops(), vm, template, owner, deviceId, poolId, path, gson.toJson(diskInfo));
+    }
+
+    private NicProfile ingestNic(UnmanagedInstance.Nic nic, VirtualMachine vm, Network network, boolean isDefaultNic) {
+        Pair<NicProfile, Integer> result = networkOrchestrationService.ingestNic(nic.getMacAddress(), 0, network, isDefaultNic, vm);
+        if (result == null) {
+            return null;
+        }
+        return result.first();
     }
 }

@@ -973,4 +973,9 @@ public class MockNetworkManagerImpl extends ManagerBase implements NetworkOrches
     public AcquirePodIpCmdResponse allocatePodIp(Account account, String zoneId, String podId) throws ResourceAllocationException, ConcurrentOperationException {
         return null;
     }
+
+    @Override
+    public Pair<NicProfile, Integer> ingestNic(String macAddress, int deviceId, Network network, Boolean isDefaultNic, VirtualMachine vm) {
+        return null;
+    }
 }
