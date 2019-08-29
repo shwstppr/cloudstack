@@ -129,5 +129,5 @@ public interface VolumeOrchestrationService {
     void updateVolumeDiskChain(long volumeId, String path, String chainInfo);
 
     DiskProfile ingestVolume(Type type, String name, DiskOffering offering, Long size, Long minIops, Long maxIops, VirtualMachine vm, VirtualMachineTemplate template,
-                             Account owner, Long deviceId, String path, String chainInfo);
+                             Account owner, Long deviceId, Long poolId, String path, String chainInfo);
 }

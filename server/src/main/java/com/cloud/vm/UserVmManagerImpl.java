@@ -6840,10 +6840,10 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
     }
 
     @Override
-    public UserVm ingestVm(final DataCenter zone, final VirtualMachineTemplate template, final String hostName, final String displayName,
+    public UserVm ingestVm(final DataCenter zone, final Host host, final VirtualMachineTemplate template, final String instanceName, final String displayName,
                            final Account owner, final String userData, final Account caller, final Boolean isDisplayVm, final String keyboard,
                            final long accountId, final long userId, final ServiceOffering serviceOffering, final DiskOffering rootDiskOffering, final String sshPublicKey, final LinkedHashMap<String, NicProfile> networkNicMap,
-                           final String instanceName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final VirtualMachine.PowerState powerState) throws InsufficientCapacityException {
+                           final String hostName, final HypervisorType hypervisorType, final Map<String, String> customParameters, final VirtualMachine.PowerState powerState) throws InsufficientCapacityException {
 
 
         final long id = _vmDao.getNextInSequence(Long.class, "id");
@@ -6868,7 +6868,11 @@ public class UserVmManagerImpl extends ManagerBase implements UserVmManager, Vir
                    UserVmVO vm = new UserVmVO(id, instanceName, displayName, templateId, hypervisorType, guestOSId, serviceOffering.isOfferHA(),
                            serviceOffering.getLimitCpuUse(), owner.getDomainId(), owner.getId(), userId, serviceOffering.getId(), userData, hostName, rootDiskOffering.getId());
                    vm.setDataCenterId(zone.getId());
+                   vm.setHostId(host.getId());
                    vm.setPowerState(powerState);
+                   if (powerState != VirtualMachine.PowerState.PowerOn) {
+                       vm.setLastHostId(host.getId());
+                   }
                    vm.setUuid(uuidName);
                    if (template != null) {
                        vm.setDynamicallyScalable(template.isDynamicallyScalable());

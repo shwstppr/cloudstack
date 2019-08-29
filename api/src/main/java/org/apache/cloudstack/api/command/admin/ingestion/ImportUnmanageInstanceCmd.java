@@ -49,6 +49,7 @@ import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.exception.NetworkRuleConflictException;
 import com.cloud.exception.ResourceAllocationException;
 import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.network.Network;
 import com.cloud.offering.DiskOffering;
 import com.cloud.offering.ServiceOffering;
 import com.cloud.org.Cluster;
@@ -79,6 +80,16 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
             required = true,
             description = "the hypervisor name of the instance")
     private String name;
+
+    @Parameter(name = ApiConstants.DISPLAY_NAME,
+            type = CommandType.STRING,
+            description = "the display name of the instance")
+    private String displayName;
+
+    @Parameter(name = ApiConstants.HOST_NAME,
+            type = CommandType.STRING,
+            description = "the host name of the instance")
+    private String hostName;
 
     @Parameter(name = ApiConstants.DOMAIN_ID,
             type = CommandType.UUID,
@@ -139,6 +150,14 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
         return name;
     }
 
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public String getHostName() {
+        return hostName;
+    }
+
     public Long getDomainId() {
         return domainId;
     }
@@ -160,7 +179,22 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
     }
 
     public Map getNicNetworkList() {
-        return nicNetworkList;
+        Map<String, Long> nicNetworkMap = new HashMap<>();
+        if (nicNetworkList != null && !nicNetworkList.isEmpty()) {
+            Collection parameterCollection = nicNetworkList.values();
+            Iterator iter = parameterCollection.iterator();
+            while (iter.hasNext()) {
+                HashMap<String, String> value = (HashMap<String, String>)iter.next();
+                String nic = value.get("nic");
+                String networkUuid = value.get("network");
+                if (_entityMgr.findByUuid(Network.class, networkUuid) != null) {
+                    nicNetworkMap.put(nic, _entityMgr.findByUuid(Network.class, networkUuid).getId());
+                } else {
+                    throw new InvalidParameterValueException(String.format("Unable to find network ID: %s for NIC ID: %s", networkUuid, nic));
+                }
+            }
+        }
+        return nicNetworkMap;
     }
 
     public Map<String, Long> getDataDiskToDiskOfferingList() {

@@ -1630,7 +1630,7 @@ public class VolumeOrchestrator extends ManagerBase implements VolumeOrchestrati
     @Override
     public DiskProfile ingestVolume(Type type, String name, DiskOffering offering, Long size, Long minIops, Long maxIops,
                                     VirtualMachine vm, VirtualMachineTemplate template, Account owner,
-                                    Long deviceId, String path, String chainInfo) {
+                                    Long deviceId, Long poolId, String path, String chainInfo) {
         if (size == null) {
             size = offering.getDiskSize();
         } else {
@@ -1664,8 +1664,10 @@ public class VolumeOrchestrator extends ManagerBase implements VolumeOrchestrati
         }
 
         vol.setFormat(getSupportedImageFormatForCluster(vm.getHypervisorType()));
+        vol.setPoolId(poolId);
         vol.setPath(path);
         vol.setChainInfo(chainInfo);
+        vol.setState(Volume.State.Ready);
         vol = _volsDao.persist(vol);
 
         // Save usage event and update resource count for user vm volumes
