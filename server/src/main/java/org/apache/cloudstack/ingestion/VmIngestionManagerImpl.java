@@ -322,7 +322,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                         for (UnmanagedInstance.Nic unmanagedNic : unmanagedInstance.getNics()) {
                                             if (unmanagedNic.getNicId().equals(nicId) &&
                                                     network.getBroadcastUri().toString().equals(String.format("vlan://%d", unmanagedNic.getVlan()))) {
-                                                ingestNic(unmanagedNic, userVm, network,i == 0);
+                                                ingestNic(unmanagedNic, userVm, network, i == 0);
                                             }
                                         }
                                         i++;
@@ -408,7 +408,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         String poolUuid = splits[0];
         poolUuid = poolUuid.replace("[", "").replace("]", "");
         StoragePool storagePool = null;
-        if(poolUuid.length()==32) {
+        if (poolUuid.length() == 32) {
             poolUuid = String.format("%s-%s-%s-%s-%s", poolUuid.substring(0, 8),
                     poolUuid.substring(8, 12), poolUuid.substring(12, 16),
                     poolUuid.substring(16, 20), poolUuid.substring(20, 32));

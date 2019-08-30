@@ -3965,14 +3965,17 @@ public class NetworkOrchestrator extends ManagerBase implements NetworkOrchestra
         s_logger.debug("Allocating nic for vm " + vm.getUuid() + " in network " + network + " during ingestion");
 
         NicVO vo = new NicVO(network.getGuruName(), vm.getId(), network.getId(), vm.getType());
+        vo.setMacAddress(macAddress);
         vo.setAddressFormat(Networks.AddressFormat.Ip4);
         vo.setBroadcastUri(network.getBroadcastUri());
+        vo.setMode(network.getMode());
         vo.setState(Nic.State.Reserved);
         vo.setReservationStrategy(ReservationStrategy.Start);
         vo.setReservationId(UUID.randomUUID().toString());
         vo.setDeviceId(deviceId);
         vo.setIsolationUri(network.getBroadcastUri());
-        vo.setDeviceId(isDefaultNic ? 1 : 0);
+        vo.setDeviceId(deviceId);
+        vo.setDefaultNic(isDefaultNic);
         vo = _nicDao.persist(vo);
 
         final Integer networkRate = _networkModel.getNetworkRate(network.getId(), vm.getId());
