@@ -114,6 +114,8 @@ public class UnmanagedInstance {
     public static class Disk {
         private String diskId;
 
+        private String label;
+
         private Long capacity;
 
         private String imagePath;
@@ -130,6 +132,14 @@ public class UnmanagedInstance {
 
         public void setDiskId(String diskId) {
             this.diskId = diskId;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+
+        public void setLabel(String label) {
+            this.label = label;
         }
 
         public Long getCapacity() {

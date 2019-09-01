@@ -44,19 +44,6 @@ import java.util.UUID;
 import javax.naming.ConfigurationException;
 import javax.xml.datatype.XMLGregorianCalendar;
 
-import com.cloud.agent.api.storage.OVFPropertyTO;
-import com.cloud.utils.crypt.DBEncryptionUtil;
-import com.vmware.vim25.ArrayUpdateOperation;
-import com.vmware.vim25.VAppOvfSectionInfo;
-import com.vmware.vim25.VAppOvfSectionSpec;
-import com.vmware.vim25.VAppProductInfo;
-import com.vmware.vim25.VAppProductSpec;
-import com.vmware.vim25.VAppPropertyInfo;
-import com.vmware.vim25.VAppPropertySpec;
-import com.vmware.vim25.VmConfigInfo;
-import com.vmware.vim25.VmConfigSpec;
-import org.apache.commons.collections.CollectionUtils;
-
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.ingestion.UnmanagedInstance;
 import org.apache.cloudstack.storage.command.CopyCommand;
@@ -67,6 +54,7 @@ import org.apache.cloudstack.storage.to.PrimaryDataStoreTO;
 import org.apache.cloudstack.storage.to.TemplateObjectTO;
 import org.apache.cloudstack.storage.to.VolumeObjectTO;
 import org.apache.cloudstack.utils.volume.VirtualMachineDiskInfo;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.log4j.Logger;
@@ -187,6 +175,7 @@ import com.cloud.agent.api.storage.CreatePrivateTemplateAnswer;
 import com.cloud.agent.api.storage.DestroyCommand;
 import com.cloud.agent.api.storage.MigrateVolumeAnswer;
 import com.cloud.agent.api.storage.MigrateVolumeCommand;
+import com.cloud.agent.api.storage.OVFPropertyTO;
 import com.cloud.agent.api.storage.PrimaryStorageDownloadAnswer;
 import com.cloud.agent.api.storage.PrimaryStorageDownloadCommand;
 import com.cloud.agent.api.storage.ResizeVolumeAnswer;
@@ -258,6 +247,7 @@ import com.cloud.utils.ExecutionResult;
 import com.cloud.utils.NumbersUtil;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
+import com.cloud.utils.crypt.DBEncryptionUtil;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.utils.exception.ExceptionUtil;
@@ -274,6 +264,7 @@ import com.cloud.vm.VmDetailConstants;
 import com.google.common.base.Strings;
 import com.google.gson.Gson;
 import com.vmware.vim25.AboutInfo;
+import com.vmware.vim25.ArrayUpdateOperation;
 import com.vmware.vim25.BoolPolicy;
 import com.vmware.vim25.ComputeResourceSummary;
 import com.vmware.vim25.CustomFieldStringValue;
@@ -302,6 +293,12 @@ import com.vmware.vim25.PerfMetricSeries;
 import com.vmware.vim25.PerfQuerySpec;
 import com.vmware.vim25.RuntimeFaultFaultMsg;
 import com.vmware.vim25.ToolsUnavailableFaultMsg;
+import com.vmware.vim25.VAppOvfSectionInfo;
+import com.vmware.vim25.VAppOvfSectionSpec;
+import com.vmware.vim25.VAppProductInfo;
+import com.vmware.vim25.VAppProductSpec;
+import com.vmware.vim25.VAppPropertyInfo;
+import com.vmware.vim25.VAppPropertySpec;
 import com.vmware.vim25.VMwareDVSPortSetting;
 import com.vmware.vim25.VimPortType;
 import com.vmware.vim25.VirtualDevice;
@@ -328,6 +325,8 @@ import com.vmware.vim25.VirtualMachineToolsStatus;
 import com.vmware.vim25.VirtualMachineVideoCard;
 import com.vmware.vim25.VirtualSCSIController;
 import com.vmware.vim25.VirtualUSBController;
+import com.vmware.vim25.VmConfigInfo;
+import com.vmware.vim25.VmConfigSpec;
 import com.vmware.vim25.VmwareDistributedVirtualSwitchVlanIdSpec;
 
 public class VmwareResource implements StoragePoolResource, ServerResource, VmwareHostService, VirtualRouterDeployer {
@@ -6820,17 +6819,17 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 UnmanagedInstance.Disk instanceDisk = new UnmanagedInstance.Disk();
                                 VirtualDisk disk = (VirtualDisk) diskDevice;
                                 instanceDisk.setDiskId(disk.getDiskObjectId());
+                                instanceDisk.setLabel(disk.getDeviceInfo() != null ? disk.getDeviceInfo().getLabel() : "");
                                 instanceDisk.setImagePath(getAbsoluteVmdkFile(disk));
                                 instanceDisk.setCapacity(disk.getCapacityInKB());
-                                for (VirtualDevice device: vmMo.getAllDeviceList()) {
+                                for (VirtualDevice device : vmMo.getAllDeviceList()) {
                                     if (diskDevice.getControllerKey() == device.getKey()) {
-                                        s_logger.info(device.getClass().getCanonicalName() + " " + (device instanceof VirtualSCSIController));
                                         if (device instanceof VirtualIDEController) {
                                             instanceDisk.setController(DiskControllerType.getType(device.getClass().getSimpleName()).toString());
-                                            instanceDisk.setControllerUnit(((VirtualIDEController)device).getBusNumber());
+                                            instanceDisk.setControllerUnit(((VirtualIDEController) device).getBusNumber());
                                         } else if (device instanceof VirtualSCSIController) {
                                             instanceDisk.setController("scsi");
-                                            instanceDisk.setControllerUnit(((VirtualSCSIController)device).getBusNumber());
+                                            instanceDisk.setControllerUnit(((VirtualSCSIController) device).getBusNumber());
                                         } else {
                                             instanceDisk.setController(DiskControllerType.none.toString());
                                         }
@@ -6838,9 +6837,22 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                         break;
                                     }
                                 }
+                                s_logger.info(instance.getName()+" "+disk.getDeviceInfo().getLabel() + " " + disk.getDeviceInfo().getSummary() + " " + disk.getDiskObjectId() + " " + disk.getCapacityInKB() + " " + instanceDisk.getController());
                                 instanceDisks.add(instanceDisk);
                             }
                         }
+                        Collections.sort(instanceDisks, new Comparator<UnmanagedInstance.Disk>() {
+                            @Override
+                            public int compare(final UnmanagedInstance.Disk disk1, final UnmanagedInstance.Disk disk2) {
+                                return extractInt(disk1) - extractInt(disk2);
+                            }
+
+                            int extractInt(UnmanagedInstance.Disk disk) {
+                                String num = disk.getLabel().replaceAll("\\D", "");
+                                // return 0 if no digits found
+                                return num.isEmpty() ? 0 : Integer.parseInt(num);
+                            }
+                        });
                         instance.setDisks(instanceDisks);
                         List<UnmanagedInstance.Nic> instanceNics = new ArrayList<>();
                         VirtualDevice[] nics = vmMo.getNicDevices();
@@ -6876,8 +6888,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 for (DistributedVirtualPort dvPort : dvPorts) {
                                     // Find the port for this NIC by portkey
                                     if (portKey.equals(dvPort.getKey())) {
-                                        VMwareDVSPortSetting settings = (VMwareDVSPortSetting)dvPort.getConfig().getSetting();
-                                        VmwareDistributedVirtualSwitchVlanIdSpec vlanId = (VmwareDistributedVirtualSwitchVlanIdSpec)settings.getVlan();
+                                        VMwareDVSPortSetting settings = (VMwareDVSPortSetting) dvPort.getConfig().getSetting();
+                                        VmwareDistributedVirtualSwitchVlanIdSpec vlanId = (VmwareDistributedVirtualSwitchVlanIdSpec) settings.getVlan();
                                         s_logger.trace("Found port " + dvPort.getKey() + " with vlan " + vlanId.getVlanId());
                                         if (vlanId.getVlanId() > 0 && vlanId.getVlanId() < 4095) {
                                             instanceNic.setVlan(vlanId.getVlanId());
@@ -6890,7 +6902,7 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 instanceNic.setNetwork(backingInfo.getDeviceName());
                                 ManagedObjectReference mor = backingInfo.getNetwork();
                                 if (hyperHost instanceof HostMO) {
-                                    HostMO hostMo = (HostMO)hyperHost;
+                                    HostMO hostMo = (HostMO) hyperHost;
                                     HostPortGroupSpec portGroupSpec = hostMo.getHostPortGroupSpec(backingInfo.getDeviceName());
                                     instanceNic.setVlan(portGroupSpec.getVlanId());
                                     instanceNic.setIpAddress("");
@@ -6898,6 +6910,18 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                             }
                             instanceNics.add(instanceNic);
                         }
+                        Collections.sort(instanceNics, new Comparator<UnmanagedInstance.Nic>() {
+                            @Override
+                            public int compare(final UnmanagedInstance.Nic nic1, final UnmanagedInstance.Nic nic2) {
+                                return extractInt(nic1) - extractInt(nic2);
+                            }
+
+                            int extractInt(UnmanagedInstance.Nic disk) {
+                                String num = disk.getNicId().replaceAll("\\D", "");
+                                // return 0 if no digits found
+                                return num.isEmpty() ? 0 : Integer.parseInt(num);
+                            }
+                        });
                         instance.setNics(instanceNics);
                         instance.setPowerState(vmMo.getPowerState().toString());
                         unmanagedInstances.put(vmMo.getVmName(), instance);

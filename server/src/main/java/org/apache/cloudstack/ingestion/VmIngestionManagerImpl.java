@@ -374,6 +374,9 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             for (UnmanagedInstance.Disk disk : instance.getDisks()) {
                 UnmanagedInstanceDiskResponse diskResponse = new UnmanagedInstanceDiskResponse();
                 diskResponse.setDiskId(disk.getDiskId());
+                if (!Strings.isNullOrEmpty(disk.getLabel())) {
+                    diskResponse.setLabel(disk.getLabel());
+                }
                 diskResponse.setCapacity(disk.getCapacity());
                 diskResponse.setController(disk.getController());
                 diskResponse.setControllerUnit(disk.getControllerUnit());

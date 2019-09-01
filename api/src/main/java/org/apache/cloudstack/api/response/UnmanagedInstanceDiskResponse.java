@@ -29,6 +29,10 @@ public class UnmanagedInstanceDiskResponse extends BaseResponse {
     @Param(description = "the ID of the disk")
     private String diskId;
 
+    @SerializedName(ApiConstants.LABEL)
+    @Param(description = "the label of the disk")
+    private String label;
+
 
     @SerializedName("capacity")
     @Param(description = "the capacity in KB of the disk")
@@ -60,6 +64,14 @@ public class UnmanagedInstanceDiskResponse extends BaseResponse {
 
     public void setDiskId(String diskId) {
         this.diskId = diskId;
+    }
+
+    public String getLabel() {
+        return label;
+    }
+
+    public void setLabel(String label) {
+        this.label = label;
     }
 
     public Long getCapacity() {
