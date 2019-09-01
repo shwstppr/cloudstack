@@ -91,6 +91,11 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
             description = "the host name of the instance")
     private String hostName;
 
+    @Parameter(name = ApiConstants.ACCOUNT,
+            type = CommandType.STRING,
+            description = "an optional account for the virtual machine. Must be used with domainId.")
+    private String accountName;
+
     @Parameter(name = ApiConstants.DOMAIN_ID,
             type = CommandType.UUID,
             entityType = DomainResponse.class,
@@ -156,6 +161,10 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
 
     public String getHostName() {
         return hostName;
+    }
+
+    public String getAccountName() {
+        return accountName;
     }
 
     public Long getDomainId() {
@@ -256,11 +265,16 @@ public class ImportUnmanageInstanceCmd extends BaseAsyncCmd {
 
     @Override
     public long getEntityOwnerId() {
-        Account account = CallContext.current().getCallingAccount();
-        if (account != null) {
-            return account.getId();
+        Long accountId = _accountService.finalyzeAccountId(accountName, domainId, projectId, true);
+        if (accountId == null) {
+            Account account = CallContext.current().getCallingAccount();
+            if (account != null) {
+                accountId = account.getId();
+            } else {
+                accountId = Account.ACCOUNT_ID_SYSTEM;
+            }
         }
-        return Account.ACCOUNT_ID_SYSTEM;
+        return accountId;
     }
 
     private void validateInput() {
