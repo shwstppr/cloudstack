@@ -310,7 +310,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                         for (UnmanagedInstance.Disk unmanagedDisk : unmanagedInstance.getDisks()) {
                                             if (unmanagedDisk.getDiskId().equals(diskId)) {
                                                 DiskOffering offering = diskOfferingDao.findById(dataDiskOfferingMap.get(diskId));
-                                                ingestDisk(rootDisk, userVm, diskOffering, Volume.Type.DATADISK, String.format("DATA-%d-%s", userVm.getId(), unmanagedDisk.getDiskId()), offering.isCustomized() ? (unmanagedDisk.getCapacity() / (1024 * 1024)) : offering.getDiskSize(), template, owner, null);
+                                                ingestDisk(unmanagedDisk, userVm, diskOffering, Volume.Type.DATADISK, String.format("DATA-%d-%s", userVm.getId(), unmanagedDisk.getDiskId()), offering.isCustomized() ? (unmanagedDisk.getCapacity() / (1024 * 1024)) : offering.getDiskSize(), template, owner, null);
                                             }
                                         }
                                     }
