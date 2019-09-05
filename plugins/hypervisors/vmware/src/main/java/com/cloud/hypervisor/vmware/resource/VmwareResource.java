@@ -6916,8 +6916,8 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
                                 return extractInt(nic1) - extractInt(nic2);
                             }
 
-                            int extractInt(UnmanagedInstance.Nic disk) {
-                                String num = disk.getNicId().replaceAll("\\D", "");
+                            int extractInt(UnmanagedInstance.Nic nic) {
+                                String num = nic.getNicId().replaceAll("\\D", "");
                                 // return 0 if no digits found
                                 return num.isEmpty() ? 0 : Integer.parseInt(num);
                             }
