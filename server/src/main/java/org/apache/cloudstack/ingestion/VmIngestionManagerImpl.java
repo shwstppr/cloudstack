@@ -62,6 +62,7 @@ import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
+import com.cloud.hypervisor.Hypervisor;
 import com.cloud.network.Network;
 import com.cloud.network.dao.NetworkDao;
 import com.cloud.offering.DiskOffering;
@@ -144,6 +145,9 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         if (cluster == null) {
             throw new InvalidParameterValueException(String.format("Cluster ID: %d cannot be found!", clusterId));
         }
+        if (cluster.getHypervisorType() != Hypervisor.HypervisorType.VMware) {
+            throw new InvalidParameterValueException(String.format("VM ingestion is currently not supported for hypervisor: %s", cluster.getHypervisorType().toString()));
+        }
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
 
@@ -222,6 +226,9 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         final Cluster cluster = clusterDao.findById(clusterId);
         if (cluster == null) {
             throw new InvalidParameterValueException(String.format("Cluster ID: %d cannot be found!", clusterId));
+        }
+        if (cluster.getHypervisorType() != Hypervisor.HypervisorType.VMware) {
+            throw new InvalidParameterValueException(String.format("VM ingestion is currently not supported for hypervisor: %s", cluster.getHypervisorType().toString()));
         }
         final DataCenter zone = dataCenterDao.findById(cluster.getDataCenterId());
         final String instanceName = cmd.getName();
@@ -407,25 +414,27 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         diskInfo.setDiskDeviceBusName(String.format("%s%d:%d", disk.getController(), disk.getControllerUnit(), disk.getPosition()));
         diskInfo.setDiskChain(new String[]{disk.getImagePath()});
         String path = disk.getImagePath();
-        String[] splits = path.split(" ");
-        String poolUuid = splits[0];
-        poolUuid = poolUuid.replace("[", "").replace("]", "");
-        StoragePool storagePool = null;
-        if (poolUuid.length() == 32) {
-            poolUuid = String.format("%s-%s-%s-%s-%s", poolUuid.substring(0, 8),
-                    poolUuid.substring(8, 12), poolUuid.substring(12, 16),
-                    poolUuid.substring(16, 20), poolUuid.substring(20, 32));
-            storagePool = primaryDataStoreDao.findPoolByUUID(poolUuid);
-        }
         long poolId = 0;
-        if (storagePool != null) {
-            poolId = storagePool.getId();
+        if (vm.getHypervisorType() == Hypervisor.HypervisorType.VMware) {
+            String[] splits = path.split(" ");
+            String poolUuid = splits[0];
+            poolUuid = poolUuid.replace("[", "").replace("]", "");
+            StoragePool storagePool = null;
+            if (poolUuid.length() == 32) {
+                poolUuid = String.format("%s-%s-%s-%s-%s", poolUuid.substring(0, 8),
+                        poolUuid.substring(8, 12), poolUuid.substring(12, 16),
+                        poolUuid.substring(16, 20), poolUuid.substring(20, 32));
+                storagePool = primaryDataStoreDao.findPoolByUUID(poolUuid);
+            }
+            if (storagePool != null) {
+                poolId = storagePool.getId();
+            }
+            path = splits[splits.length - 1];
+            splits = path.split("/");
+            path = splits[splits.length - 1];
+            splits = path.split("\\.");
+            path = splits[0];
         }
-        path = splits[splits.length - 1];
-        splits = path.split("/");
-        path = splits[splits.length - 1];
-        splits = path.split("\\.");
-        path = splits[0];
         return volumeManager.ingestVolume(type, name, diskOffering, diskSize,
                 diskOffering.getMinIops(), diskOffering.getMaxIops(), vm, template, owner, deviceId, poolId, path, gson.toJson(diskInfo));
     }
