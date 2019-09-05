@@ -46,7 +46,8 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.cloudstack.ingestion.UnmanagedInstance;
+import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
+import com.cloud.resource.RequestWrapper;
 import org.apache.cloudstack.storage.to.PrimaryDataStoreTO;
 import org.apache.cloudstack.storage.to.TemplateObjectTO;
 import org.apache.cloudstack.storage.to.VolumeObjectTO;
@@ -82,7 +83,6 @@ import org.xml.sax.SAXException;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.agent.api.Command;
-import com.cloud.agent.api.GetUnmanagedInstancesCommand;
 import com.cloud.agent.api.HostVmStateReportEntry;
 import com.cloud.agent.api.PingCommand;
 import com.cloud.agent.api.PingRoutingCommand;
@@ -112,7 +112,6 @@ import com.cloud.dc.Vlan;
 import com.cloud.exception.InternalErrorException;
 import com.cloud.host.Host.Type;
 import com.cloud.hypervisor.Hypervisor.HypervisorType;
-import com.cloud.hypervisor.kvm.dpdk.DpdkHelper;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ChannelDef;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ClockDef;
 import com.cloud.hypervisor.kvm.resource.LibvirtVMDef.ConsoleDef;
@@ -149,7 +148,6 @@ import com.cloud.hypervisor.kvm.storage.KVMStorageProcessor;
 import com.cloud.network.Networks.BroadcastDomainType;
 import com.cloud.network.Networks.RouterPrivateIpStrategy;
 import com.cloud.network.Networks.TrafficType;
-import com.cloud.resource.RequestWrapper;
 import com.cloud.resource.ServerResource;
 import com.cloud.resource.ServerResourceBase;
 import com.cloud.storage.JavaStorageLayer;
@@ -3859,164 +3857,5 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
             return false;
         }
         return true;
-    }
-
-    public HashMap<String, UnmanagedInstance> getHostVms(final GetUnmanagedInstancesCommand cmd) {
-        final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
-        Connect conn = null;
-
-        List<Domain> domains = new ArrayList<>();
-        if (!Strings.isNullOrEmpty(cmd.getInstanceName())) {
-            try {
-                conn = libvirtUtilitiesHelper.getConnection();
-                Domain dm = null;
-                try {
-                    dm = conn.domainLookupByName(cmd.getInstanceName());
-                    if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
-                        hostVms.put(dm.getName(), getUnmanagedInstance(dm));
-                    }
-                } catch (final LibvirtException e) {
-                    s_logger.warn("Unable to get vms", e);
-                } finally {
-                    try {
-                        if (dm != null) {
-                            dm.free();
-                        }
-                    } catch (final LibvirtException e) {
-                        s_logger.trace("Ignoring libvirt error.", e);
-                    }
-                }
-            } catch (LibvirtException e) {
-                s_logger.warn("Unable to get vms", e);
-            }
-        } else {
-
-            if (_hypervisorType == HypervisorType.LXC) {
-                try {
-                    conn = LibvirtConnection.getConnectionByType(HypervisorType.LXC.toString());
-                    hostVms.putAll(getHostVms(conn, cmd));
-                    conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
-                    hostVms.putAll(getHostVms(conn, cmd));
-                } catch (final LibvirtException e) {
-                    s_logger.debug("Failed to get connection: " + e.getMessage());
-                }
-            } else if (_hypervisorType == HypervisorType.KVM) {
-                try {
-                    conn = LibvirtConnection.getConnectionByType(HypervisorType.KVM.toString());
-                    hostVms.putAll(getHostVms(conn, cmd));
-                } catch (final LibvirtException e) {
-                    s_logger.debug("Failed to get connection: " + e.getMessage());
-                }
-            }
-        }
-
-        return hostVms;
-    }
-
-    private HashMap<String, UnmanagedInstance> getHostVms(final Connect conn, final GetUnmanagedInstancesCommand cmd) {
-        final HashMap<String, UnmanagedInstance> hostVms = new HashMap<>();
-
-        String[] vms = null;
-        int[] ids = null;
-
-        try {
-            ids = conn.listDomains();
-        } catch (final LibvirtException e) {
-            s_logger.warn("Unable to listDomains", e);
-            return hostVms;
-        }
-        try {
-            vms = conn.listDefinedDomains();
-        } catch (final LibvirtException e) {
-            s_logger.warn("Unable to listDomains", e);
-            return hostVms;
-        }
-
-        Domain dm = null;
-        for (int i = 0; i < ids.length; i++) {
-            try {
-                dm = conn.domainLookupByID(ids[i]);
-                if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
-                    hostVms.put(dm.getName(), getUnmanagedInstance(dm));
-                }
-            } catch (final LibvirtException e) {
-                s_logger.warn("Unable to get vms", e);
-            } finally {
-                try {
-                    if (dm != null) {
-                        dm.free();
-                    }
-                } catch (final LibvirtException e) {
-                    s_logger.trace("Ignoring libvirt error.", e);
-                }
-            }
-        }
-
-        for (int i = 0; i < vms.length; i++) {
-            try {
-                dm = conn.domainLookupByName(vms[i]);
-                if (dm!=null && !cmd.hasManagedInstance(dm.getName())) {
-                    hostVms.put(dm.getName(), getUnmanagedInstance(dm));
-                }
-            } catch (final LibvirtException e) {
-                s_logger.warn("Unable to get vms", e);
-            } finally {
-                try {
-                    if (dm != null) {
-                        dm.free();
-                    }
-                } catch (final LibvirtException e) {
-                    s_logger.trace("Ignoring libvirt error.", e);
-                }
-            }
-        }
-
-        return hostVms;
-    }
-
-    private UnmanagedInstance getUnmanagedInstance(Domain dm) {
-        UnmanagedInstance instance = null;
-        if (dm!=null) {
-            try {
-                DomainInfo dmInfo = dm.getInfo();
-                final DomainState ps = dm.getInfo().state;
-                final PowerState state = convertToPowerState(ps);
-                final String vmName = dm.getName();
-                instance = new UnmanagedInstance();
-                instance.setName(vmName);
-                instance.setPowerState(state.toString());
-                instance.setCpuCores(dmInfo.nrVirtCpu);
-                instance.setMemory((int)(dmInfo.memory/1024));
-                final List<DiskDef> disks = getDisks(dm.getConnect(), vmName);
-                List<UnmanagedInstance.Disk> unmanagedDisks =  new ArrayList<>();
-                for (DiskDef diskDef : disks) {
-                    if (diskDef.getDeviceType() == DeviceType.DISK) {
-                        UnmanagedInstance.Disk disk = new UnmanagedInstance.Disk();
-                        disk.setLabel(diskDef.getDiskLabel());
-                        disk.setDiskId(diskDef.getDiskLabel());
-                        disk.setController(diskDef.getBusType().toString());
-                        unmanagedDisks.add(disk);
-                    }
-                }
-                instance.setDisks(unmanagedDisks);
-                final List<InterfaceDef> nics = getInterfaces(dm.getConnect(), vmName);
-                List<UnmanagedInstance.Nic> unmanagedNics =  new ArrayList<>();
-                for (InterfaceDef nicDef : nics) {
-                    UnmanagedInstance.Nic nic = new UnmanagedInstance.Nic();
-                    nic.setVlan(nicDef.getVlanTag());
-                    nic.setNetwork(nicDef.getDevName());
-                    nic.setPciSlot(String.valueOf(nicDef.getSlot()));
-                    nic.setMacAddress(nicDef.getMacAddress());
-                    nic.setNicId(nicDef.getBrName());
-                    nic.setAdapterType(nicDef.getModel().toString());
-                    unmanagedNics.add(nic);
-                }
-                instance.setNics(unmanagedNics);
-
-            } catch (final LibvirtException e) {
-                s_logger.warn("Unable to get vms", e);
-            }
-        }
-        return instance;
     }
 }
