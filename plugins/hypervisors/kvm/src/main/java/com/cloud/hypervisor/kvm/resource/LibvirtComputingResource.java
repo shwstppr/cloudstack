@@ -3987,6 +3987,32 @@ public class LibvirtComputingResource extends ServerResourceBase implements Serv
                 instance.setPowerState(state.toString());
                 instance.setCpuCores(dmInfo.nrVirtCpu);
                 instance.setMemory((int)(dmInfo.memory/1024));
+                final List<DiskDef> disks = getDisks(dm.getConnect(), vmName);
+                List<UnmanagedInstance.Disk> unmanagedDisks =  new ArrayList<>();
+                for (DiskDef diskDef : disks) {
+                    if (diskDef.getDeviceType() == DeviceType.DISK) {
+                        UnmanagedInstance.Disk disk = new UnmanagedInstance.Disk();
+                        disk.setLabel(diskDef.getDiskLabel());
+                        disk.setDiskId(diskDef.getDiskLabel());
+                        disk.setController(diskDef.getBusType().toString());
+                        unmanagedDisks.add(disk);
+                    }
+                }
+                instance.setDisks(unmanagedDisks);
+                final List<InterfaceDef> nics = getInterfaces(dm.getConnect(), vmName);
+                List<UnmanagedInstance.Nic> unmanagedNics =  new ArrayList<>();
+                for (InterfaceDef nicDef : nics) {
+                    UnmanagedInstance.Nic nic = new UnmanagedInstance.Nic();
+                    nic.setVlan(nicDef.getVlanTag());
+                    nic.setNetwork(nicDef.getDevName());
+                    nic.setPciSlot(String.valueOf(nicDef.getSlot()));
+                    nic.setMacAddress(nicDef.getMacAddress());
+                    nic.setNicId(nicDef.getBrName());
+                    nic.setAdapterType(nicDef.getModel().toString());
+                    unmanagedNics.add(nic);
+                }
+                instance.setNics(unmanagedNics);
+
             } catch (final LibvirtException e) {
                 s_logger.warn("Unable to get vms", e);
             }
