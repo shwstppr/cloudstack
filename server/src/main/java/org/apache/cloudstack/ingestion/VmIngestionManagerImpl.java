@@ -73,9 +73,12 @@ import com.cloud.serializer.GsonHelper;
 import com.cloud.server.ManagementService;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.StoragePool;
+import com.cloud.storage.VMTemplateStoragePoolVO;
+import com.cloud.storage.VMTemplateVO;
 import com.cloud.storage.Volume;
 import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.VMTemplateDao;
+import com.cloud.storage.dao.VMTemplatePoolDao;
 import com.cloud.template.VirtualMachineTemplate;
 import com.cloud.user.Account;
 import com.cloud.user.AccountService;
@@ -107,6 +110,8 @@ public class VmIngestionManagerImpl implements VmIngestionService {
     private UserDao userDao;
     @Inject
     private VMTemplateDao templateDao;
+    @Inject
+    private VMTemplatePoolDao templatePoolDao;
     @Inject
     private ServiceOfferingDao serviceOfferingDao;
     @Inject
@@ -152,9 +157,27 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
 
+        List<VMTemplateVO> templates = new ArrayList<>();
+
+        if (cluster.getHypervisorType() == Hypervisor.HypervisorType.VMware) { // Add filter for templates for VMware
+            try {
+                templates.addAll(templateDao.listAll());
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve vm templates for cluster's zone ID: %s", cluster.getDataCenterId()));
+            }
+        }
+
         List<UnmanagedInstanceResponse> responses = new ArrayList<>();
         for (HostVO host : hosts) {
             List<String> managedVms = new ArrayList<>();
+            if (cluster.getHypervisorType() == Hypervisor.HypervisorType.VMware) { // Add filter for templates for VMware
+                for (VMTemplateVO template : templates) {
+                    VMTemplateStoragePoolVO templateStoragePoolVO = templatePoolDao.findByPoolTemplate(host.getId(), template.getId());
+                    if (templateStoragePoolVO != null) {
+                        managedVms.add(templateStoragePoolVO.getInstallPath());
+                    }
+                }
+            }
             try {
                 ListVMsCmdByAdmin vmsCmd = new ListVMsCmdByAdmin();
                 vmsCmd = ComponentContext.inject(vmsCmd);
@@ -200,6 +223,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             } catch (Exception e) {
                 LOGGER.warn(String.format("Unable to retrieve virtual router vms for host ID: %s", host.getUuid()));
             }
+
             GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
             command.setManagedInstancesNames(managedVms);
             Answer answer = agentManager.easySend(host.getId(), command);
