@@ -19,6 +19,7 @@ package org.apache.cloudstack.ingestion;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -452,7 +453,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             if (storagePool != null) {
                 poolId = storagePool.getId();
             }
-            path = splits[splits.length - 1];
+            path = String.join(" ", Arrays.copyOfRange(splits, 1, splits.length));
             splits = path.split("/");
             path = splits[splits.length - 1];
             splits = path.split("\\.");
