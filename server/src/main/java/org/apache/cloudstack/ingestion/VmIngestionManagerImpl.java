@@ -74,7 +74,6 @@ import com.cloud.server.ManagementService;
 import com.cloud.service.dao.ServiceOfferingDao;
 import com.cloud.storage.StoragePool;
 import com.cloud.storage.VMTemplateStoragePoolVO;
-import com.cloud.storage.VMTemplateVO;
 import com.cloud.storage.Volume;
 import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.dao.VMTemplateDao;
@@ -157,27 +156,19 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         List<HostVO> hosts = resourceManager.listHostsInClusterByStatus(clusterId, Status.Up);
 
-        List<VMTemplateVO> templates = new ArrayList<>();
+        List<String> templatesFilterList = new ArrayList<>();
 
         if (cluster.getHypervisorType() == Hypervisor.HypervisorType.VMware) { // Add filter for templates for VMware
-            try {
-                templates.addAll(templateDao.listAll());
-            } catch (Exception e) {
-                LOGGER.warn(String.format("Unable to retrieve vm templates for cluster's zone ID: %s", cluster.getDataCenterId()));
+            List<VMTemplateStoragePoolVO> templates = templatePoolDao.listAll();
+            for (VMTemplateStoragePoolVO template : templates) {
+                templatesFilterList.add(template.getInstallPath());
             }
         }
 
         List<UnmanagedInstanceResponse> responses = new ArrayList<>();
         for (HostVO host : hosts) {
             List<String> managedVms = new ArrayList<>();
-            if (cluster.getHypervisorType() == Hypervisor.HypervisorType.VMware) { // Add filter for templates for VMware
-                for (VMTemplateVO template : templates) {
-                    VMTemplateStoragePoolVO templateStoragePoolVO = templatePoolDao.findByPoolTemplate(host.getId(), template.getId());
-                    if (templateStoragePoolVO != null) {
-                        managedVms.add(templateStoragePoolVO.getInstallPath());
-                    }
-                }
-            }
+            managedVms.addAll(templatesFilterList);
             try {
                 ListVMsCmdByAdmin vmsCmd = new ListVMsCmdByAdmin();
                 vmsCmd = ComponentContext.inject(vmsCmd);
