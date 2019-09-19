@@ -373,8 +373,8 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             } catch (Exception e) {
                 LOGGER.warn(String.format("Unable to retrieve virtual router vms for host ID: %s", host.getUuid()));
             }
-            GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
-            command.setInstanceName(instanceName);
+            GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand(instanceName);
+            command.setManagedInstancesNames(managedVms);
             Answer answer = agentManager.easySend(host.getId(), command);
             if (answer instanceof GetUnmanagedInstancesAnswer) {
                 GetUnmanagedInstancesAnswer unmanagedInstancesAnswer = (GetUnmanagedInstancesAnswer) answer;

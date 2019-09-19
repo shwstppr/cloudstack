@@ -6801,7 +6801,9 @@ public class VmwareResource implements StoragePoolResource, ServerResource, Vmwa
 
             if (vmMos != null && !vmMos.isEmpty()) {
                 for (VirtualMachineMO vmMo : vmMos) {
-                    if (vmMo != null && !vmMo.isTemplate() && !cmd.hasManagedInstance(vmMo.getName())) {
+                    if (vmMo != null && !vmMo.isTemplate() && !cmd.hasManagedInstance(vmMo.getName()) &&
+                            (Strings.isNullOrEmpty(cmd.getInstanceName()) || (!Strings.isNullOrEmpty(cmd.getInstanceName()) &&
+                                    cmd.getInstanceName().equals(vmMo.getVmName())))) {
                         UnmanagedInstance instance = new UnmanagedInstance();
                         instance.setName(vmMo.getVmName());
                         instance.setCpuCores(vmMo.getConfigSummary().getNumCpu());
