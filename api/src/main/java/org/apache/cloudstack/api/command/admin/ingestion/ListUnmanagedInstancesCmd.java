@@ -64,13 +64,13 @@ public class ListUnmanagedInstancesCmd extends BaseListCmd {
     @Parameter(name = ApiConstants.NAME,
             type = CommandType.UUID,
             description = "the hypervisor name of the instance")
-    private Long name;
+    private String name;
 
     public Long getClusterId() {
         return clusterId;
     }
 
-    public Long getName() {
+    public String getName() {
         return name;
     }
 

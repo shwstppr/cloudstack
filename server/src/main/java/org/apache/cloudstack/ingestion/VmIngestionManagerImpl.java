@@ -222,6 +222,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             }
 
             GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
+            command.setInstanceName(cmd.getName());
             command.setManagedInstancesNames(managedVms);
             Answer answer = agentManager.easySend(host.getId(), command);
             if (answer instanceof GetUnmanagedInstancesAnswer) {
