@@ -60,6 +60,7 @@ import com.cloud.dc.dao.ClusterDao;
 import com.cloud.dc.dao.DataCenterDao;
 import com.cloud.exception.InsufficientCapacityException;
 import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.exception.PermissionDeniedException;
 import com.cloud.host.Host;
 import com.cloud.host.HostVO;
 import com.cloud.host.Status;
@@ -143,6 +144,10 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
     @Override
     public ListResponse<UnmanagedInstanceResponse> listUnmanagedInstances(ListUnmanagedInstancesCmd cmd) {
+        final Account caller = CallContext.current().getCallingAccount();
+        if (caller.getType() != Account.ACCOUNT_TYPE_ADMIN) {
+            throw new PermissionDeniedException(String.format("Cannot perform this operation, Calling account is not root admin: %s", caller.getUuid()));
+        }
         final Long clusterId = cmd.getClusterId();
         if (clusterId == null) {
             throw new InvalidParameterValueException(String.format("Cluster ID cannot be null!"));
@@ -236,6 +241,10 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
     @Override
     public UserVmResponse importUnmanagedInstance(ImportUnmanageInstanceCmd cmd) {
+        final Account caller = CallContext.current().getCallingAccount();
+        if (caller.getType() != Account.ACCOUNT_TYPE_ADMIN) {
+            throw new PermissionDeniedException(String.format("Cannot perform this operation, Calling account is not root admin: %s", caller.getUuid()));
+        }
         final Long clusterId = cmd.getClusterId();
         if (clusterId == null) {
             throw new InvalidParameterValueException(String.format("Cluster ID cannot be null!"));
@@ -252,7 +261,6 @@ public class VmIngestionManagerImpl implements VmIngestionService {
         if (Strings.isNullOrEmpty(instanceName)) {
             throw new InvalidParameterValueException(String.format("Instance name cannot be empty!"));
         }
-        final Account caller = CallContext.current().getCallingAccount();
         final Account owner = accountService.getActiveAccountById(cmd.getEntityOwnerId());
 
         Long userId = null;
