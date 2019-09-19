@@ -343,7 +343,11 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                         null, caller, true, null, owner.getAccountId(), userId,
                                         serviceOffering, diskOffering, null, null, hostName,
                                         cluster.getHypervisorType(), new HashMap<>(), powerState);
-                                if (userVm != null) {
+                            } catch (InsufficientCapacityException ice) {
+                                throw new ServerApiException(ApiErrorCode.INSUFFICIENT_CAPACITY_ERROR, ice.getMessage());
+                            }
+                            if (userVm != null) {
+                                try {
                                     ingestDisk(rootDisk, userVm, diskOffering, Volume.Type.ROOT, String.format("ROOT-%d", userVm.getId()), rootDiskSize, template, owner, null);
                                     Set<String> disks = dataDiskOfferingMap.keySet();
                                     for (String diskId : disks) {
@@ -354,7 +358,11 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                             }
                                         }
                                     }
+                                } catch (Exception e) {
+                                    throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to import volumes while ingesting vm: %s. %s", instanceName, e.getMessage()));
+                                }
 
+                                try {
                                     Set<String> nics = nicNetworkMap.keySet();
                                     int i = 0;
                                     for (String nicId : nics) {
@@ -367,9 +375,9 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                         }
                                         i++;
                                     }
+                                } catch (Exception e) {
+                                    throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to import NICs while ingesting vm: %s. %s", instanceName, e.getMessage()));
                                 }
-                            } catch (InsufficientCapacityException ice) {
-                                throw new ServerApiException(ApiErrorCode.INSUFFICIENT_CAPACITY_ERROR, ice.getMessage());
                             }
                             break;
                         }
