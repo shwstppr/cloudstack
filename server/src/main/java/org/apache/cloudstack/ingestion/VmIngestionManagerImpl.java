@@ -316,7 +316,63 @@ public class VmIngestionManagerImpl implements VmIngestionService {
 
         UserVm userVm = null;
 
+        List<String> templatesFilterList = new ArrayList<>();
+
+        if (cluster.getHypervisorType() == Hypervisor.HypervisorType.VMware) { // Add filter for templates for VMware
+            List<VMTemplateStoragePoolVO> templates = templatePoolDao.listAll();
+            for (VMTemplateStoragePoolVO templateStoragePoolVO : templates) {
+                templatesFilterList.add(templateStoragePoolVO.getInstallPath());
+            }
+        }
+
         for (HostVO host : hosts) {
+            List<String> managedVms = new ArrayList<>();
+            managedVms.addAll(templatesFilterList);
+            try {
+                ListVMsCmdByAdmin vmsCmd = new ListVMsCmdByAdmin();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Field listAllField = BaseListDomainResourcesCmd.class.getDeclaredField("listAll");
+                listAllField.setAccessible(true);
+                listAllField.set(vmsCmd, true);
+                ListResponse<UserVmResponse> vmsResponse = queryService.searchForUserVMs(vmsCmd);
+                for (UserVmResponse vmResponse : vmsResponse.getResponses()) {
+                    managedVms.add(vmResponse.getInstanceName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve user vms for host ID: %s", host.getUuid()));
+            }
+            try {
+                ListSystemVMsCmd vmsCmd = new ListSystemVMsCmd();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Pair<List<? extends VirtualMachine>, Integer> systemVMs = managementService.searchForSystemVm(vmsCmd);
+                for (VirtualMachine systemVM : systemVMs.first()) {
+                    managedVms.add(systemVM.getInstanceName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve system vms for host ID: %s", host.getUuid()));
+            }
+            try {
+                ListRoutersCmd vmsCmd = new ListRoutersCmd();
+                vmsCmd = ComponentContext.inject(vmsCmd);
+                Field hostField = vmsCmd.getClass().getDeclaredField("hostId");
+                hostField.setAccessible(true);
+                hostField.set(vmsCmd, host.getId());
+                Field listAllField = BaseListDomainResourcesCmd.class.getDeclaredField("listAll");
+                listAllField.setAccessible(true);
+                listAllField.set(vmsCmd, true);
+                ListResponse<DomainRouterResponse> routersResponse = queryService.searchForRouters(vmsCmd);
+                for (DomainRouterResponse routerResponse : routersResponse.getResponses()) {
+                    managedVms.add(routerResponse.getName());
+                }
+            } catch (Exception e) {
+                LOGGER.warn(String.format("Unable to retrieve virtual router vms for host ID: %s", host.getUuid()));
+            }
             GetUnmanagedInstancesCommand command = new GetUnmanagedInstancesCommand();
             command.setInstanceName(instanceName);
             Answer answer = agentManager.easySend(host.getId(), command);
