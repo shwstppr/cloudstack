@@ -434,6 +434,8 @@ public class VmIngestionManagerImpl implements VmIngestionService {
                                 } catch (Exception e) {
                                     throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to import NICs while ingesting vm: %s. %s", instanceName, e.getMessage()));
                                 }
+                            } else {
+                                throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to ingest vm name: %s", instanceName));
                             }
                             break;
                         }
@@ -443,7 +445,7 @@ public class VmIngestionManagerImpl implements VmIngestionService {
             }
         }
         if (userVm == null) {
-            throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to ingest vm name: %s", instanceName));
+            throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to find unmanaged vm with name: %s", instanceName));
         }
         UserVmResponse response = responseGenerator.createUserVmResponse(ResponseObject.ResponseView.Full, "virtualmachine", userVm).get(0);
         return response;
