@@ -18,14 +18,28 @@
 //
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+
 import org.apache.cloudstack.agent.directdownload.CheckUrlAnswer;
 import org.apache.cloudstack.agent.directdownload.CheckUrlCommand;
+import org.apache.cloudstack.agent.directdownload.DirectDownloadCommand;
+import org.apache.cloudstack.direct.download.DirectDownloadManagerImpl;
+import org.apache.cloudstack.utils.security.SecureSSLSocketFactory;
 import org.apache.log4j.Logger;
 
+import com.cloud.agent.direct.download.HttpsDirectTemplateDownloader;
 import com.cloud.hypervisor.kvm.resource.LibvirtComputingResource;
 import com.cloud.resource.CommandWrapper;
 import com.cloud.resource.ResourceWrapper;
 import com.cloud.utils.UriUtils;
+import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.utils.storage.QCOW2Utils;
 
 @ResourceWrapper(handles =  CheckUrlCommand.class)
@@ -43,12 +57,20 @@ public class LibvirtCheckUrlCommand extends CommandWrapper<CheckUrlCommand, Chec
             UriUtils.checkUrlExistence(url);
 
             if ("qcow2".equalsIgnoreCase(cmd.getFormat())) {
-                remoteSize = QCOW2Utils.getVirtualSize(url);
+                SSLSocketFactory sslSocketFactory = null;
+                if (cmd.isForDirectDownload()) {
+                    DirectDownloadCommand.DownloadProtocol protocol = DirectDownloadManagerImpl.getProtocolFromUrl(url);
+                    if (DirectDownloadCommand.DownloadProtocol.HTTPS.equals(protocol)) {
+                        SSLContext sslContext = HttpsDirectTemplateDownloader.getSSLContext();
+                        sslSocketFactory = new SecureSSLSocketFactory(sslContext);
+                    }
+                }
+                remoteSize = QCOW2Utils.getVirtualSize(url, sslSocketFactory);
             } else {
                 remoteSize = UriUtils.getRemoteSize(url);
             }
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | CloudRuntimeException | KeyStoreException | NoSuchAlgorithmException |
+                 CertificateException | IOException | KeyManagementException e) {
             s_logger.warn(e.getMessage());
             checkResult = false;
         }

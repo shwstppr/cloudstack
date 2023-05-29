@@ -26,6 +26,8 @@ public class CheckUrlCommand extends Command {
     private String format;
     private String url;
 
+    private boolean forDirectDownload = true;
+
     public String getFormat() {
         return format;
     }
@@ -34,7 +36,11 @@ public class CheckUrlCommand extends Command {
         return url;
     }
 
-    public CheckUrlCommand(final String format,final String url) {
+    public boolean isForDirectDownload() {
+        return forDirectDownload;
+    }
+
+    public CheckUrlCommand(final String format, final String url) {
         super();
         this.format = format;
         this.url = url;
