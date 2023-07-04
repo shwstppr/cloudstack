@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.RetryPolicy;
@@ -35,7 +36,7 @@ import org.apache.zookeeper.server.ZooKeeperServer;
 import com.cloud.utils.component.AdapterBase;
 
 public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLockingService {
-    private static final Logger LOG = Logger.getLogger(DBLockingManagerImpl.class);
+    private static final Logger LOGGER = Logger.getLogger(DBLockingManagerImpl.class);
     private final static int CLIENT_PORT = 21818; // non-standard
     private final static int MAX_CONNECTIONS = 5000;
     private final static int TICK_TIME = 2000;
@@ -79,10 +80,10 @@ public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLock
                 locked = lock.acquire(timeoutSeconds, TimeUnit.SECONDS);
             } catch (Exception e) {
                 locks.remove(name);
-                LOG.debug(String.format("Unable to acquire ZooKeeper lock, %s!\n", name) + e);
+                LOGGER.debug(String.format("Unable to acquire ZooKeeper lock, %s!\n", name) + e);
             }
         }
-        LOG.debug(String.format("Lock %s, Curator state: %s - %s", name, curatorClient.getState().toString(), locked));
+        LOGGER.debug(String.format("Lock %s, Curator state: %s - %s", name, curatorClient.getState().toString(), locked));
         return locked;
     }
 
@@ -97,16 +98,23 @@ public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLock
                     locks.remove(name);
                     released = true;
                 } catch (Exception e) {
-                    LOG.debug(String.format("Unable to release ZooKeeper lock, %s!\n", name) + e);
+                    LOGGER.debug(String.format("Unable to release ZooKeeper lock, %s!\n", name) + e);
                 }
             }
         }
-        LOG.debug(String.format("Release %s, Curator state: %s - %s", name, curatorClient.getState().toString(), released));
+        LOGGER.debug(String.format("Release %s, Curator state: %s - %s", name, curatorClient.getState().toString(), released));
         return released;
     }
 
     @Override
     public void stopService() {
+        for (Map.Entry<String, InterProcessMutex> entry : locks.entrySet()) {
+            try {
+                entry.getValue().release();
+            } catch (Exception e) {
+                LOGGER.debug(String.format("Unable to release lock, %s", entry.getKey()), e);
+            }
+        }
         if (curatorClient != null) {
             curatorClient.close();
         }
