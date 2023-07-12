@@ -17,44 +17,85 @@
 
 package com.cloud.utils.db.locking;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
+import com.cloud.utils.PropertiesUtil;
 import com.cloud.utils.component.AdapterBase;
+import com.cloud.utils.component.ComponentLifecycle;
+import com.cloud.utils.server.ServerProperties;
 import com.hazelcast.config.Config;
-import com.hazelcast.config.cp.CPSubsystemConfig;
+import com.hazelcast.config.JoinConfig;
+import com.hazelcast.config.NetworkConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.cp.lock.FencedLock;
 
 public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLockingService {
-    private static final Logger LOGGER = Logger.getLogger(DBLockingManagerImpl.class);
+    private static final Logger LOGGER = Logger.getLogger(HazelcastDBLockingServiceImpl.class);
+    private static final String LOCKING_SERVICE_CLIENTS_KEY = "locking.service.clients";
+
+    private String lockingServiceClients = null;
     private HashMap<String, FencedLock> locks;
 
-    private HazelcastInstance hazelcastInstance1 = null;
-    private HazelcastInstance hazelcastInstance2 = null;
-    private HazelcastInstance hazelcastInstance3 = null;
+    private Config config;
+    private HazelcastInstance hazelcastInstance = null;
+
+    protected HazelcastDBLockingServiceImpl () {
+        setRunLevel(ComponentLifecycle.RUN_LEVEL_SYSTEM);
+    }
+
+    private void prepareConfig() {
+        final File confFile = PropertiesUtil.findConfigFile("server.properties");
+        if (confFile == null) {
+            LOGGER.warn("Server configuration file not found");
+            return;
+        }
+        LOGGER.info("Server configuration file found: " + confFile.getAbsolutePath());
+        try {
+            InputStream is = new FileInputStream(confFile);
+            final Properties properties = ServerProperties.getServerProperties(is);
+            if (properties == null) {
+                return;
+            }
+            lockingServiceClients = properties.getProperty(LOCKING_SERVICE_CLIENTS_KEY);
+        } catch (final IOException e) {
+            LOGGER.warn("Failed to read configuration from server.properties file", e);
+        }
+        if (StringUtils.isEmpty(lockingServiceClients)) {
+            lockingServiceClients = "localhost";
+        }
+        config = new Config();
+        NetworkConfig network = config.getNetworkConfig();
+        network.setPort(5701).setPortCount(20);
+        network.setPortAutoIncrement(true);
+        JoinConfig join = network.getJoin();
+        join.getMulticastConfig().setEnabled(false);
+        join.getTcpIpConfig()
+                .addMember(lockingServiceClients).setEnabled(true);
+    }
 
     @Override
     public void init() throws IOException {
         locks = new HashMap<>();
-        Config config = new Config();
-        CPSubsystemConfig cpSubsystemConfig = config.getCPSubsystemConfig();
-        cpSubsystemConfig.setCPMemberCount(3);
-        hazelcastInstance1 = Hazelcast.newHazelcastInstance(config);
-        hazelcastInstance2 = Hazelcast.newHazelcastInstance(config);
-        hazelcastInstance3 = Hazelcast.newHazelcastInstance(config);
+        prepareConfig();
+        hazelcastInstance = Hazelcast.newHazelcastInstance(config);
     }
 
     @Override
     public boolean lock(String name, int timeoutSeconds) {
         boolean locked = false;
         try {
-            FencedLock lock = hazelcastInstance1.getCPSubsystem().getLock(name);
+            FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(name);
             locked = lock.tryLock(timeoutSeconds, TimeUnit.SECONDS);
             if (locked) {
                 locks.put(name, lock);
@@ -96,9 +137,7 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
                 LOGGER.debug(String.format("Unable to release lock, %s", entry.getKey()), e);
             }
         }
-        hazelcastInstance1.shutdown();
-        hazelcastInstance2.shutdown();
-        hazelcastInstance3.shutdown();
+        hazelcastInstance.shutdown();
     }
 
     @Override

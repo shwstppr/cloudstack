@@ -34,6 +34,7 @@ import org.apache.zookeeper.server.NIOServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
 import com.cloud.utils.component.AdapterBase;
+import com.cloud.utils.component.ComponentLifecycle;
 
 public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLockingService {
     private static final Logger LOGGER = Logger.getLogger(DBLockingManagerImpl.class);
@@ -48,8 +49,10 @@ public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLock
     private CuratorFramework curatorClient;
     private HashMap<String, InterProcessMutex> locks;
 
-    ZooKeeperDBLockingServiceImpl() {
+    protected ZooKeeperDBLockingServiceImpl() {
         locks = new HashMap<>();
+
+        setRunLevel(ComponentLifecycle.RUN_LEVEL_SYSTEM);
     }
 
     @Override

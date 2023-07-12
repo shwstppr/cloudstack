@@ -29,6 +29,7 @@ import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
 import org.apache.log4j.Logger;
 
+import com.cloud.utils.component.ComponentLifecycle;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.component.PluggableService;
 import com.cloud.utils.db.DbUtil;
@@ -40,11 +41,15 @@ public class DBLockingManagerImpl extends ManagerBase implements DBLockingManage
     private static final ConfigKey<String> DBLockingServicePlugin = new ConfigKey<String>("Advanced", String.class,
             "db.locking.service.plugin", "default",
             "The database locking service plugin that will be used for concurrent DB read/write.",
-            true, ConfigKey.Scope.Global);
+            false, ConfigKey.Scope.Global);
 
     private List<DBLockingService> lockingServices = new ArrayList<>();
     // Define map of string -> plugin
     private Map<String, DBLockingService> lockingServiceMap = new HashMap<>();
+
+    protected DBLockingManagerImpl () {
+        setRunLevel(ComponentLifecycle.RUN_LEVEL_SYSTEM);
+    }
 
     @Override
     public boolean configure(String name, Map<String, Object> params) throws ConfigurationException {
