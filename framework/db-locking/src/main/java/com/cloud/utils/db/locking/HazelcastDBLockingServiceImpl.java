@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -39,13 +38,14 @@ import com.hazelcast.config.NetworkConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.cp.lock.FencedLock;
+import com.hazelcast.map.IMap;
 
 public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLockingService {
     private static final Logger LOGGER = Logger.getLogger(HazelcastDBLockingServiceImpl.class);
     private static final String LOCKING_SERVICE_CLIENTS_KEY = "locking.service.clients";
 
     private String lockingServiceClients = null;
-    private HashMap<String, FencedLock> locks;
+    private IMap<String, FencedLock> locks;
 
     private Config config;
     private HazelcastInstance hazelcastInstance = null;
@@ -86,9 +86,9 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
 
     @Override
     public void init() throws IOException {
-        locks = new HashMap<>();
         prepareConfig();
         hazelcastInstance = Hazelcast.newHazelcastInstance(config);
+        locks = hazelcastInstance.getMap("locks-map");
     }
 
     @Override

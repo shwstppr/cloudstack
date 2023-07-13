@@ -336,4 +336,20 @@ public class DbUtil {
         s_dbLockingManager = dbLockingManager;
     }
 
+    public static boolean getCustomLock(String name, int timeoutSeconds) {
+        String lockingService = s_dbLockingManager != null ? s_dbLockingManager.getLockingServiceName(): "default";
+        if (s_dbLockingManager != null && List.of("hazelcast", "zookeeper").contains(lockingService)) {
+            return s_dbLockingManager.getGlobalLock(name, timeoutSeconds);
+        }
+        return true;
+    }
+
+    public static boolean releaseCustomLock(String name) {
+        String lockingService = s_dbLockingManager != null ? s_dbLockingManager.getLockingServiceName(): "default";
+        if (s_dbLockingManager != null && List.of("hazelcast", "zookeeper").contains(lockingService)) {
+            return s_dbLockingManager.releaseGlobalLock(name);
+        }
+        return true;
+    }
+
 }

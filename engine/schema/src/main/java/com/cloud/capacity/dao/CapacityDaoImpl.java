@@ -39,6 +39,7 @@ import com.cloud.dc.ClusterDetailsDao;
 import com.cloud.storage.Storage;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
+import com.cloud.utils.db.DbUtil;
 import com.cloud.utils.db.GenericDaoBase;
 import com.cloud.utils.db.GenericSearchBuilder;
 import com.cloud.utils.db.JoinBuilder.JoinType;
@@ -626,45 +627,56 @@ public class CapacityDaoImpl extends GenericDaoBase<CapacityVO, Long> implements
 
     @Override
     public List<Long> listClustersInZoneOrPodByHostCapacities(long id, long vmId, int requiredCpu, long requiredRam, short capacityTypeForOrdering, boolean isZone) {
-        TransactionLegacy txn = TransactionLegacy.currentTxn();
-        PreparedStatement pstmt = null;
-        List<Long> result = new ArrayList<Long>();
-
-        StringBuilder sql = new StringBuilder(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART1);
-
-        if (isZone) {
-            sql.append("capacity.data_center_id = ?");
-        } else {
-            sql.append("capacity.pod_id = ?");
-        }
-        sql.append(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART2);
-        if (isZone) {
-            sql.append("capacity.data_center_id = ?");
-        } else {
-            sql.append("capacity.pod_id = ?");
-        }
-        sql.append(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART3);
-
+        boolean lock = false;
         try {
-            pstmt = txn.prepareAutoCloseStatement(sql.toString());
-            pstmt.setLong(1, id);
-            pstmt.setShort(2, Capacity.CAPACITY_TYPE_CPU);
-            pstmt.setString(3, "cpuOvercommitRatio");
-            pstmt.setLong(4, requiredCpu);
-            pstmt.setLong(5, id);
-            pstmt.setShort(6, Capacity.CAPACITY_TYPE_MEMORY);
-            pstmt.setString(7, "memoryOvercommitRatio");
-            pstmt.setLong(8, requiredRam);
-
-            ResultSet rs = pstmt.executeQuery();
-            while (rs.next()) {
-                result.add(rs.getLong(1));
+            lock = DbUtil.getCustomLock("listClustersInZoneOrPodByHostCapacities", 120);
+            if (!lock) {
+                throw new CloudRuntimeException("DB Lock Exception");
             }
-            return result;
-        } catch (SQLException e) {
-            throw new CloudRuntimeException("DB Exception on: " + sql, e);
-        } catch (Throwable e) {
-            throw new CloudRuntimeException("Caught: " + sql, e);
+            TransactionLegacy txn = TransactionLegacy.currentTxn();
+            PreparedStatement pstmt = null;
+            List<Long> result = new ArrayList<Long>();
+
+            StringBuilder sql = new StringBuilder(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART1);
+
+            if (isZone) {
+                sql.append("capacity.data_center_id = ?");
+            } else {
+                sql.append("capacity.pod_id = ?");
+            }
+            sql.append(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART2);
+            if (isZone) {
+                sql.append("capacity.data_center_id = ?");
+            } else {
+                sql.append("capacity.pod_id = ?");
+            }
+            sql.append(LIST_CLUSTERSINZONE_BY_HOST_CAPACITIES_PART3);
+
+            try {
+                pstmt = txn.prepareAutoCloseStatement(sql.toString());
+                pstmt.setLong(1, id);
+                pstmt.setShort(2, Capacity.CAPACITY_TYPE_CPU);
+                pstmt.setString(3, "cpuOvercommitRatio");
+                pstmt.setLong(4, requiredCpu);
+                pstmt.setLong(5, id);
+                pstmt.setShort(6, Capacity.CAPACITY_TYPE_MEMORY);
+                pstmt.setString(7, "memoryOvercommitRatio");
+                pstmt.setLong(8, requiredRam);
+
+                ResultSet rs = pstmt.executeQuery();
+                while (rs.next()) {
+                    result.add(rs.getLong(1));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new CloudRuntimeException("DB Exception on: " + sql, e);
+            } catch (Throwable e) {
+                throw new CloudRuntimeException("Caught: " + sql, e);
+            }
+        } finally {
+            if (lock) {
+                DbUtil.releaseCustomLock("listClustersInZoneOrPodByHostCapacities");
+            }
         }
     }
 
