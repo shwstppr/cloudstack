@@ -21,7 +21,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -38,14 +39,13 @@ import com.hazelcast.config.NetworkConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.cp.lock.FencedLock;
-import com.hazelcast.map.IMap;
 
 public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLockingService {
     private static final Logger LOGGER = Logger.getLogger(HazelcastDBLockingServiceImpl.class);
     private static final String LOCKING_SERVICE_CLIENTS_KEY = "locking.service.clients";
 
     private String lockingServiceClients = null;
-    private IMap<String, FencedLock> locks;
+    private List<String> locks;
 
     private Config config;
     private HazelcastInstance hazelcastInstance = null;
@@ -86,9 +86,9 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
 
     @Override
     public void init() throws IOException {
+        locks = new ArrayList<>();
         prepareConfig();
         hazelcastInstance = Hazelcast.newHazelcastInstance(config);
-        locks = hazelcastInstance.getMap("locks-map");
     }
 
     @Override
@@ -98,7 +98,7 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
             FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(name);
             locked = lock.tryLock(timeoutSeconds, TimeUnit.SECONDS);
             if (locked) {
-                locks.put(name, lock);
+                locks.add(name);
             }
         } catch (Exception e) {
             LOGGER.debug(String.format("Unable to acquire Hazelcast lock, %s", name), e);
@@ -109,20 +109,22 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
 
     @Override
     public boolean release(String name) {
-        if (locks.containsKey(name)) {
+        if (!locks.contains(name)) {
             LOGGER.debug(String.format("No lock found %s", name));
-            return false;
+            return true;
         }
         boolean released = false;
-        FencedLock lock = locks.get(name);
-        if (lock != null) {
-            try {
-                lock.unlock();
-                locks.remove(name);
-                released = true;
-            } catch (Exception e) {
-                LOGGER.debug(String.format("Unable to release lock, %s", name), e);
-            }
+        FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(name);
+        if (!lock.isLocked()) {
+            locks.remove(name);
+            return true;
+        }
+        try {
+            lock.unlock();
+            locks.remove(name);
+            released = true;
+        } catch (Exception e) {
+            LOGGER.debug(String.format("Unable to release lock, %s", name), e);
         }
         LOGGER.debug(String.format("Released lock %s: %s", name, released));
         return released;
@@ -130,11 +132,14 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
 
     @Override
     public void stopService() {
-        for (Map.Entry<String, FencedLock> entry : locks.entrySet()) {
+        for (String lockName : locks) {
             try {
-                entry.getValue().unlock();
+                FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(lockName);
+                if (lock.isLocked()) {
+                    lock.unlock();
+                }
             } catch (Exception e) {
-                LOGGER.debug(String.format("Unable to release lock, %s", entry.getKey()), e);
+                LOGGER.debug(String.format("Unable to release lock, %s", lockName), e);
             }
         }
         hazelcastInstance.shutdown();

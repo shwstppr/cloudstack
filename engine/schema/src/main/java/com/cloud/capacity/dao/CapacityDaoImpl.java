@@ -633,6 +633,9 @@ public class CapacityDaoImpl extends GenericDaoBase<CapacityVO, Long> implements
             if (!lock) {
                 throw new CloudRuntimeException("DB Lock Exception");
             }
+            try {
+                Thread.sleep(30000);
+            } catch (Exception ignored) {}
             TransactionLegacy txn = TransactionLegacy.currentTxn();
             PreparedStatement pstmt = null;
             List<Long> result = new ArrayList<Long>();
