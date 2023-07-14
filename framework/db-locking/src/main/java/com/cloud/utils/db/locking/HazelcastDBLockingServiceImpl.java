@@ -24,14 +24,19 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cloudstack.managed.context.ManagedContextRunnable;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
 import com.cloud.utils.PropertiesUtil;
 import com.cloud.utils.component.AdapterBase;
 import com.cloud.utils.component.ComponentLifecycle;
+import com.cloud.utils.concurrency.NamedThreadFactory;
+import com.cloud.utils.db.GlobalLock;
 import com.cloud.utils.server.ServerProperties;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.JoinConfig;
@@ -49,6 +54,7 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
 
     private Config config;
     private HazelcastInstance hazelcastInstance = null;
+    ScheduledExecutorService lockScanner;
 
     protected HazelcastDBLockingServiceImpl () {
         setRunLevel(ComponentLifecycle.RUN_LEVEL_SYSTEM);
@@ -89,6 +95,8 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
         locks = new ArrayList<>();
         prepareConfig();
         hazelcastInstance = Hazelcast.newHazelcastInstance(config);
+        lockScanner = Executors.newScheduledThreadPool(1, new NamedThreadFactory("Hazelcast-Lock-Debugger"));
+        lockScanner.scheduleWithFixedDelay(new HazelcastActiveLocksDebugger(), 30, 30, TimeUnit.SECONDS);
     }
 
     @Override
@@ -96,12 +104,15 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
         boolean locked = false;
         try {
             FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(name);
+            if (lock.isLocked()) {
+                return false;
+            }
             locked = lock.tryLock(timeoutSeconds, TimeUnit.SECONDS);
             if (locked) {
                 locks.add(name);
             }
         } catch (Exception e) {
-            LOGGER.debug(String.format("Unable to acquire Hazelcast lock, %s", name), e);
+            LOGGER.error(String.format("Unable to acquire Hazelcast lock, %s", name), e);
         }
         LOGGER.debug(String.format("Acquired lock %s: %s", name, locked));
         return locked;
@@ -124,7 +135,7 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
             locks.remove(name);
             released = true;
         } catch (Exception e) {
-            LOGGER.debug(String.format("Unable to release lock, %s", name), e);
+            LOGGER.error(String.format("Unable to release lock, %s", name), e);
         }
         LOGGER.debug(String.format("Released lock %s: %s", name, released));
         return released;
@@ -139,7 +150,7 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
                     lock.unlock();
                 }
             } catch (Exception e) {
-                LOGGER.debug(String.format("Unable to release lock, %s", lockName), e);
+                LOGGER.warn(String.format("Unable to release lock, %s", lockName), e);
             }
         }
         hazelcastInstance.shutdown();
@@ -148,5 +159,34 @@ public class HazelcastDBLockingServiceImpl extends AdapterBase implements DBLock
     @Override
     public String getName() {
         return "hazelcast";
+    }
+
+    public class HazelcastActiveLocksDebugger extends ManagedContextRunnable {
+        @Override
+        protected void runInContext() {
+            GlobalLock gcLock = GlobalLock.getInternLock("HazelcastActiveLocksDebugger.Lock");
+            try {
+                if (gcLock.lock(3)) {
+                    try {
+                        reallyRun();
+                    } finally {
+                        gcLock.unlock();
+                    }
+                }
+            } finally {
+                gcLock.releaseRef();
+            }
+        }
+
+        public void reallyRun() {
+            try {
+                for (String lockName : locks) {
+                    FencedLock lock = hazelcastInstance.getCPSubsystem().getLock(lockName);
+                    LOGGER.debug(String.format("------------------------------------------Lock:%s: %s", lockName, lock.isLocked()));
+                }
+            } catch (Exception e) {
+                LOGGER.debug("Lock debugger exception", e);
+            }
+        }
     }
 }
