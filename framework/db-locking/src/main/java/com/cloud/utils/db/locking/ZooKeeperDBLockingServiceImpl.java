@@ -1,0 +1,136 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package com.cloud.utils.db.locking;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.curator.RetryPolicy;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.recipes.locks.InterProcessMutex;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.log4j.Logger;
+import org.apache.zookeeper.server.NIOServerCnxnFactory;
+import org.apache.zookeeper.server.ZooKeeperServer;
+
+import com.cloud.utils.component.AdapterBase;
+import com.cloud.utils.component.ComponentLifecycle;
+
+public class ZooKeeperDBLockingServiceImpl extends AdapterBase implements DBLockingService {
+    private static final Logger LOGGER = Logger.getLogger(DBLockingManagerImpl.class);
+    private final static int CLIENT_PORT = 21818; // non-standard
+    private final static int MAX_CONNECTIONS = 5000;
+    private final static int TICK_TIME = 2000;
+    private final static int RETRY_SLEEP_TIME = 1000;
+    private final static int MAX_RETRIES = 3;
+    private String tempDirectory = System.getProperty("java.io.tmpdir");
+    private ZooKeeperServer zooKeeperServer;
+    private NIOServerCnxnFactory serverFactory;
+    private CuratorFramework curatorClient;
+    private HashMap<String, InterProcessMutex> locks;
+
+    protected ZooKeeperDBLockingServiceImpl() {
+        locks = new HashMap<>();
+
+        setRunLevel(ComponentLifecycle.RUN_LEVEL_SYSTEM);
+    }
+
+    @Override
+    public void init() throws IOException {
+
+        File dir = new File(tempDirectory, "zookeeper").getAbsoluteFile();
+        try {
+            zooKeeperServer = new ZooKeeperServer(dir, dir, TICK_TIME);
+            serverFactory = new NIOServerCnxnFactory();
+            serverFactory.configure(new InetSocketAddress(CLIENT_PORT), MAX_CONNECTIONS);
+
+            serverFactory.startup(zooKeeperServer);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
+        RetryPolicy retryPolicy = new ExponentialBackoffRetry(RETRY_SLEEP_TIME, MAX_RETRIES);
+        curatorClient = CuratorFrameworkFactory.newClient(String.format("127.0.0.1:%d", CLIENT_PORT), retryPolicy);
+        curatorClient.start();
+    }
+
+    @Override
+    public boolean lock(String name, int timeoutSeconds) {
+        boolean locked = false;
+        if (!locks.containsKey(name)) {
+            InterProcessMutex lock = new InterProcessMutex(curatorClient, String.format("%s%s", tempDirectory, name));
+            try {
+                locks.put(name, lock);
+                locked = lock.acquire(timeoutSeconds, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                locks.remove(name);
+                LOGGER.debug(String.format("Unable to acquire ZooKeeper lock, %s!\n", name) + e);
+            }
+        }
+        LOGGER.debug(String.format("Lock %s, Curator state: %s - %s", name, curatorClient.getState().toString(), locked));
+        return locked;
+    }
+
+    @Override
+    public boolean release(String name) {
+        boolean released = false;
+        if (locks.containsKey(name)) {
+            InterProcessMutex lock = locks.get(name);
+            if (lock != null) {
+                try {
+                    lock.release();
+                    locks.remove(name);
+                    released = true;
+                } catch (Exception e) {
+                    LOGGER.debug(String.format("Unable to release ZooKeeper lock, %s!\n", name) + e);
+                }
+            }
+        }
+        LOGGER.debug(String.format("Release %s, Curator state: %s - %s", name, curatorClient.getState().toString(), released));
+        return released;
+    }
+
+    @Override
+    public void stopService() {
+        for (Map.Entry<String, InterProcessMutex> entry : locks.entrySet()) {
+            try {
+                entry.getValue().release();
+            } catch (Exception e) {
+                LOGGER.debug(String.format("Unable to release lock, %s", entry.getKey()), e);
+            }
+        }
+        if (curatorClient != null) {
+            curatorClient.close();
+        }
+        curatorClient = null;
+        if (serverFactory != null) {
+            serverFactory.shutdown();
+        }
+        serverFactory = null;
+        zooKeeperServer = null;
+    }
+
+    @Override
+    public String getName() {
+        return "zookeeper";
+    }
+}
