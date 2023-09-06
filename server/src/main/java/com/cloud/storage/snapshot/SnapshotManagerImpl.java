@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -1684,7 +1685,7 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
     }
 
     @DB
-    private boolean copySnapshotToZone(SnapshotVO snapshotVO, DataStore srcSecStore, DataCenterVO dstZone, String copyUrl) throws StorageUnavailableException, ResourceAllocationException {
+    private Pair<Boolean, AsyncCallFuture<SnapshotResult>> copySnapshotToZone(SnapshotVO snapshotVO, DataStore srcSecStore, DataCenterVO dstZone, String copyUrl) throws StorageUnavailableException, ResourceAllocationException {
         final long snapshotId = snapshotVO.getId();
         final long dstZoneId = dstZone.getId();
         // find all eligible image stores for the destination zone
@@ -1704,29 +1705,36 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
         // for that zone
         for (DataStore dstSecStore : dstSecStores) {
             if (checkAndProcessSnapshotAlreadyExistInStore(snapshotVO, dstSecStore)) {
-                return true;
-            }
-            SnapshotInfo snapshotOnSecondary = snapshotFactory.getSnapshot(snapshotId, srcSecStore);
-            try {
-                AsyncCallFuture<SnapshotResult> future = snapshotSrv.copySnapshot(snapshotOnSecondary, copyUrl, dstSecStore);
-                SnapshotResult result = future.get();
-                if (result.isFailed()) {
-                    s_logger.debug("copy template failed for image store " + dstSecStore.getName() + ":" + result.getResult());
-                    continue; // try next image store
-                }
-
-                snapshotZoneDao.addSnapshotToZone(snapshotId, dstZoneId);
-
-                if (account.getId() != Account.ACCOUNT_ID_SYSTEM) {
-                    UsageEventUtils.publishUsageEvent(EventTypes.EVENT_SNAPSHOT_COPY, account.getId(), dstZoneId, snapshotId, null, null, null, snapshotVO.getSize(),
-                            snapshotVO.getSize(), snapshotVO.getClass().getName(), snapshotVO.getUuid());
-                }
-                return true;
-            } catch (InterruptedException | ExecutionException | ResourceUnavailableException ex) {
-                s_logger.debug("failed to copy template to image store:" + dstSecStore.getName() + " ,will try next one");
+                return new Pair<>(true, null);
             }
         }
-        return false;
+        Collections.shuffle(dstSecStores);
+        DataStore dstSecStore = dstSecStores.get(0);
+        SnapshotInfo snapshotOnSecondary = snapshotFactory.getSnapshot(snapshotId, srcSecStore);
+        try {
+            AsyncCallFuture<SnapshotResult> future = snapshotSrv.copySnapshot(snapshotOnSecondary, copyUrl, dstSecStore);
+            return new Pair<>(true, future);
+        } catch (ResourceUnavailableException ex) {
+            s_logger.debug("failed to copy template to image store:" + dstSecStore.getName() + " ,will try next one");
+        }
+        return new Pair<>(false, null);
+    }
+
+    private boolean processCopyJobResult(SnapshotVO snapshotVO, DataCenter zone, SnapshotResult result) {
+        if (result.isFailed()) {
+            s_logger.error(String.format("copy template failed for zone %s: %s", zone, result.getResult()));
+            return  false;
+        }
+
+        snapshotZoneDao.addSnapshotToZone(snapshotVO.getId(), zone.getId());
+
+        if (snapshotVO.getAccountId() != Account.ACCOUNT_ID_SYSTEM) {
+            UsageEventUtils.publishUsageEvent(EventTypes.EVENT_SNAPSHOT_COPY, snapshotVO.getAccountId(), zone.getId(), snapshotVO.getId(), null, null, null, snapshotVO.getSize(),
+                    snapshotVO.getSize(), snapshotVO.getClass().getName(), snapshotVO.getUuid());
+        }
+        // increase resource count
+        _resourceLimitMgr.incrementResourceCount(snapshotVO.getAccountId(), ResourceType.secondary_storage, snapshotVO.getSize());
+        return true;
     }
 
     @DB
@@ -1748,7 +1756,7 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
             throw new CloudRuntimeException("Failed to copy template");
         }
         s_logger.debug(String.format("Copying snapshot to destination zones using download URL: %s", copyUrl));
-
+        Map<Long, AsyncCallFuture<SnapshotResult>> copyJobs = new HashMap<>();
         for (DataCenterVO destZone : dstZones) {
             DataStore dstSecStore = getSnapshotZoneImageStore(snapshotId, destZone.getId());
             if (dstSecStore != null) {
@@ -1756,12 +1764,35 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
                         " in zone " + destZone.getId() + " , don't need to copy");
                 continue;
             }
-            if (copySnapshotToZone(snapshotVO, srcSecStore, destZone, copyUrl)) {
-                // increase resource count
-                _resourceLimitMgr.incrementResourceCount(snapshotVO.getAccountId(), ResourceType.secondary_storage, snapshotVO.getSize());
+            Pair<Boolean, AsyncCallFuture<SnapshotResult>> jobPair = copySnapshotToZone(snapshotVO, srcSecStore, destZone, copyUrl);
+            if (jobPair.first()) {
+                copyJobs.put(destZone.getId(), jobPair.second());
             } else {
                 failedZones.add(destZone.getName());
             }
+        }
+        try {
+            while (MapUtils.isNotEmpty(copyJobs)) {
+                Set<Long> zoneIds = copyJobs.keySet();
+                for (Long zoneId : zoneIds) {
+                    DataCenter zone = dstZones.stream().filter(x->zoneId.equals(x.getId())).findFirst().orElse(null);
+                    if (zone == null) {
+                        copyJobs.remove(zoneId);
+                        continue;
+                    }
+                    AsyncCallFuture<SnapshotResult> job = copyJobs.get(zoneId);
+                    if (!job.isDone()) {
+                        continue;
+                    }
+                    if (!processCopyJobResult(snapshotVO, zone, job.get())) {
+                        failedZones.add(zone.getName());
+                    }
+                    copyJobs.remove(zoneId);
+                }
+                Thread.sleep(10000);
+            }
+        } catch (InterruptedException | ExecutionException ex) {
+            throw new CloudRuntimeException("Failed to copy template", ex);
         }
         return failedZones;
     }
