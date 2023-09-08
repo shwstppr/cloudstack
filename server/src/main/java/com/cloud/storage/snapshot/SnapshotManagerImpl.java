@@ -1685,39 +1685,25 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
     }
 
     @DB
-    private Pair<Boolean, AsyncCallFuture<SnapshotResult>> copySnapshotToZone(SnapshotVO snapshotVO, DataStore srcSecStore, DataCenterVO dstZone, String copyUrl) throws StorageUnavailableException, ResourceAllocationException {
-        final long snapshotId = snapshotVO.getId();
-        final long dstZoneId = dstZone.getId();
-        // find all eligible image stores for the destination zone
-        List<DataStore> dstSecStores = dataStoreMgr.getImageStoresByScopeExcludingReadOnly(new ZoneScope(dstZoneId));
+    private Ternary<Boolean, AsyncCallFuture<SnapshotResult>, DataStore> copySnapshotToZone(SnapshotVO snapshotVO,
+          DataStore srcSecStore, DataCenterVO dstZone, String copyUrl, List<DataStore> dstSecStores,
+          Account account, long size)
+            throws ResourceAllocationException {
         if (CollectionUtils.isEmpty(dstSecStores)) {
-            throw new StorageUnavailableException("Destination zone is not ready, no image store associated", DataCenter.class, dstZoneId);
+            return new Ternary<>(false, null, null);
         }
-        AccountVO account = _accountDao.findById(snapshotVO.getAccountId());
-        // find the size of the template to be copied
-        SnapshotDataStoreVO snapshotDataStoreVO = _snapshotStoreDao.findByStoreSnapshot(DataStoreRole.Image, srcSecStore.getId(), snapshotId);
-
-        _resourceLimitMgr.checkResourceLimit(account, ResourceType.template);
-        _resourceLimitMgr.checkResourceLimit(account, ResourceType.secondary_storage, snapshotDataStoreVO.getSize());
-
-        // Copy will just find one eligible image store for the destination zone
-        // and copy snapshot there, not propagate to all image stores
-        // for that zone
-        for (DataStore dstSecStore : dstSecStores) {
-            if (checkAndProcessSnapshotAlreadyExistInStore(snapshotVO, dstSecStore)) {
-                return new Pair<>(true, null);
-            }
-        }
+        final long snapshotId = snapshotVO.getId();
+        _resourceLimitMgr.checkResourceLimit(account, ResourceType.secondary_storage, size);
         Collections.shuffle(dstSecStores);
         DataStore dstSecStore = dstSecStores.get(0);
         SnapshotInfo snapshotOnSecondary = snapshotFactory.getSnapshot(snapshotId, srcSecStore);
         try {
             AsyncCallFuture<SnapshotResult> future = snapshotSrv.copySnapshot(snapshotOnSecondary, copyUrl, dstSecStore);
-            return new Pair<>(true, future);
+            return new Ternary<>(true, future, dstSecStore);
         } catch (ResourceUnavailableException ex) {
             s_logger.debug("failed to copy template to image store:" + dstSecStore.getName() + " ,will try next one");
         }
-        return new Pair<>(false, null);
+        return new Ternary<>(false, null, dstSecStore);
     }
 
     private boolean processCopyJobResult(SnapshotVO snapshotVO, DataCenter zone, SnapshotResult result) {
@@ -1755,8 +1741,10 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
         if (copyUrl == null) {
             throw new CloudRuntimeException("Failed to copy template");
         }
+        Account account = _accountMgr.getAccount(snapshotVO.getAccountId());
         s_logger.debug(String.format("Copying snapshot to destination zones using download URL: %s", copyUrl));
-        Map<Long, AsyncCallFuture<SnapshotResult>> copyJobs = new HashMap<>();
+        Map<Long, Pair<AsyncCallFuture<SnapshotResult>, DataStore>> copyJobs = new HashMap<>();
+        Map<Long, List<DataStore>> zoneStoresMap = new HashMap<>();
         for (DataCenterVO destZone : dstZones) {
             DataStore dstSecStore = getSnapshotZoneImageStore(snapshotId, destZone.getId());
             if (dstSecStore != null) {
@@ -1764,10 +1752,18 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
                         " in zone " + destZone.getId() + " , don't need to copy");
                 continue;
             }
-            Pair<Boolean, AsyncCallFuture<SnapshotResult>> jobPair = copySnapshotToZone(snapshotVO, srcSecStore, destZone, copyUrl);
-            if (jobPair.first()) {
-                copyJobs.put(destZone.getId(), jobPair.second());
+            List<DataStore> dstSecStores = dataStoreMgr.getImageStoresByScopeExcludingReadOnly(new ZoneScope(destZone.getId()));
+            zoneStoresMap.put(destZone.getId(), dstSecStores);
+            Ternary<Boolean, AsyncCallFuture<SnapshotResult>, DataStore> jobTrio = copySnapshotToZone(snapshotVO,
+                    srcSecStore, destZone, copyUrl, dstSecStores, account, snapshotOnSecondary.getPhysicalSize());
+            if (jobTrio.first()) {
+                copyJobs.put(destZone.getId(), new Pair<>(jobTrio.second(), jobTrio.third()));
             } else {
+                if (jobTrio.third() == null) {
+                    s_logger.error(String.format("Destination zone is not ready, no image store associated for zone: %s", destZone));
+                } else {
+                    s_logger.debug(String.format("Snapshot can not be copied to any of the secondary store of zone: %s", destZone));
+                }
                 failedZones.add(destZone.getName());
             }
         }
@@ -1775,19 +1771,36 @@ public class SnapshotManagerImpl extends MutualExclusiveIdsManagerBase implement
             while (MapUtils.isNotEmpty(copyJobs)) {
                 Set<Long> zoneIds = copyJobs.keySet();
                 for (Long zoneId : zoneIds) {
-                    DataCenter zone = dstZones.stream().filter(x->zoneId.equals(x.getId())).findFirst().orElse(null);
+                    DataCenterVO zone = dstZones.stream().filter(x->zoneId.equals(x.getId())).findFirst().orElse(null);
                     if (zone == null) {
                         copyJobs.remove(zoneId);
                         continue;
                     }
-                    AsyncCallFuture<SnapshotResult> job = copyJobs.get(zoneId);
+                    Pair<AsyncCallFuture<SnapshotResult>, DataStore> jobPair = copyJobs.get(zoneId);
+                    AsyncCallFuture<SnapshotResult> job = jobPair.first();
                     if (!job.isDone()) {
                         continue;
                     }
-                    if (!processCopyJobResult(snapshotVO, zone, job.get())) {
+                    copyJobs.remove(zoneId);
+                    if (processCopyJobResult(snapshotVO, zone, job.get())) {
+                        continue;
+                    }
+                    DataStore lastTriedStore = jobPair.second();
+                    List<DataStore> zoneStores = zoneStoresMap.get(zoneId);
+                    zoneStores = zoneStores.stream().filter(x->x.getId()!=lastTriedStore.getId()).collect(Collectors.toList());
+                    zoneStoresMap.put(zoneId, zoneStores);
+                    if (CollectionUtils.isEmpty(zoneStores)) {
+                        s_logger.debug(String.format("Snapshot can not be copied to any of the secondary store of zone: %s", zone));
+                        failedZones.add(zone.getName());
+                        continue;
+                    }
+                    Ternary<Boolean, AsyncCallFuture<SnapshotResult>, DataStore> jobTrio = copySnapshotToZone(snapshotVO,
+                            srcSecStore, zone, copyUrl, zoneStores, account, snapshotOnSecondary.getPhysicalSize());
+                    if (jobTrio.first()) {
+                        copyJobs.put(zone.getId(), new Pair<>(jobTrio.second(), jobTrio.third()));
+                    } else {
                         failedZones.add(zone.getName());
                     }
-                    copyJobs.remove(zoneId);
                 }
                 Thread.sleep(10000);
             }
