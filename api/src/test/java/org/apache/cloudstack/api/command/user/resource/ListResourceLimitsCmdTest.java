@@ -1,4 +1,3 @@
-//
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -15,15 +14,24 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-//
-package org.apache.cloudstack.reservation.dao;
+package org.apache.cloudstack.api.command.user.resource;
 
-import org.apache.cloudstack.reservation.ReservationVO;
+import org.junit.Assert;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import com.cloud.configuration.Resource;
-import com.cloud.utils.db.GenericDao;
+@RunWith(MockitoJUnitRunner.class)
+public class ListResourceLimitsCmdTest {
 
-public interface ReservationDao extends GenericDao<ReservationVO, Long> {
-    long getAccountReservation(Long account, Resource.ResourceType resourceType, String tag);
-    long getDomainReservation(Long domain, Resource.ResourceType resourceType, String tag);
+    @Test
+    public void testGetTag() {
+        ListResourceLimitsCmd cmd = new ListResourceLimitsCmd();
+        ReflectionTestUtils.setField(cmd, "tag", null);
+        Assert.assertNull(cmd.getTag());
+        String tag = "ABC";
+        ReflectionTestUtils.setField(cmd, "tag", tag);
+        Assert.assertEquals(tag, cmd.getTag());
+    }
 }
