@@ -439,7 +439,10 @@ public class UnmanagedVMsManagerImpl implements UnmanagedVMsManager {
         return managedVms;
     }
 
-    private boolean hostSupportsServiceOffering(HostVO host, ServiceOffering serviceOffering) {
+    private boolean hostSupportsServiceOfferingAndTemplate(HostVO host, ServiceOffering serviceOffering, VirtualMachineTemplate template) {
+        if (StringUtils.isAllEmpty(serviceOffering.getHostTag(), template.getTemplateTag())) {
+            return true;
+        }
         hostDao.loadHostTags(host);
         return host.checkHostServiceOfferingTags(serviceOffering);
     }
@@ -893,7 +896,7 @@ public class UnmanagedVMsManagerImpl implements UnmanagedVMsManager {
             cleanupFailedImportVM(vm);
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, String.format("Failed to check migrations need during import, VM: %s", userVm.getInstanceName()));
         }
-        if (!hostSupportsServiceOffering(sourceHost, serviceOffering)) {
+        if (!hostSupportsServiceOfferingAndTemplate(sourceHost, serviceOffering, template)) {
             logger.debug(String.format("VM %s needs to be migrated", vm.getUuid()));
             final VirtualMachineProfile profile = new VirtualMachineProfileImpl(vm, template, serviceOffering, owner, null);
             DeploymentPlanner.ExcludeList excludeList = new DeploymentPlanner.ExcludeList();
@@ -1091,8 +1094,8 @@ public class UnmanagedVMsManagerImpl implements UnmanagedVMsManager {
             }
         }
 
-        if (!migrateAllowed && host != null && !hostSupportsServiceOffering(host, validatedServiceOffering)) {
-            throw new InvalidParameterValueException(String.format("Service offering: %s is not compatible with host: %s of unmanaged VM: %s", serviceOffering.getUuid(), host.getUuid(), instanceName));
+        if (!migrateAllowed && host != null && !hostSupportsServiceOfferingAndTemplate(host, validatedServiceOffering, template)) {
+            throw new InvalidParameterValueException(String.format("Service offering: %s or template: %s is not compatible with host: %s of unmanaged VM: %s", serviceOffering.getUuid(), template.getUuid(), host.getUuid(), instanceName));
         }
         // Check disks and supplied disk offerings
         List<UnmanagedInstanceTO.Disk> unmanagedInstanceDisks = unmanagedInstance.getDisks();
