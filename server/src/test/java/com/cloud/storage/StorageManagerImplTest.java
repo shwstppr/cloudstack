@@ -314,13 +314,13 @@ public class StorageManagerImplTest {
         List<Pair<Volume, DiskProfile>> list = List.of(new Pair<>(volume, profile));
         StoragePoolVO pool = Mockito.mock(StoragePoolVO.class);
         Mockito.doReturn(true).when(storageManagerImpl)
-                .storagePoolHasEnoughIops(100L, pool, true);
+                .storagePoolHasEnoughIops(100L, list, pool, true);
         Assert.assertTrue(storageManagerImpl.storagePoolHasEnoughIops(list, pool));
 
         Mockito.when(profile.getDiskOfferingId()).thenReturn(2L);
         Mockito.when(profile.getMinIops()).thenReturn(200L);
         Mockito.doReturn(false).when(storageManagerImpl)
-                .storagePoolHasEnoughIops(200L, pool, true);
+                .storagePoolHasEnoughIops(200L, list, pool, true);
         Assert.assertFalse(storageManagerImpl.storagePoolHasEnoughIops(list, pool));
     }
 
