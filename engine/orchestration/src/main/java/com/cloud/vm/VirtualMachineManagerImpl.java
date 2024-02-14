@@ -6067,8 +6067,8 @@ public class VirtualMachineManagerImpl extends ManagerBase implements VirtualMac
         for (StoragePoolAllocator allocator : _storagePoolAllocators) {
             List<StoragePool> poolListFromAllocator = allocator.allocateToPool(diskProfile, profile, plan, avoid, 1);
             if (CollectionUtils.isNotEmpty(poolListFromAllocator)) {
-                if (s_logger.isDebugEnabled()) {
-                    s_logger.debug(String.format("Found a suitable pool: %s for disk offering: %s", poolListFromAllocator.get(0).getName(), diskOffering.getName()));
+                if (logger.isDebugEnabled()) {
+                    logger.debug(String.format("Found a suitable pool: %s for disk offering: %s", poolListFromAllocator.get(0).getName(), diskOffering.getName()));
                 }
                 return true;
             }
