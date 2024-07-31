@@ -48,6 +48,7 @@ import org.apache.cloudstack.api.EntityReference;
 import org.apache.cloudstack.api.InternalIdentity;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
+import org.apache.cloudstack.config.ApiServiceConfiguration;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
@@ -490,7 +491,12 @@ public class ParamProcessWorker implements DispatchWorker {
             } catch (final NumberFormatException e) {
                 internalId = null;
             }
-            if (internalId != null){
+            if (internalId != null) {
+                if (!ApiServiceConfiguration.ApiAllowInternalDBIDs.value()) {
+                    String msg = String.format("Unsupported value provided for parameter %s", annotation.name());
+                    s_logger.error(msg);
+                    throw new InvalidParameterValueException(msg);
+                }
                 // Populate CallContext for each of the entity.
                 for (final Class<?> entity : entities) {
                     CallContext.current().putContextParameter(entity, internalId);
