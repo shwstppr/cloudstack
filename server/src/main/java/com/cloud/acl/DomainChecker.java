@@ -221,12 +221,19 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
         return true;
     }
 
+    private boolean accessingHigherAccountForNonListing(Account caller, Account owner, AccessType accessType) {
+        return !Account.Type.NORMAL.equals(owner.getType()) &&
+                caller.getType().ordinal() > owner.getType().ordinal() &&
+                !AccessType.ListEntry.equals(accessType);
+    }
+
     protected void validateCallerHasAccessToEntityOwner(Account caller, ControlledEntity entity, AccessType accessType) {
         PermissionDeniedException exception = new PermissionDeniedException("Caller does not have permission to operate with provided resource.");
         String entityLog = String.format("entity [owner ID: %d, type: %s]", entity.getAccountId(),
                 entity.getEntityType().getSimpleName());
 
-        if (_accountService.isRootAdmin(caller.getId())) {
+        if (_accountService.isRootAdmin(caller.getId()) &&
+                (Account.Type.ADMIN.equals(caller.getType()) || AccessType.ListEntry.equals(accessType))) {
             return;
         }
 
@@ -237,6 +244,12 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
         Account owner = _accountDao.findById(entity.getAccountId());
         if (owner == null) {
             s_logger.error(String.format("Owner not found for %s", entityLog));
+            throw exception;
+        }
+
+        if (accessingHigherAccountForNonListing(caller, owner, accessType)) {
+            s_logger.error(String.format("Caller ID: %d does not have access on owner ID: %d", caller.getId(),
+                    owner.getId()));
             throw exception;
         }
 

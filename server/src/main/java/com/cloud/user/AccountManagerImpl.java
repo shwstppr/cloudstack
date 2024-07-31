@@ -117,8 +117,6 @@ import com.cloud.network.IpAddress;
 import com.cloud.network.IpAddressManager;
 import com.cloud.network.Network;
 import com.cloud.network.NetworkModel;
-import com.cloud.network.security.SecurityGroupService;
-import com.cloud.network.security.SecurityGroupVO;
 import com.cloud.network.VpnUserVO;
 import com.cloud.network.as.AutoScaleManager;
 import com.cloud.network.dao.AccountGuestVlanMapDao;
@@ -132,6 +130,8 @@ import com.cloud.network.dao.RemoteAccessVpnVO;
 import com.cloud.network.dao.VpnUserDao;
 import com.cloud.network.router.VirtualRouter;
 import com.cloud.network.security.SecurityGroupManager;
+import com.cloud.network.security.SecurityGroupService;
+import com.cloud.network.security.SecurityGroupVO;
 import com.cloud.network.security.dao.SecurityGroupDao;
 import com.cloud.network.vpc.Vpc;
 import com.cloud.network.vpc.VpcManager;
@@ -2717,7 +2717,7 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
             throw new InvalidParameterValueException("Unable to find user by id");
         }
         final ControlledEntity account = getAccount(getUserAccountById(userId).getAccountId()); //Extracting the Account from the userID of the requested user.
-        checkAccess(CallContext.current().getCallingUser(), account);
+        checkAccess(CallContext.current().getCallingAccount(), AccessType.OperateEntry,  false, account);
 
         Map<String, String> keys = new HashMap<String, String>();
         keys.put("apikey", user.getApiKey());

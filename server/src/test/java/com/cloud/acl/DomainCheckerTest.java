@@ -18,6 +18,7 @@ package com.cloud.acl;
 
 import org.apache.cloudstack.acl.ControlledEntity;
 import org.apache.cloudstack.acl.SecurityChecker;
+import org.apache.cloudstack.acl.dao.RoleDao;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -46,6 +47,8 @@ public class DomainCheckerTest {
     DomainDao _domainDao;
     @Mock
     ProjectManager _projectMgr;
+    @Mock
+    RoleDao roleDao;
 
     @Spy
     @InjectMocks
@@ -62,10 +65,22 @@ public class DomainCheckerTest {
     public void testRootAdminHasAccess() {
         Account rootAdmin = Mockito.mock(Account.class);
         Mockito.when(rootAdmin.getId()).thenReturn(1L);
+        Mockito.when(rootAdmin.getType()).thenReturn(Account.Type.ADMIN);
         ControlledEntity entity = getMockedEntity(2L);
         Mockito.when(_accountService.isRootAdmin(rootAdmin.getId())).thenReturn(true);
 
-        domainChecker.validateCallerHasAccessToEntityOwner(rootAdmin, entity, SecurityChecker.AccessType.ModifyProject);
+        domainChecker.validateCallerHasAccessToEntityOwner(rootAdmin, entity, SecurityChecker.AccessType.OperateEntry);
+    }
+
+    @Test
+    public void testReadOnlyRootAdminHasAccess() {
+        Account rootAdmin = Mockito.mock(Account.class);
+        Mockito.when(rootAdmin.getId()).thenReturn(1L);
+        Mockito.when(rootAdmin.getType()).thenReturn(Account.Type.READ_ONLY_ADMIN);
+        ControlledEntity entity = getMockedEntity(2L);
+        Mockito.when(_accountService.isRootAdmin(rootAdmin.getId())).thenReturn(true);
+
+        domainChecker.validateCallerHasAccessToEntityOwner(rootAdmin, entity, SecurityChecker.AccessType.ListEntry);
     }
 
     @Test
@@ -74,7 +89,7 @@ public class DomainCheckerTest {
         Mockito.when(caller.getId()).thenReturn(1L);
         ControlledEntity entity = getMockedEntity(1L);
 
-        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.ModifyProject);
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.UseEntry);
     }
 
     @Test(expected = PermissionDeniedException.class)
@@ -84,7 +99,33 @@ public class DomainCheckerTest {
         ControlledEntity entity = getMockedEntity(2L);
         Mockito.when(_accountDao.findById(entity.getAccountId())).thenReturn(null);
 
-        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.ModifyProject);
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.UseEntry);
+    }
+
+    @Test(expected = PermissionDeniedException.class)
+    public void testDomainAdminDoesNotHaveAccess() {
+        Account caller = Mockito.mock(Account.class);
+        Mockito.when(caller.getId()).thenReturn(1L);
+        Mockito.when(caller.getType()).thenReturn(Account.Type.DOMAIN_ADMIN);
+        ControlledEntity entity = getMockedEntity(2L);
+        AccountVO owner = Mockito.mock(AccountVO.class);
+        Mockito.when(owner.getType()).thenReturn(Account.Type.ADMIN);
+        Mockito.when(_accountDao.findById(entity.getAccountId())).thenReturn(owner);
+
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.OperateEntry);
+    }
+
+    @Test(expected = PermissionDeniedException.class)
+    public void testReadOnlyAdminDoesNotHaveAccess() {
+        Account caller = Mockito.mock(Account.class);
+        Mockito.when(caller.getId()).thenReturn(1L);
+        Mockito.when(caller.getType()).thenReturn(Account.Type.READ_ONLY_ADMIN);
+        ControlledEntity entity = getMockedEntity(2L);
+        AccountVO owner = Mockito.mock(AccountVO.class);
+        Mockito.when(owner.getType()).thenReturn(Account.Type.ADMIN);
+        Mockito.when(_accountDao.findById(entity.getAccountId())).thenReturn(owner);
+
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.OperateEntry);
     }
 
     @Test
@@ -96,10 +137,27 @@ public class DomainCheckerTest {
         ControlledEntity entity = getMockedEntity(2L);
         AccountVO owner = Mockito.mock(AccountVO.class);
         Mockito.when(owner.getDomainId()).thenReturn(101L);
+        Mockito.when(owner.getType()).thenReturn(Account.Type.NORMAL);
         Mockito.when(_accountDao.findById(entity.getAccountId())).thenReturn(owner);
         Mockito.when(_domainDao.isChildDomain(100L, 101L)).thenReturn(true);
 
-        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.ModifyProject);
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.OperateEntry);
+    }
+
+    @Test
+    public void testDomainAdminHasAccessForAdminListing() {
+        Account caller = Mockito.mock(Account.class);
+        Mockito.when(caller.getId()).thenReturn(1L);
+        Mockito.when(caller.getDomainId()).thenReturn(100L);
+        Mockito.when(caller.getType()).thenReturn(Account.Type.DOMAIN_ADMIN);
+        ControlledEntity entity = getMockedEntity(2L);
+        AccountVO owner = Mockito.mock(AccountVO.class);
+        Mockito.when(owner.getDomainId()).thenReturn(101L);
+        Mockito.when(owner.getType()).thenReturn(Account.Type.ADMIN);
+        Mockito.when(_accountDao.findById(entity.getAccountId())).thenReturn(owner);
+        Mockito.when(_domainDao.isChildDomain(100L, 101L)).thenReturn(true);
+
+        domainChecker.validateCallerHasAccessToEntityOwner(caller, entity, SecurityChecker.AccessType.ListEntry);
     }
 
     private Ternary<Account, ControlledEntity, AccountVO> getProjectAccessCheckResources() {
