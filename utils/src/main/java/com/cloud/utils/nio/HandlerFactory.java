@@ -23,6 +23,13 @@ package com.cloud.utils.nio;
  * WorkerFactory creates and selects workers.
  */
 public interface HandlerFactory {
-    public Task create(Task.Type type, Link link, byte[] data);
+    default Task create(Task.Type type, Link link, byte[] data) {
+        return null;
+    }
+    default Task create(Task.Type type, byte[] data) {
+        return null;
+    }
+    default void handleConnect(boolean result) {
+    }
 
 }

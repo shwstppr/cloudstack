@@ -186,6 +186,7 @@
         <cs.ini.version>0.5.4</cs.ini.version>
         <cs.gmaven.version>1.12.0</cs.gmaven.version>
         <cs.caffeine.version>3.1.7</cs.caffeine.version>
+        <cs.netty.version>4.1.96.Final</cs.netty.version>
     </properties>
 
     <distributionManagement>
@@ -780,6 +781,11 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
             <version>${cs.caffeine.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>${cs.netty.version}</version>
         </dependency>
     </dependencies>
 
