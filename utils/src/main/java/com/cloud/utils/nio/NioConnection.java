@@ -44,7 +44,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -265,7 +264,7 @@ public abstract class NioConnection implements Callable<Boolean> {
                 }
             });
         } catch (final RejectedExecutionException e) {
-            if (s_logger.isInfoEnabled()) {
+            if (s_logger.isTraceEnabled()) {
                 s_logger.trace(socket.getRemoteSocketAddress()+ " Accept Task rejected: " + e.getMessage());
             }
             closeAutoCloseable(socket, "Rejecting connection - accepting socket");
