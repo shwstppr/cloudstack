@@ -30,10 +30,14 @@ under the License.
    <appender name="FILE" class="org.apache.log4j.rolling.RollingFileAppender">
       <param name="Append" value="true"/>
       <param name="Threshold" value="TRACE"/>
-      <rollingPolicy class="org.apache.log4j.rolling.TimeBasedRollingPolicy">
-        <param name="FileNamePattern" value="@MSLOG@.%d{yyyy-MM-dd}.gz"/>
+      <rollingPolicy class="org.apache.log4j.rolling.FixedWindowRollingPolicy">
+        <param name="FileNamePattern" value="@MSLOG@.%i.gz"/>
         <param name="ActiveFileName" value="@MSLOG@"/>
+        <param name="MaxIndex" value="@LOGMAXINDEX@"/>
       </rollingPolicy>
+     <triggeringPolicy class="org.apache.log4j.rolling.SizeBasedTriggeringPolicy">
+       <param name="MaxFileSize" value="@LOGMAXFILESIZE@"/>
+     </triggeringPolicy>
       <layout class="org.apache.log4j.EnhancedPatternLayout">
          <param name="ConversionPattern" value="%d{ISO8601} %-5p [%c{1.}] (%t:%x) (logid:%X{logcontextid}) %m%n"/>
       </layout>
@@ -42,10 +46,14 @@ under the License.
    <appender name="APISERVER" class="org.apache.log4j.rolling.RollingFileAppender">
       <param name="Append" value="true"/>
       <param name="Threshold" value="DEBUG"/>
-      <rollingPolicy class="org.apache.log4j.rolling.TimeBasedRollingPolicy">
-        <param name="FileNamePattern" value="@APISERVERLOG@.%d{yyyy-MM-dd}.gz"/>
+      <rollingPolicy class="org.apache.log4j.rolling.FixedWindowRollingPolicy">
+        <param name="FileNamePattern" value="@APISERVERLOG@.%i.gz"/>
         <param name="ActiveFileName" value="@APISERVERLOG@"/>
+        <param name="MaxIndex" value="@LOGMAXINDEX@"/>
       </rollingPolicy>
+      <triggeringPolicy class="org.apache.log4j.rolling.SizeBasedTriggeringPolicy">
+        <param name="MaxFileSize" value="@LOGMAXFILESIZE@"/>
+      </triggeringPolicy>
       <layout class="org.apache.log4j.EnhancedPatternLayout">
          <param name="ConversionPattern" value="%d{ISO8601} %-5p [%c{1.}] (%t:%x) (logid:%X{logcontextid}) %m%n"/>
       </layout>
