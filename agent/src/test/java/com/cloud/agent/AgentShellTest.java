@@ -24,12 +24,8 @@ import java.util.UUID;
 
 import javax.naming.ConfigurationException;
 
-import com.cloud.agent.properties.AgentProperties;
-import com.cloud.agent.properties.AgentPropertiesFileHandler;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.cloud.utils.StringUtils;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -38,6 +34,10 @@ import org.mockito.Spy;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
+
+import com.cloud.agent.properties.AgentProperties;
+import com.cloud.agent.properties.AgentPropertiesFileHandler;
+import com.cloud.utils.StringUtils;
 
 @RunWith(PowerMockRunner.class)
 public class AgentShellTest {
