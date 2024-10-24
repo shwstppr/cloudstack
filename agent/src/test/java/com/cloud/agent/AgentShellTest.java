@@ -367,4 +367,13 @@ public class AgentShellTest {
 
         Mockito.verify(agentShellSpy).setHosts(expected);
     }
+
+    @Test
+    @PrepareForTest(AgentPropertiesFileHandler.class)
+    public void testGetSslHandshakeTimeout() {
+        Integer expected = 1;
+        PowerMockito.mockStatic(AgentPropertiesFileHandler.class);
+        PowerMockito.when(AgentPropertiesFileHandler.getPropertyValue(Mockito.eq(AgentProperties.SSL_HANDSHAKE_TIMEOUT))).thenReturn(expected);
+        Assert.assertEquals(expected, agentShellSpy.getSslHandshakeTimeout());
+    }
 }

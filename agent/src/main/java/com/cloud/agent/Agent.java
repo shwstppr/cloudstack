@@ -160,7 +160,7 @@ public class Agent implements HandlerFactory, IAgentControl, AgentStatusUpdater 
 
     private String hostname;
 
-    private String getLinkLog(final Link link) {
+    protected String getLinkLog(final Link link) {
         if (link == null) {
             return "";
         }
@@ -172,14 +172,14 @@ public class Agent implements HandlerFactory, IAgentControl, AgentStatusUpdater 
         return str.toString();
     }
 
-    private String getAgentName() {
+    protected String getAgentName() {
         return (serverResource != null && serverResource.isAppendAgentNameToLogs() &&
                 StringUtils.isNotBlank(serverResource.getName())) ?
                 serverResource.getName() :
                 "Agent";
     }
 
-    private void setupShutdownHookAndInitExecutors() {
+    protected void setupShutdownHookAndInitExecutors() {
         if (s_logger.isTraceEnabled()) {
             s_logger.trace("Adding shutdown hook");
         }
@@ -404,7 +404,7 @@ public class Agent implements HandlerFactory, IAgentControl, AgentStatusUpdater 
         certExecutor.schedule(new PostCertificateRenewalTask(this), 5, TimeUnit.SECONDS);
     }
 
-    private synchronized void scheduleHostLBCheckerTask(final long checkInterval) {
+    private void scheduleHostLBCheckerTask(final long checkInterval) {
         String name = "HostLBCheckerTask";
         if (hostLbCheckExecutor != null && !hostLbCheckExecutor.isShutdown()) {
             hostLbCheckExecutor.shutdown();
