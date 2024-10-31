@@ -132,6 +132,9 @@ public class LibvirtSetupDirectDownloadCertificateCommandWrapper extends Command
     public Answer execute(SetupDirectDownloadCertificateCommand cmd, LibvirtComputingResource serverResource) {
         String certificate = cmd.getCertificate();
         String certificateName = cmd.getCertificateName();
+        if (certificateName.matches("^[0-9a-zA-Z_\\-. ]+$") || certificateName.length() > 64) {
+            return new Answer(cmd, false, "The provided certificate name is invalid");
+        }
 
         try {
             File agentFile = getAgentPropertiesFile();
