@@ -180,7 +180,7 @@ public class AgentManagerImpl extends ManagerBase implements AgentManager, Handl
 
     protected ExecutorService _executor;
     protected ThreadPoolExecutor _connectExecutor;
-    protected ThreadPoolExecutor _directAgentExecutor;
+    protected ScheduledExecutorService _directAgentExecutor;
     protected ScheduledExecutorService _cronJobExecutor;
     protected ScheduledExecutorService _monitorExecutor;
 
@@ -244,12 +244,13 @@ public class AgentManagerImpl extends ManagerBase implements AgentManager, Handl
                 caService, RemoteAgentSslHandshakeTimeout.value());
         s_logger.info("Listening on " + Port.value() + " with " + Workers.value() + " workers");
 
+        final int directAgentPoolSize = DirectAgentPoolSize.value();
         // executes all agent commands other than cron and ping
-        _directAgentExecutor = new ThreadPoolExecutor(Math.max(agentTaskThreads/10, 1), DirectAgentPoolSize.value(), 120L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new NamedThreadFactory("DirectAgent"));
+        _directAgentExecutor = new ScheduledThreadPoolExecutor(directAgentPoolSize, new NamedThreadFactory("DirectAgent"));
         // executes cron and ping agent commands
-        _cronJobExecutor = new ScheduledThreadPoolExecutor(DirectAgentPoolSize.value(), new NamedThreadFactory("DirectAgentCronJob"));
-        s_logger.debug("Created DirectAgentAttache pool with size: " + DirectAgentPoolSize.value());
-        _directAgentThreadCap = Math.round(DirectAgentPoolSize.value() * DirectAgentThreadCap.value()) + 1; // add 1 to always make the value > 0
+        _cronJobExecutor = new ScheduledThreadPoolExecutor(directAgentPoolSize, new NamedThreadFactory("DirectAgentCronJob"));
+        s_logger.debug("Created DirectAgentAttache pool with size: " + directAgentPoolSize);
+        _directAgentThreadCap = Math.round(directAgentPoolSize * DirectAgentThreadCap.value()) + 1; // add 1 to always make the value > 0
 
         _monitorExecutor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("AgentMonitor"));
 
@@ -1677,7 +1678,7 @@ public class AgentManagerImpl extends ManagerBase implements AgentManager, Handl
         }
     }
 
-    public ThreadPoolExecutor getDirectAgentPool() {
+    public ScheduledExecutorService getDirectAgentPool() {
         return _directAgentExecutor;
     }
 

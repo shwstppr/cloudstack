@@ -1168,7 +1168,10 @@ public class StorageManagerImpl extends ManagerBase implements StorageManager, C
 
     @Override
     public void connectHostsToPool(DataStore primaryStore, List<Long> hostIds, Scope scope,
-              boolean handleStorageConflictException, boolean errorOnNoUpHost) throws CloudRuntimeException {
+              boolean handleExceptionsPartially, boolean errorOnNoUpHost) throws CloudRuntimeException {
+        if (CollectionUtils.isEmpty(hostIds)) {
+            return;
+        }
         CopyOnWriteArrayList<Long> poolHostIds = new CopyOnWriteArrayList<>();
         ExecutorService executorService = Executors.newFixedThreadPool(Math.max(1, Math.min(hostIds.size(),
                 StoragePoolHostConnectWorkers.value())));
@@ -1183,7 +1186,7 @@ public class StorageManagerImpl extends ManagerBase implements StorageManager, C
                     connectHostToSharedPool(hostId, primaryStore.getId());
                     poolHostIds.add(hostId);
                 } catch (Exception e) {
-                    if (handleStorageConflictException && e.getCause() instanceof StorageConflictException) {
+                    if (handleExceptionsPartially && e.getCause() instanceof StorageConflictException) {
                         conflictSeen.set(true);
                         throw e;
                     }
