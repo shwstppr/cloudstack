@@ -1260,7 +1260,7 @@ public class TransactionLegacy implements Closeable {
             poolableConnectionFactory.setDefaultTransactionIsolation(isolationLevel);
         }
         return new PoolingDataSource<>(connectionPool);
-     }
+    }
 
     /**
      * Return a GenericObjectPoolConfig configuration usable on connection pool creation
