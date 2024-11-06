@@ -19,6 +19,7 @@
 
 package com.cloud.utils.nio;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -104,6 +105,58 @@ public class Link {
         _sslEngine = sslEngine;
     }
 
+    private static void doWriteNew(SocketChannel ch, ByteBuffer[] buffers, SSLEngine sslEngine) throws IOException {
+        SSLSession sslSession = sslEngine.getSession();
+        int maxChunkSize = sslSession.getPacketBufferSize() - 40; // Allow space for TLS overhead
+        ByteBuffer pkgBuf = ByteBuffer.allocate(sslSession.getPacketBufferSize());
+
+        int totalLen = 0;
+        for (ByteBuffer buffer : buffers) {
+            totalLen += buffer.remaining();
+        }
+
+        int processedLen = 0;
+        for (int i = 0; i < buffers.length; i++) {
+            ByteBuffer buffer = buffers[i];
+            int bufferRemaining = buffer.remaining();
+
+            while (bufferRemaining > 0) {
+                // Calculate the current chunk size
+                int chunkSize = Math.min(bufferRemaining, maxChunkSize);
+
+                // Prepare the application header
+                ByteBuffer header = ByteBuffer.allocate(4);
+                int h = chunkSize;
+                if (processedLen + chunkSize < totalLen) {
+                    h = h | HEADER_FLAG_FOLLOWING;
+                }
+                header.putInt(h);
+                header.flip();
+
+                // Create a chunk of this size from the buffer
+                ByteBuffer chunk = ByteBuffer.allocate(chunkSize);
+                int limit = buffer.limit();
+                buffer.limit(buffer.position() + chunkSize); // Temporarily limit the buffer to the chunk size
+                chunk.put(buffer);
+                chunk.flip();
+                buffer.limit(limit); // Reset the original limit
+                bufferRemaining -= chunkSize;
+
+                // Wrap the header and chunk data together
+                pkgBuf.clear();
+                sslEngine.wrap(new ByteBuffer[]{header, chunk}, pkgBuf);
+                pkgBuf.flip();
+
+                // Write the wrapped data to the SocketChannel
+                while (pkgBuf.hasRemaining()) {
+                    ch.write(pkgBuf);
+                }
+
+                processedLen += chunkSize;
+            }
+        }
+    }
+
     private static void doWrite(SocketChannel ch, ByteBuffer[] buffers, SSLEngine sslEngine) throws IOException {
         SSLSession sslSession = sslEngine.getSession();
         ByteBuffer pkgBuf = ByteBuffer.allocate(sslSession.getPacketBufferSize() + 40);
@@ -176,6 +229,78 @@ public class Link {
     /* SSL has limitation of 16k, we may need to split packets. 18000 is 16k + some extra SSL informations */
     protected static final int MAX_SIZE_PER_PACKET = 18000;
     protected static final int HEADER_FLAG_FOLLOWING = 0x10000;
+
+    public byte[] readNew(SocketChannel ch) throws IOException {
+        SSLSession sslSession = _sslEngine.getSession();
+        ByteBuffer netBuffer = ByteBuffer.allocate(sslSession.getPacketBufferSize());
+        ByteBuffer appBuffer = ByteBuffer.allocate(sslSession.getApplicationBufferSize() * 2); // Larger buffer for unwraps
+        ByteArrayOutputStream messageStream = new ByteArrayOutputStream(); // Accumulate message in a byte stream
+
+        boolean messageComplete = false;
+        int expectedChunkSize = -1; // Track expected chunk size after reading header
+
+        while (!messageComplete) {
+            // Read from the channel into the network buffer
+            int bytesRead = ch.read(netBuffer);
+            if (bytesRead == -1) {
+                throw new IOException("Connection closed by peer");
+            }
+
+            // Flip netBuffer to prepare for unwrap
+            netBuffer.flip();
+
+            boolean hasMoreChunks = false;
+            int totalUnwrappedSize = 0;
+            // Continue unwrapping until a complete message is read
+            while (netBuffer.hasRemaining() && !messageComplete) {
+                SSLEngineResult result = _sslEngine.unwrap(netBuffer, appBuffer);
+                SSLEngineResult.Status status = result.getStatus();
+                SSLEngineResult.HandshakeStatus handshakeStatus = result.getHandshakeStatus();
+
+                if (status == SSLEngineResult.Status.OK) {
+                    // Process the unwrapped data in appBuffer
+                    appBuffer.flip();
+
+                    if (expectedChunkSize == -1 && appBuffer.remaining() >= 4) {
+                        // Read the 4-byte application header to get chunk size and flags
+                        int header = appBuffer.getInt();
+                        expectedChunkSize = (short)header;
+                        hasMoreChunks = (header & HEADER_FLAG_FOLLOWING) != 0;
+                    }
+                    int unwrappedSize = appBuffer.remaining();
+                    // Read the complete chunk into a temporary byte array
+                    byte[] chunkData = new byte[unwrappedSize];
+                    appBuffer.get(chunkData);
+                    messageStream.write(chunkData);
+                    totalUnwrappedSize += unwrappedSize;
+
+                    if (totalUnwrappedSize >= expectedChunkSize && !hasMoreChunks) {
+                        messageComplete = true;
+                    } else {
+                        appBuffer.flip();
+                    }
+
+                } else if (status == SSLEngineResult.Status.BUFFER_UNDERFLOW) {
+                    // Not enough data in netBuffer; read more from the channel
+                    netBuffer.compact();
+                    break;
+                } else if (status == SSLEngineResult.Status.BUFFER_OVERFLOW) {
+                    // appBuffer is too small; expand it
+                    ByteBuffer newAppBuffer = ByteBuffer.allocate(appBuffer.capacity() * 2);
+                    appBuffer.flip();
+                    newAppBuffer.put(appBuffer);
+                    appBuffer = newAppBuffer;
+                } else if (status == SSLEngineResult.Status.CLOSED) {
+                    throw new IOException("SSLEngine closed connection");
+                }
+            }
+
+            netBuffer.compact();
+        }
+
+        // Convert the accumulated message to a byte array and return
+        return messageStream.toByteArray();
+    }
 
     public byte[] read(SocketChannel ch) throws IOException {
         if (_readHeader) {   // Start of a packet
@@ -344,7 +469,7 @@ public class Link {
             ByteBuffer[] raw_data = new ByteBuffer[data.length - 1];
             System.arraycopy(data, 1, raw_data, 0, data.length - 1);
 
-            doWrite(ch, raw_data, _sslEngine);
+            doWriteNew(ch, raw_data, _sslEngine);
         }
         return false;
     }

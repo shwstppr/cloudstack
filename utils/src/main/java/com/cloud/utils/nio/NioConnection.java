@@ -272,7 +272,7 @@ public abstract class NioConnection implements Callable<Boolean> {
             if (logger.isTraceEnabled()) {
                 logger.trace("Reading from: " + socketChannel.socket().toString());
             }
-            final byte[] data = link.read(socketChannel);
+            final byte[] data = link.readNew(socketChannel);
             if (data == null) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Packet is incomplete.  Waiting for more.");
