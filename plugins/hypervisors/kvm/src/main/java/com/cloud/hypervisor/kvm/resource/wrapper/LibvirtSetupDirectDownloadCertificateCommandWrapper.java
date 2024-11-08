@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import com.cloud.utils.net.NetUtils;
 import org.apache.cloudstack.agent.directdownload.SetupDirectDownloadCertificateCommand;
 import org.apache.cloudstack.utils.security.KeyStoreUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -132,7 +133,7 @@ public class LibvirtSetupDirectDownloadCertificateCommandWrapper extends Command
     public Answer execute(SetupDirectDownloadCertificateCommand cmd, LibvirtComputingResource serverResource) {
         String certificate = cmd.getCertificate();
         String certificateName = cmd.getCertificateName();
-        if (certificateName.matches("^[0-9a-zA-Z_\\-. ]+$") || certificateName.length() > 64) {
+        if (!NetUtils.verifyDomainNameLabel(certificateName, false)) {
             return new Answer(cmd, false, "The provided certificate name is invalid");
         }
 

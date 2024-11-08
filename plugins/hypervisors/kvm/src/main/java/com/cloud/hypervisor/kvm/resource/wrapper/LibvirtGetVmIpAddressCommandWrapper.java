@@ -43,7 +43,7 @@ public final class LibvirtGetVmIpAddressCommandWrapper extends CommandWrapper<Ge
         boolean result = false;
         String vmName = command.getVmName();
         // Explicitly check if vm Name is shorter than 64 characters and allowlists select characters
-        if (!vmName.matches("^[0-9a-zA-Z\\-.]+$") || vmName.length() > 64) {
+        if (!NetUtils.verifyDomainNameLabel(vmName, true)) {
             return new Answer(command, result, ip);
         }
         String sanitizedVmName = sanitizeBashCommandArgument(vmName);
