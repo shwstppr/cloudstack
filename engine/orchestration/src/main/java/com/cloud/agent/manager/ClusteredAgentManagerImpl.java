@@ -220,11 +220,11 @@ public class ClusteredAgentManagerImpl extends AgentManagerImpl implements Clust
                         }
 
                         if (s_logger.isDebugEnabled()) {
-                            s_logger.debug("Loading directly connected host " + host.getId() + "(" + host.getName() + ")");
+                            s_logger.debug(String.format("Loading directly connected %s", host));
                         }
                         loadDirectlyConnectedHost(host, false);
                     } catch (final Throwable e) {
-                        s_logger.warn(" can not load directly connected host " + host.getId() + "(" + host.getName() + ") due to ", e);
+                        s_logger.warn(String.format("Can not load directly connected host %s due to ", host), e);
                     }
                 }
             }
@@ -251,7 +251,7 @@ public class ClusteredAgentManagerImpl extends AgentManagerImpl implements Clust
     }
 
     protected AgentAttache createAttache(final Host host) {
-        s_logger.debug("create forwarding ClusteredAgentAttache for " + host.getId());
+        s_logger.debug(String.format("create forwarding ClusteredAgentAttache for %s", host));
         final AgentAttache attache = new ClusteredAgentAttache(this, host.getId(), host.getName());
         AgentAttache old = null;
         synchronized (_agents) {
@@ -269,7 +269,7 @@ public class ClusteredAgentManagerImpl extends AgentManagerImpl implements Clust
 
     @Override
     protected AgentAttache createAttacheForConnect(final HostVO host, final Link link) {
-        s_logger.debug("create ClusteredAgentAttache for " + host.getId());
+        s_logger.debug(String.format("create ClusteredAgentAttache for %s", host));
         final AgentAttache attache = new ClusteredAgentAttache(this, host.getId(), host.getName(), link, host.isInMaintenanceStates());
         link.attach(attache);
         AgentAttache old = null;
@@ -1070,7 +1070,7 @@ public class ClusteredAgentManagerImpl extends AgentManagerImpl implements Clust
             final HostVO host = _hostDao.findById(hostId);
             try {
                 if (s_logger.isDebugEnabled()) {
-                    s_logger.debug("Disconnecting host " + host.getId() + "(" + host.getName() + " as a part of rebalance process without notification");
+                    s_logger.debug(String.format("Disconnecting %s as a part of rebalance process without notification", host));
                 }
 
                 final AgentAttache attache = findAttache(hostId);
@@ -1080,23 +1080,23 @@ public class ClusteredAgentManagerImpl extends AgentManagerImpl implements Clust
 
                 if (result) {
                     if (s_logger.isDebugEnabled()) {
-                        s_logger.debug("Loading directly connected host " + host.getId() + "(" + host.getName() + ") to the management server " + _nodeId + " as a part of rebalance process");
+                        s_logger.debug(String.format("Loading directly connected %s to the management server %d as a part of rebalance process", host, _nodeId));
                     }
                     result = loadDirectlyConnectedHost(host, true);
                 } else {
-                    s_logger.warn("Failed to disconnect " + host.getId() + "(" + host.getName() + " as a part of rebalance process without notification");
+                    s_logger.warn(String.format("Failed to disconnect %s as a part of rebalance process without notification", host));
                 }
 
             } catch (final Exception ex) {
-                s_logger.warn("Failed to load directly connected host " + host.getId() + "(" + host.getName() + ") to the management server " + _nodeId + " as a part of rebalance process due to:",
+                s_logger.warn(String.format("Failed to load directly connected %s to the management server %d as a part of rebalance process due to:", host, _nodeId),
                         ex);
                 result = false;
             }
 
             if (result) {
-                s_logger.debug("Successfully loaded directly connected host " + host.getId() + "(" + host.getName() + ") to the management server " + _nodeId + " as a part of rebalance process");
+                s_logger.debug(String.format("Successfully loaded directly connected %s to the management server %d as a part of rebalance process", host, _nodeId));
             } else {
-                s_logger.warn("Failed to load directly connected host " + host.getId() + "(" + host.getName() + ") to the management server " + _nodeId + " as a part of rebalance process");
+                s_logger.warn(String.format("Failed to load directly connected host %s to the management server %d as a part of rebalance process", host, _nodeId));
             }
         }
 

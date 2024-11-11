@@ -3294,7 +3294,7 @@ public class ResourceManagerImpl extends ManagerBase implements ResourceManager,
         }
 
         if (answer == null || !answer.getResult()) {
-            final String msg = "Unable to obtain host " + host.getId() + " statistics. ";
+            final String msg = "Unable to obtain " + host + " statistics. ";
             s_logger.warn(msg);
             return null;
         } else {

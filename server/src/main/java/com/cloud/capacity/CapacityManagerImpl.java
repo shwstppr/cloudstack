@@ -423,13 +423,13 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
         boolean isCpuSpeedGood = host.getSpeed().intValue() >= cpuSpeed;
         if (isCpuNumGood && isCpuSpeedGood) {
             if (s_logger.isDebugEnabled()) {
-                s_logger.debug("Host: " + host.getId() + " has cpu capability (cpu:" + host.getCpus() + ", speed:" + host.getSpeed() +
+                s_logger.debug(host + " has cpu capability (cpu:" + host.getCpus() + ", speed:" + host.getSpeed() +
                         ") to support requested CPU: " + cpuNum + " and requested speed: " + cpuSpeed);
             }
             return true;
         } else {
             if (s_logger.isDebugEnabled()) {
-                s_logger.debug("Host: " + host.getId() + " doesn't have cpu capability (cpu:" + host.getCpus() + ", speed:" + host.getSpeed() +
+                s_logger.debug(host + " doesn't have cpu capability (cpu:" + host.getCpus() + ", speed:" + host.getSpeed() +
                         ") to support requested CPU: " + cpuNum + " and requested speed: " + cpuSpeed);
             }
             return false;
@@ -692,12 +692,12 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
 
         List<VMInstanceVO> vms = _vmDao.listIdServiceOfferingForUpVmsByHostId(host.getId());
         if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Found " + vms.size() + " VMs on host " + host.getId());
+            s_logger.debug("Found " + vms.size() + " VMs on " + host);
         }
 
         final List<VMInstanceVO> vosMigrating = _vmDao.listIdServiceOfferingForVmsMigratingFromHost(host.getId());
         if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Found " + vosMigrating.size() + " VMs are Migrating from host " + host.getId());
+            s_logger.debug("Found " + vosMigrating.size() + " VMs are Migrating from " + host);
         }
         vms.addAll(vosMigrating);
 
@@ -741,7 +741,7 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
 
         List<VMInstanceVO> vmsByLastHostId = _vmDao.listIdServiceOfferingForVmsByLastHostId(host.getId());
         if (s_logger.isDebugEnabled()) {
-            s_logger.debug("Found " + vmsByLastHostId.size() + " VM, not running on host " + host.getId());
+            s_logger.debug("Found " + vmsByLastHostId.size() + " VM, not running on " + host);
         }
 
         for (VMInstanceVO vm : vmsByLastHostId) {
