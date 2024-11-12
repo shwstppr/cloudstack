@@ -98,7 +98,7 @@ public class NetUtils {
     public final static int IPV6_EUI64_12TH_BYTE = -2;
 
     // Regex
-    public final static Pattern HOSTNAME_PATTERN = Pattern.compile("[a-z0-9-]+");
+    public final static Pattern HOSTNAME_PATTERN = Pattern.compile("[a-zA-Z0-9-]+");
     public final static Pattern START_HOSTNAME_PATTERN = Pattern.compile("^[0-9-].*");
 
 
@@ -1048,7 +1048,7 @@ public class NetUtils {
         if (hostName.length() > 63 || hostName.length() < 1) {
             s_logger.warn("Domain name label must be between 1 and 63 characters long");
             return false;
-        } else if (!HOSTNAME_PATTERN.matcher(hostName.toLowerCase()).matches()) {
+        } else if (!HOSTNAME_PATTERN.matcher(hostName).matches()) {
             s_logger.warn("Domain name label may contain only the ASCII letters 'a' through 'z' (in a case-insensitive manner)");
             return false;
         } else if (hostName.startsWith("-") || hostName.endsWith("-")) {
