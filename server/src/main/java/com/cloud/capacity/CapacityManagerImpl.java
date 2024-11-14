@@ -739,7 +739,7 @@ public class CapacityManagerImpl extends ManagerBase implements CapacityManager,
             }
         }
 
-        List<VMInstanceVO> vmsByLastHostId = _vmDao.listIdServiceOfferingForVmsByLastHostId(host.getId());
+        List<VMInstanceVO> vmsByLastHostId = _vmDao.listByLastHostId(host.getId());
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Found " + vmsByLastHostId.size() + " VM, not running on " + host);
         }
