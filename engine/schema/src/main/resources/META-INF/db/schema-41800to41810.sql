@@ -589,6 +589,34 @@ ALTER TABLE `cloud`.`vpc_offerings` MODIFY `name` VARCHAR(255) CHARACTER SET utf
 ALTER TABLE `cloud`.`vpc_offerings` MODIFY `unique_name` VARCHAR(64) CHARACTER SET utf8mb4  DEFAULT NULL COMMENT 'unique name of the vpc offering';
 ALTER TABLE `cloud`.`vpc_offerings` MODIFY `display_text` VARCHAR(255) CHARACTER SET utf8mb4  DEFAULT NULL COMMENT 'display text';
 
+-- Add view for management server peers
+DROP VIEW IF EXISTS `cloud`.`mshost_peer_view`;
+
+CREATE VIEW `cloud`.`mshost_peer_view` AS
+SELECT
+    `mshost_peer`.`id` AS `id`,
+    `mshost_peer`.`peer_state` AS `peer_state`,
+    `mshost_peer`.`last_update` AS `last_update`,
+    `owner_mshost`.`id` AS `owner_mshost_id`,
+    `owner_mshost`.`msid` AS `owner_mshost_msid`,
+    `owner_mshost`.`runid` AS `owner_mshost_runid`,
+    `owner_mshost`.`name` AS `owner_mshost_name`,
+    `owner_mshost`.`uuid` AS `owner_mshost_uuid`,
+    `owner_mshost`.`state` AS `owner_mshost_state`,
+    `owner_mshost`.`service_ip` AS `owner_mshost_service_ip`,
+    `owner_mshost`.`service_port` AS `owner_mshost_service_port`,
+    `peer_mshost`.`id` AS `peer_mshost_id`,
+    `peer_mshost`.`msid` AS `peer_mshost_msid`,
+    `peer_mshost`.`runid` AS `peer_mshost_runid`,
+    `peer_mshost`.`name` AS `peer_mshost_name`,
+    `peer_mshost`.`uuid` AS `peer_mshost_uuid`,
+    `peer_mshost`.`state` AS `peer_mshost_state`,
+    `peer_mshost`.`service_ip` AS `peer_mshost_service_ip`,
+    `peer_mshost`.`service_port` AS `peer_mshost_service_port`
+FROM `cloud`.`mshost_peer`
+LEFT JOIN `cloud`.`mshost` AS owner_mshost on `mshost_peer`.`owner_mshost` = `owner_mshost`.`id`
+LEFT JOIN `cloud`.`mshost` AS peer_mshost on `mshost_peer`.`peer_mshost` = `peer_mshost`.`id`;
+
 -- Scalability and DB optimisations
 
 -- speeds up user_vm_view (listVM) queries by forcing index on user_ip_address table
