@@ -18,9 +18,11 @@ package org.apache.cloudstack.framework.config;
 
 import java.sql.Date;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cloudstack.framework.config.impl.ConfigDepotImpl;
+import org.apache.commons.collections.CollectionUtils;
 
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
@@ -39,23 +41,29 @@ public class ConfigKey<T> {
     public static final String CATEGORY_SYSTEM = "System";
 
     public enum Scope {
-        Global(null),
-        Zone(Global),
-        Cluster(Zone),
-        StoragePool(Cluster),
-        ManagementServer(Global),
-        ImageStore(Zone),
-        Domain(Global),
-        Account(Domain);
+        Global(null, 1),
+        Zone(Global, 1 << 1),
+        Cluster(Zone, 1 << 2),
+        StoragePool(Cluster, 1 << 3),
+        ManagementServer(Global, 1 << 4),
+        ImageStore(Zone, 1 << 5),
+        Domain(Global, 1 << 6),
+        Account(Domain, 1 << 7);
 
         private final Scope parent;
+        private final int bitValue;
 
-        Scope(Scope parent) {
+        Scope(Scope parent, int bitValue) {
             this.parent = parent;
+            this.bitValue = bitValue;
         }
 
         public Scope getParent() {
             return parent;
+        }
+
+        public int getBitValue() {
+            return bitValue;
         }
 
         public boolean isDescendantOf(Scope other) {
@@ -78,6 +86,35 @@ public class ConfigKey<T> {
                 }
             }
             return scopes;
+        }
+
+        public static List<Scope> decode(int bitmask) {
+            if (bitmask == 0) {
+                return Collections.emptyList();
+            }
+            List<Scope> scopes = new ArrayList<>();
+            for (Scope scope : Scope.values()) {
+                if ((bitmask & scope.getBitValue()) != 0) {
+                    scopes.add(scope);
+                }
+            }
+            return scopes;
+        }
+
+        public static String decodeAsCsv(int bitmask) {
+            if (bitmask == 0) {
+                return null;
+            }
+            StringBuilder builder = new StringBuilder();
+            for (Scope scope : Scope.values()) {
+                if ((bitmask & scope.getBitValue()) != 0) {
+                    builder.append(scope.name()).append(", ");
+                }
+            }
+            if (builder.length() > 0) {
+                builder.setLength(builder.length() - 2);
+            }
+            return builder.toString();
         }
     }
 
@@ -111,8 +148,8 @@ public class ConfigKey<T> {
         return _displayText;
     }
 
-    public Scope scope() {
-        return _scope;
+    public List<Scope> getScopes() {
+        return scopes;
     }
 
     public boolean isDynamic() {
@@ -149,7 +186,7 @@ public class ConfigKey<T> {
     private final String _defaultValue;
     private final String _description;
     private final String _displayText;
-    private final Scope _scope; // Parameter can be at different levels (Zone/cluster/pool/account), by default every parameter is at global
+    private final List<Scope> scopes; // Parameter can be at different levels (Zone/cluster/pool/account), by default every parameter is at global
     private final boolean _isDynamic;
     private final String _parent;
     private final Ternary<String, String, Long> _group; // Group name, description with precedence
@@ -206,7 +243,8 @@ public class ConfigKey<T> {
         _defaultValue = defaultValue;
         _description = description;
         _displayText = displayText;
-        _scope = scope;
+        scopes = new ArrayList<>();
+        scopes.add(scope);
         _isDynamic = isDynamic;
         _multiplier = multiplier;
         _parent = parent;
@@ -270,17 +308,27 @@ public class ConfigKey<T> {
 
         String value = s_depot != null ? s_depot.getConfigStringValue(_name, scope, id) : null;
         if (value == null) {
-            Pair<Scope, Long> parentScope = s_depot != null ? s_depot.getParentScope(scope, id) : null;
-            if (parentScope != null) {
-                return valueInScope(parentScope.first(), parentScope.second());
-            }
+            Pair<Scope, Long> parentScope = null;
+            do {
+                parentScope = s_depot != null ? s_depot.getParentScope(scope, id) : null;
+                if (parentScope != null && scopes.contains(parentScope.first())) {
+                    return valueInScope(parentScope.first(), parentScope.second());
+                }
+            } while (parentScope != null);
             return value();
         }
         return valueOf(value);
     }
 
+    protected Scope getPrimaryScope() {
+        if (CollectionUtils.isNotEmpty(scopes)) {
+            return scopes.get(0);
+        }
+        return null;
+    }
+
     public T valueIn(Long id) {
-        return valueInScope(_scope, id);
+        return valueInScope(getPrimaryScope(), id);
     }
 
     public T valueInDomain(Long domainId) {
@@ -320,6 +368,19 @@ public class ConfigKey<T> {
         } else {
             throw new CloudRuntimeException("Unsupported data type for config values: " + type);
         }
+    }
+
+    public boolean isGlobalOrEmptyScope() {
+        return CollectionUtils.isEmpty(scopes) ||
+                (scopes.size() == 1 && scopes.get(0) == Scope.Global);
+    }
+
+    public int getScopeBitmask() {
+        int bitmask = 0;
+        for (Scope scope : scopes) {
+            bitmask |= scope.getBitValue();
+        }
+        return bitmask;
     }
 
 }
