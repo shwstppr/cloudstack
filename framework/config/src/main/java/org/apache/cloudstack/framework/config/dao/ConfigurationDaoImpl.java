@@ -33,6 +33,7 @@ import com.cloud.utils.crypt.DBEncryptionUtil;
 import com.cloud.utils.db.DB;
 import com.cloud.utils.db.EntityManager;
 import com.cloud.utils.db.GenericDaoBase;
+import com.cloud.utils.db.GenericSearchBuilder;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
 import com.cloud.utils.db.TransactionLegacy;
@@ -210,5 +211,13 @@ public class ConfigurationDaoImpl extends GenericDaoBase<ConfigurationVO, String
         SearchCriteria<ConfigurationVO> sc = NameSearch.create();
         sc.setParameters("name", name);
         return findOneIncludingRemovedBy(sc);
+    }
+
+    @Override
+    public List<String> listNamesIncludingRemoved() {
+        GenericSearchBuilder<ConfigurationVO, String> sb = createSearchBuilder(String.class);
+        sb.selectFields(sb.entity().getName());
+        sb.done();
+        return customSearchIncludingRemoved(sb.create(), null);
     }
 }

@@ -30,10 +30,10 @@ import org.apache.cloudstack.framework.config.impl.ConfigurationSubGroupVO;
 import org.apache.cloudstack.framework.config.impl.ConfigurationVO;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-
-import com.cloud.utils.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.cloud.utils.Pair;
 
 public class ConfigurationGroupsAggregator {
 
@@ -54,26 +54,24 @@ public class ConfigurationGroupsAggregator {
 
     public void updateConfigurationGroups() {
         LOG.debug("Updating configuration groups");
-        List<ConfigurationVO> configs =  configDao.listAllIncludingRemoved();
+        List<String> configs = configDao.listNamesIncludingRemoved();
         if (CollectionUtils.isEmpty(configs)) {
             return;
         }
-
-        for (final ConfigurationVO config : configs) {
-            String configName = config.getName();
+        for (final String configName : configs) {
             if (StringUtils.isBlank(configName)) {
                 continue;
             }
-
             try {
                 Pair<Long, Long> configGroupAndSubGroup = getConfigurationGroupAndSubGroupByName(configName);
                 if (configGroupAndSubGroup.first() != 1 && configGroupAndSubGroup.second() != 1) {
+                    ConfigurationVO config = configDao.createForUpdate(configName);
                     config.setGroupId(configGroupAndSubGroup.first());
                     config.setSubGroupId(configGroupAndSubGroup.second());
-                    configDao.persist(config);
+                    configDao.update(configName, config);
                 }
             } catch (Exception e) {
-                LOG.error("Failed to update group for configuration " + configName + " due to " + e.getMessage(), e);
+                LOG.error("Failed to update group for configuration {} due to {}", configName, e.getMessage(), e);
             }
         }
         LOG.debug("Successfully updated configuration groups.");
