@@ -90,7 +90,6 @@ public class ApiConstants {
     public static final String CONVERT_INSTANCE_HOST_ID = "convertinstancehostid";
     public static final String CONVERT_INSTANCE_STORAGE_POOL_ID = "convertinstancepoolid";
     public static final String ENABLED_REVOCATION_CHECK = "enabledrevocationcheck";
-    public static final String CONTEXT_ID = "contextid";
     public static final String CONTROLLER = "controller";
     public static final String CONTROLLER_UNIT = "controllerunit";
     public static final String COPY_IMAGE_TAGS = "copyimagetags";
@@ -338,6 +337,7 @@ public class ApiConstants {
     public static final String LIMIT_CPU_USE = "limitcpuuse";
     public static final String LIST_HOSTS = "listhosts";
     public static final String LOCATION_TYPE = "locationtype";
+    public static final String LOG_IDS = "logids";
     public static final String LOCK = "lock";
     public static final String LUN = "lun";
     public static final String LBID = "lbruleid";

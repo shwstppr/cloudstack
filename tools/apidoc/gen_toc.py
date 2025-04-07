@@ -260,7 +260,7 @@ known_categories = {
     'addNodesToKubernetesCluster': 'Kubernetes Service',
     'removeNodesFromKubernetesCluster': 'Kubernetes Service',
     'configureStorageAccess': 'Storage Access Groups',
-    'listStorageAccessGroups': 'Storage Access Groups'
+    'listStorageAccessGroups': 'Storage Access Groups',
     'LogsWebSession': 'Logs Web Session',
     'LogsWebSessions': 'Logs Web Session'
 }
