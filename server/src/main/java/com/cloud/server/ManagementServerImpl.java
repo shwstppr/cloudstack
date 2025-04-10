@@ -2727,21 +2727,37 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         final Long id = cmd.getId();
         final String name = cmd.getName();
         final String keyword = cmd.getKeyword();
+        final Long zoneId = cmd.getZoneId();
 
-        final SearchCriteria<GuestOSCategoryVO> sc = _guestOSCategoryDao.createSearchCriteria();
-
+        final SearchBuilder<GuestOSCategoryVO> sb = _guestOSCategoryDao.createSearchBuilder();
+        sb.and("id", sb.entity().getId(), SearchCriteria.Op.EQ);
+        sb.and("name", sb.entity().getId(), SearchCriteria.Op.LIKE);
+        sb.and("keyword", sb.entity().getId(), SearchCriteria.Op.LIKE);
+        if (zoneId != null) {
+            final SearchBuilder<GuestOSVO> guestOsSearch = _guestOSDao.createSearchBuilder();
+            guestOsSearch.and("ids", guestOsSearch.entity().getId(), SearchCriteria.Op.IN);
+            sb.join("guestOsSearch", guestOsSearch, guestOsSearch.entity().getCategoryId(), sb.entity().getId(), JoinType.INNER);
+            guestOsSearch.done();
+            sb.groupBy(sb.entity().getId());
+        }
+        sb.done();
+        SearchCriteria<GuestOSCategoryVO> sc = sb.create();
         if (id != null) {
-            sc.addAnd("id", SearchCriteria.Op.EQ, id);
+            sc.setParameters("id", SearchCriteria.Op.EQ, id);
         }
-
         if (name != null) {
-            sc.addAnd("name", SearchCriteria.Op.LIKE, "%" + name + "%");
+            sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + name + "%");
         }
-
         if (keyword != null) {
-            sc.addAnd("name", SearchCriteria.Op.LIKE, "%" + keyword + "%");
+            sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + keyword + "%");
         }
-
+        if (zoneId != null) {
+            List<Long> guestOsIds = templateDao.listTemplateGuestOsIdsInZone(zoneId);
+            if (CollectionUtils.isEmpty(guestOsIds)) {
+                return new Pair<>(Collections.emptyList(), 0);
+            }
+            sc.setJoinParameters("guestOsSearch", "ids", guestOsIds.toArray());
+        }
         final Pair<List<GuestOSCategoryVO>, Integer> result = _guestOSCategoryDao.searchAndCount(sc, searchFilter);
         return new Pair<>(result.first(), result.second());
     }

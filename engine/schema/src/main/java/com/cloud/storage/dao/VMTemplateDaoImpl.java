@@ -17,6 +17,7 @@
 package com.cloud.storage.dao;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -92,6 +93,7 @@ public class VMTemplateDaoImpl extends GenericDaoBase<VMTemplateVO, Long> implem
     protected SearchBuilder<VMTemplateVO> NameSearch;
     protected SearchBuilder<VMTemplateVO> ValidNameSearch;
     protected SearchBuilder<VMTemplateVO> TmpltsInZoneSearch;
+    protected GenericSearchBuilder<VMTemplateVO, Long> TemplatesGuestOsInZoneSearch;
     protected SearchBuilder<VMTemplateVO> ActiveTmpltSearch;
     private SearchBuilder<VMTemplateVO> PublicSearch;
     private SearchBuilder<VMTemplateVO> NameAccountIdSearch;
@@ -393,6 +395,18 @@ public class VMTemplateDaoImpl extends GenericDaoBase<VMTemplateVO, Long> implem
         tmpltZoneSearch.done();
         TmpltsInZoneSearch.done();
 
+
+        SearchBuilder<VMTemplateZoneVO> templateZoneSearch = _templateZoneDao.createSearchBuilder();
+        templateZoneSearch.and("removed", templateZoneSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
+        templateZoneSearch.and("zoneId", templateZoneSearch.entity().getZoneId(), SearchCriteria.Op.EQ);
+        TemplatesGuestOsInZoneSearch = createSearchBuilder(Long.class);
+        TemplatesGuestOsInZoneSearch.select(null, Func.DISTINCT, TemplatesGuestOsInZoneSearch.entity().getGuestOSId());
+        TemplatesGuestOsInZoneSearch.and("state", TemplatesGuestOsInZoneSearch.entity().getState(), SearchCriteria.Op.IN);
+        TemplatesGuestOsInZoneSearch.and("type", TemplatesGuestOsInZoneSearch.entity().getTemplateType(), SearchCriteria.Op.IN);
+        TemplatesGuestOsInZoneSearch.join("templateZoneSearch", templateZoneSearch, templateZoneSearch.entity().getTemplateId(), TemplatesGuestOsInZoneSearch.entity().getId(), JoinBuilder.JoinType.INNER);
+        templateZoneSearch.done();
+        TemplatesGuestOsInZoneSearch.done();
+
         ActiveTmpltSearch = createSearchBuilder();
         ActiveTmpltSearch.and("state", ActiveTmpltSearch.entity().getState(), SearchCriteria.Op.IN);
 
@@ -518,6 +532,15 @@ public class VMTemplateDaoImpl extends GenericDaoBase<VMTemplateVO, Long> implem
         sc.setParameters("state", (Object[])states);
         sc.setJoinParameters("tmpltzone", "zoneId", dataCenterId);
         return listBy(sc);
+    }
+
+    @Override
+    public List<Long> listTemplateGuestOsIdsInZone(long dataCenterId) {
+        SearchCriteria<Long> sc = TemplatesGuestOsInZoneSearch.create();
+        sc.setParameters("type", Arrays.asList(TemplateType.USER, TemplateType.BUILTIN).toArray());
+        sc.setParameters("state", VirtualMachineTemplate.State.Active);
+        sc.setJoinParameters("templateZoneSearch", "zoneId", dataCenterId);
+        return customSearch(sc, null);
     }
 
     @Override

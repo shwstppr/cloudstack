@@ -26,6 +26,7 @@ import org.apache.cloudstack.api.BaseListCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.response.GuestOSCategoryResponse;
 import org.apache.cloudstack.api.response.ListResponse;
+import org.apache.cloudstack.api.response.ZoneResponse;
 
 import com.cloud.storage.GuestOsCategory;
 import com.cloud.utils.Pair;
@@ -45,6 +46,13 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
     @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "list os category by name", since = "3.0.1")
     private String name;
 
+    @Parameter(name = ApiConstants.ZONE_ID,
+            type = CommandType.UUID,
+            entityType = ZoneResponse.class,
+            description = "List available OS categories types for the zone",
+            since = "4.20.1")
+    private Long zoneId;
+
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -55,6 +63,10 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
 
     public String getName() {
         return name;
+    }
+
+    public Long getZoneId() {
+        return zoneId;
     }
 
     /////////////////////////////////////////////////////

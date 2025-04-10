@@ -58,6 +58,8 @@ public interface VMTemplateDao extends GenericDao<VMTemplateVO, Long>, StateDao<
 
     public List<VMTemplateVO> listInZoneByState(long dataCenterId, VirtualMachineTemplate.State... states);
 
+    public List<Long> listTemplateGuestOsIdsInZone(long dataCenterId);
+
     public List<VMTemplateVO> listAllActive();
 
     public List<VMTemplateVO> listByState(VirtualMachineTemplate.State... states);
