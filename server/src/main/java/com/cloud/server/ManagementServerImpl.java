@@ -640,6 +640,7 @@ import org.apache.cloudstack.utils.CloudStackVersion;
 import org.apache.cloudstack.utils.identity.ManagementServerNode;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.agent.AgentManager;
@@ -2728,6 +2729,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         final String name = cmd.getName();
         final String keyword = cmd.getKeyword();
         final Long zoneId = cmd.getZoneId();
+        final CPU.CPUArch arch = cmd.getArch();
 
         final SearchBuilder<GuestOSCategoryVO> sb = _guestOSCategoryDao.createSearchBuilder();
         sb.and("id", sb.entity().getId(), SearchCriteria.Op.EQ);
@@ -2751,8 +2753,8 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         if (keyword != null) {
             sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + keyword + "%");
         }
-        if (zoneId != null) {
-            List<Long> guestOsIds = templateDao.listTemplateGuestOsIdsInZone(zoneId);
+        if (ObjectUtils.anyNotNull(zoneId, arch)) {
+            List<Long> guestOsIds = templateDao.listTemplateGuestOsIdsInZone(zoneId, arch);
             if (CollectionUtils.isEmpty(guestOsIds)) {
                 return new Pair<>(Collections.emptyList(), 0);
             }

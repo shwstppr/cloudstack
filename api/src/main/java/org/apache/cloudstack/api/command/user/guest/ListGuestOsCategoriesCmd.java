@@ -28,6 +28,7 @@ import org.apache.cloudstack.api.response.GuestOSCategoryResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.ZoneResponse;
 
+import com.cloud.cpu.CPU;
 import com.cloud.storage.GuestOsCategory;
 import com.cloud.utils.Pair;
 
@@ -53,6 +54,12 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
             since = "4.20.1")
     private Long zoneId;
 
+    @Parameter(name = ApiConstants.ARCH,
+            type = CommandType.STRING,
+            description = "List available OS categories types available for given CPU architecture",
+            since = "4.20.1")
+    private String arch;
+
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -67,6 +74,10 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
 
     public Long getZoneId() {
         return zoneId;
+    }
+
+    public CPU.CPUArch getArch() {
+        return CPU.CPUArch.fromType(arch);
     }
 
     /////////////////////////////////////////////////////

@@ -50,7 +50,6 @@
                           <div v-for="(zoneItem, idx) in zones" :key="idx">
                             <a-radio-group
                               :key="idx"
-                              :size="large"
                               v-model:value="form.zoneid"
                               @change="onSelectZoneId(zoneItem.id)">
                               <a-col :span="6">
@@ -146,6 +145,56 @@
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
+
+                    <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid" v-if="templateview === 'new'">
+                      <div v-if="options.guestOsCategories.length <= 16">
+                        <a-row type="flex" :gutter="[16, 18]" justify="start">
+                          <div v-for="(item, idx) in options.guestOsCategories" :key="idx">
+                            <a-radio-group
+                              :key="idx"
+                              v-model:value="form.guestoscategoryid"
+                              @change="onSelectGuestOsCategory(item.id)">
+                              <a-col :span="6">
+                                <a-radio-button
+                                  :value="item.id"
+                                  style="border-width: 2px"
+                                  class="guestoscategory-radio-button">
+                                  <span>
+                                    <os-logo
+                                      class="radio-group__os-logo"
+                                      size="2x"
+                                      :osId="item.id"
+                                      :os-name="item.name" />
+                                    {{ item.name }}
+                                    </span>
+                                </a-radio-button>
+                              </a-col>
+                            </a-radio-group>
+                          </div>
+                        </a-row>
+                      </div>
+                      <a-select
+                        v-else
+                        v-model:value="form.guestOsCategoryId"
+                        showSearch
+                        optionFilterProp="label"
+                        :filterOption="(input, option) => {
+                          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                        }"
+                        @change="onSelectGuestOsCategory"
+                        :loading="loading.guestOsCategories"
+                        v-focus="true"
+                      >
+                        <a-select-option v-for="item in options.guestOsCategories" :key="item.id" :label="item.name">
+                          <span>
+                            <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
+                            <global-outlined v-else style="margin-right: 5px" />
+                            {{ item.name }}
+                          </span>
+                        </a-select-option>
+                      </a-select>
+                    </a-form-item>
+
                     <a-card
                       :tabList="tabList"
                       :activeTabKey="tabKey"
@@ -164,7 +213,17 @@
                             </a-select-option>
                           </a-select>
                         </div>
+                        <new-template-iso-selection
+                          v-if="templateview === 'new'"
+                          input-decorator="templateid"
+                          :items="options.templates"
+                          :selected="tabKey"
+                          :loading="loading.templates"
+                          :preFillContent="dataPreFill"
+                          @handle-search-filter="($event) => fetchAllTemplates($event)"
+                          @update-template-iso="updateFieldValue" />
                         <template-iso-selection
+                          v-else
                           input-decorator="templateid"
                           :items="options.templates"
                           :selected="tabKey"
@@ -205,7 +264,17 @@
                             </a-select-option>
                           </a-select>
                         </div>
+                        <new-template-iso-selection
+                          v-if="templateview === 'new'"
+                          input-decorator="isoid"
+                          :items="options.isos"
+                          :selected="tabKey"
+                          :loading="loading.isos"
+                          :preFillContent="dataPreFill"
+                          @handle-search-filter="($event) => fetchAllIsos($event)"
+                          @update-template-iso="updateFieldValue" />
                         <template-iso-selection
+                          v-else
                           input-decorator="isoid"
                           :items="options.isos"
                           :selected="tabKey"
@@ -891,7 +960,7 @@ import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
 import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
 import MultiDiskSelection from '@views/compute/wizard/MultiDiskSelection'
-import TemplateIsoSelection from '@views/compute/wizard/TemplateIsoSelection'
+import NewTemplateIsoSelection from '@views/compute/wizard/NewTemplateIsoSelection'
 import AffinityGroupSelection from '@views/compute/wizard/AffinityGroupSelection'
 import NetworkSelection from '@views/compute/wizard/NetworkSelection'
 import NetworkConfiguration from '@views/compute/wizard/NetworkConfiguration'
@@ -900,6 +969,7 @@ import UserDataSelection from '@views/compute/wizard/UserDataSelection'
 import SecurityGroupSelection from '@views/compute/wizard/SecurityGroupSelection'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 import InstanceNicsNetworkSelectListView from '@/components/view/InstanceNicsNetworkSelectListView.vue'
+import OsLogo from '@/components/widgets/OsLogo'
 
 export default {
   name: 'Wizard',
@@ -910,7 +980,7 @@ export default {
     NetworkConfiguration,
     NetworkSelection,
     AffinityGroupSelection,
-    TemplateIsoSelection,
+    NewTemplateIsoSelection,
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
@@ -920,7 +990,8 @@ export default {
     SecurityGroupSelection,
     ResourceIcon,
     TooltipLabel,
-    InstanceNicsNetworkSelectListView
+    InstanceNicsNetworkSelectListView,
+    OsLogo
   },
   props: {
     visible: {
@@ -934,6 +1005,7 @@ export default {
   mixins: [mixin, mixinDevice],
   data () {
     return {
+      templateview: 'new',
       zoneId: '',
       podId: null,
       clusterId: null,
@@ -965,6 +1037,7 @@ export default {
         disksize: null
       },
       options: {
+        guestOsCategories: [],
         templates: {},
         isos: {},
         hypervisors: [],
@@ -988,6 +1061,7 @@ export default {
       rowCount: {},
       loading: {
         deploy: false,
+        guestOsCategories: false,
         templates: false,
         isos: false,
         hypervisors: false,
@@ -1054,18 +1128,28 @@ export default {
       templateUserDataParams: [],
       templateUserDataValues: {},
       overrideDiskOffering: {},
-      templateFilter: [
-        'featured',
-        'community',
-        'selfexecutable',
-        'sharedexecutable'
-      ],
-      isoFilter: [
-        'featured',
-        'community',
-        'selfexecutable',
-        'sharedexecutable'
-      ],
+      templateFilter: {
+        old: [
+          'featured',
+          'community',
+          'selfexecutable',
+          'sharedexecutable'
+        ],
+        new: [
+          'all'
+        ]
+      },
+      isoFilter: {
+        old: [
+          'featured',
+          'community',
+          'selfexecutable',
+          'sharedexecutable'
+        ],
+        new: [
+          'all'
+        ]
+      },
       initDataConfig: {},
       defaultnetworkid: '',
       networkConfig: [],
@@ -1285,6 +1369,13 @@ export default {
             zoneid: _.get(this.zone, 'id'),
             name: 'enable.dynamic.scale.vm'
           }
+        },
+        guestOsCategories: {
+          list: 'listOsCategories',
+          options: {
+            zoneid: _.get(this.zone, 'id')
+          },
+          field: 'guestoscategoryid'
         }
       }
     },
@@ -2357,66 +2448,68 @@ export default {
       })
     },
     fetchOptions (param, name, exclude) {
-      if (exclude && exclude.length > 0) {
-        if (exclude.includes(name)) {
-          return
+      return new Promise((resolve, reject) => {
+        if (exclude && exclude.length > 0 && exclude.includes(name)) {
+          return resolve(null)
         }
-      }
-      this.loading[name] = true
-      param.loading = true
-      param.opts = []
-      const options = param.options || {}
-      if (!('listall' in options) && !['zones', 'pods', 'clusters', 'hosts', 'dynamicScalingVmConfig', 'hypervisors'].includes(name)) {
-        options.listall = true
-      }
-      api(param.list, options).then((response) => {
-        param.loading = false
-        _.map(response, (responseItem, responseKey) => {
-          if (Object.keys(responseItem).length === 0) {
-            this.rowCount[name] = 0
-            this.options[name] = []
-            return
-          }
-          if (!responseKey.includes('response')) {
-            return
-          }
-          _.map(responseItem, (response, key) => {
-            if (key === 'count') {
-              this.rowCount[name] = response
-              return
+        this.loading[name] = true
+        param.loading = true
+        param.opts = []
+        const options = param.options || {}
+        if (!('listall' in options) && !['zones', 'pods', 'clusters', 'hosts', 'dynamicScalingVmConfig', 'hypervisors'].includes(name)) {
+          options.listall = true
+        }
+        api(param.list, options).then((response) => {
+          param.loading = false
+          _.map(response, (responseItem, responseKey) => {
+            if (Object.keys(responseItem).length === 0) {
+              this.rowCount[name] = 0
+              this.options[name] = []
+              return resolve(null)
             }
-            param.opts = response
-            this.options[name] = response
-
-            if (name === 'hypervisors') {
-              const hypervisorFromResponse = response[0] && response[0].name ? response[0].name : null
-              this.dataPreFill.hypervisor = hypervisorFromResponse
-              this.form.hypervisor = hypervisorFromResponse
+            if (!responseKey.includes('response')) {
+              return resolve(null)
             }
+            _.map(responseItem, (response, key) => {
+              if (key === 'count') {
+                this.rowCount[name] = response
+                return
+              }
+              param.opts = response
+              this.options[name] = response
 
-            if (param.field) {
-              this.fillValue(param.field)
+              if (name === 'hypervisors') {
+                const hypervisorFromResponse = response[0] && response[0].name ? response[0].name : null
+                this.dataPreFill.hypervisor = hypervisorFromResponse
+                this.form.hypervisor = hypervisorFromResponse
+              }
+
+              if (param.field) {
+                this.fillValue(param.field)
+              }
+            })
+
+            if (name === 'zones') {
+              let zoneid = ''
+              if (this.$route.query.zoneid) {
+                zoneid = this.$route.query.zoneid
+              } else if (this.options.zones.length === 1) {
+                zoneid = this.options.zones[0].id
+              }
+              if (zoneid) {
+                this.form.zoneid = zoneid
+                this.onSelectZoneId(zoneid)
+              }
             }
           })
-
-          if (name === 'zones') {
-            let zoneid = ''
-            if (this.$route.query.zoneid) {
-              zoneid = this.$route.query.zoneid
-            } else if (this.options.zones.length === 1) {
-              zoneid = this.options.zones[0].id
-            }
-            if (zoneid) {
-              this.form.zoneid = zoneid
-              this.onSelectZoneId(zoneid)
-            }
-          }
+          resolve(response)
+        }).catch(function (error) {
+          console.log(error.stack)
+          param.loading = false
+          reject(error)
+        }).finally(() => {
+          this.loading[name] = false
         })
-      }).catch(function (error) {
-        console.log(error.stack)
-        param.loading = false
-      }).finally(() => {
-        this.loading[name] = false
       })
     },
     fetchTemplates (templateFilter, params) {
@@ -2428,6 +2521,9 @@ export default {
       args.zoneid = _.get(this.zone, 'id')
       if (this.isZoneSelectedMultiArch) {
         args.arch = this.selectedArchitecture
+      }
+      if (this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
       }
       args.account = store.getters.project?.id ? null : this.owner.account
       args.domainid = store.getters.project?.id ? null : this.owner.domainid
@@ -2475,14 +2571,15 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      this.templateFilter.forEach((filter) => {
+      const templateFilters = this.templateFilter[this.templateview]
+      templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
       })
       this.options.templates = templates
       Promise.all(promises).then((response) => {
         response.forEach((resItem, idx) => {
-          templates[this.templateFilter[idx]] = _.isEmpty(resItem.listtemplatesresponse) ? { count: 0, template: [] } : resItem.listtemplatesresponse
+          templates[templateFilters[idx]] = _.isEmpty(resItem.listtemplatesresponse) ? { count: 0, template: [] } : resItem.listtemplatesresponse
           this.options.templates = { ...templates }
         })
       }).catch((reason) => {
@@ -2495,14 +2592,15 @@ export default {
       const promises = []
       const isos = {}
       this.loading.isos = true
-      this.isoFilter.forEach((filter) => {
+      const isoFilters = this.templateFilter[this.templateview]
+      isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
         promises.push(this.fetchIsos(filter, params))
       })
       this.options.isos = isos
       Promise.all(promises).then((response) => {
         response.forEach((resItem, idx) => {
-          isos[this.isoFilter[idx]] = _.isEmpty(resItem.listisosresponse) ? { count: 0, iso: [] } : resItem.listisosresponse
+          isos[isoFilters[idx]] = _.isEmpty(resItem.listisosresponse) ? { count: 0, iso: [] } : resItem.listisosresponse
           this.options.isos = { ...isos }
         })
       }).catch((reason) => {
@@ -2513,6 +2611,58 @@ export default {
     },
     filterOption (input, option) {
       return option.label.toUpperCase().indexOf(input.toUpperCase()) >= 0
+    },
+    resetTemplatesList () {
+      const templates = {}
+      const templateFilters = this.templateFilter[this.templateview]
+      templateFilters.forEach((filter) => {
+        templates[filter] = { count: 0, template: [] }
+      })
+      this.options.templates = templates
+    },
+    resetIsosList () {
+      const isos = {}
+      const isoFilters = this.isoFilter[this.templateview]
+      isoFilters.forEach((filter) => {
+        isos[filter] = { count: 0, iso: [] }
+      })
+      this.options.isos = isos
+    },
+    async fetchZoneOptions () {
+      let guestOsFetch = null
+
+      for (const [name, param] of Object.entries(this.params)) {
+        if (this.networkId && name === 'networks') {
+          param.options = { id: this.networkId }
+        }
+        const shouldLoad = !('isLoad' in param) || param.isLoad
+        if (!shouldLoad) continue
+        if (this.templateview === 'new' && name === 'guestOsCategories') {
+          guestOsFetch = this.fetchOptions(param, name, ['zones'])
+            .then((res) => {
+              if (!this.form.guestoscategoryid && this.options.guestOsCategories?.[0]) {
+                this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+              }
+            })
+            .catch((e) => {
+              console.error('Error fetching guestOsCategories:', e)
+            })
+        } else {
+          this.fetchOptions(param, name, ['zones'])
+        }
+      }
+
+      if (this.templateview === 'new' && guestOsFetch) {
+        await guestOsFetch
+      }
+
+      if (this.tabKey === 'templateid') {
+        this.fetchAllTemplates()
+      } else {
+        this.fetchAllIsos()
+      }
+      this.updateTemplateKey()
+      this.formModel = toRaw(this.form)
     },
     onSelectZoneId (value) {
       this.dataPreFill = {}
@@ -2531,29 +2681,16 @@ export default {
       this.form.clusterid = undefined
       this.form.podid = undefined
       this.form.hostid = undefined
+      this.form.guestoscategoryid = undefined
       this.form.templateid = undefined
       this.form.isoid = undefined
+      this.resetTemplatesList()
+      this.resetIsosList()
       this.tabKey = 'templateid'
       if (this.isoId) {
         this.tabKey = 'isoid'
       }
-      _.each(this.params, (param, name) => {
-        if (this.networkId && name === 'networks') {
-          param.options = {
-            id: this.networkId
-          }
-        }
-        if (!('isLoad' in param) || param.isLoad) {
-          this.fetchOptions(param, name, ['zones'])
-        }
-      })
-      if (this.tabKey === 'templateid') {
-        this.fetchAllTemplates()
-      } else {
-        this.fetchAllIsos()
-      }
-      this.updateTemplateKey()
-      this.formModel = toRaw(this.form)
+      this.fetchZoneOptions()
     },
     onSelectPodId (value) {
       this.podId = value
@@ -2591,6 +2728,14 @@ export default {
       }
       this.selectedArchitecture = resourceArch
       this.changeArchitecture(resourceArch, this.tabKey === 'templateid')
+    },
+    onSelectGuestOsCategory (value) {
+      this.form.oscategoryid = value
+      if (this.tabKey === 'templateid') {
+        this.fetchAllTemplates()
+      } else {
+        this.fetchAllIsos()
+      }
     },
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }
@@ -2931,6 +3076,15 @@ export default {
   .zone-radio-button {
     width:100%;
     min-width: 345px;
+    height: 60px;
+    display: flex;
+    padding-left: 20px;
+    align-items: center;
+  }
+
+  .guestoscategory-radio-button {
+    width:100%;
+    min-width: 160px;
     height: 60px;
     display: flex;
     padding-left: 20px;
