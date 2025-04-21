@@ -89,12 +89,15 @@ import org.apache.cloudstack.api.command.admin.domain.ListDomainsCmd;
 import org.apache.cloudstack.api.command.admin.domain.ListDomainsCmdByAdmin;
 import org.apache.cloudstack.api.command.admin.domain.MoveDomainCmd;
 import org.apache.cloudstack.api.command.admin.domain.UpdateDomainCmd;
+import org.apache.cloudstack.api.command.admin.guest.AddGuestOsCategoryCmd;
 import org.apache.cloudstack.api.command.admin.guest.AddGuestOsCmd;
 import org.apache.cloudstack.api.command.admin.guest.AddGuestOsMappingCmd;
+import org.apache.cloudstack.api.command.admin.guest.DeleteGuestOsCategoryCmd;
 import org.apache.cloudstack.api.command.admin.guest.GetHypervisorGuestOsNamesCmd;
 import org.apache.cloudstack.api.command.admin.guest.ListGuestOsMappingCmd;
 import org.apache.cloudstack.api.command.admin.guest.RemoveGuestOsCmd;
 import org.apache.cloudstack.api.command.admin.guest.RemoveGuestOsMappingCmd;
+import org.apache.cloudstack.api.command.admin.guest.UpdateGuestOsCategoryCmd;
 import org.apache.cloudstack.api.command.admin.guest.UpdateGuestOsCmd;
 import org.apache.cloudstack.api.command.admin.guest.UpdateGuestOsMappingCmd;
 import org.apache.cloudstack.api.command.admin.host.AddHostCmd;
@@ -2728,6 +2731,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         final Long id = cmd.getId();
         final String name = cmd.getName();
         final String keyword = cmd.getKeyword();
+        final Boolean featured = cmd.isFeatured();
         final Long zoneId = cmd.getZoneId();
         final CPU.CPUArch arch = cmd.getArch();
 
@@ -2735,6 +2739,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         sb.and("id", sb.entity().getId(), SearchCriteria.Op.EQ);
         sb.and("name", sb.entity().getId(), SearchCriteria.Op.LIKE);
         sb.and("keyword", sb.entity().getId(), SearchCriteria.Op.LIKE);
+        sb.and("featured", sb.entity().isFeatured(), SearchCriteria.Op.EQ);
         if (zoneId != null) {
             final SearchBuilder<GuestOSVO> guestOsSearch = _guestOSDao.createSearchBuilder();
             guestOsSearch.and("ids", guestOsSearch.entity().getId(), SearchCriteria.Op.IN);
@@ -2753,6 +2758,9 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         if (keyword != null) {
             sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + keyword + "%");
         }
+        if (featured != null) {
+            sc.setParameters("featured", SearchCriteria.Op.EQ, featured);
+        }
         if (ObjectUtils.anyNotNull(zoneId, arch)) {
             List<Long> guestOsIds = templateDao.listTemplateGuestOsIdsInZone(zoneId, arch);
             if (CollectionUtils.isEmpty(guestOsIds)) {
@@ -2762,6 +2770,21 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         }
         final Pair<List<GuestOSCategoryVO>, Integer> result = _guestOSCategoryDao.searchAndCount(sc, searchFilter);
         return new Pair<>(result.first(), result.second());
+    }
+
+    @Override
+    public GuestOsCategory addGuestOsCategory(AddGuestOsCategoryCmd cmd) {
+        return null;
+    }
+
+    @Override
+    public GuestOsCategory updateGuestOsCategory(UpdateGuestOsCategoryCmd cmd) {
+        return null;
+    }
+
+    @Override
+    public boolean deleteGuestOsCategory(DeleteGuestOsCategoryCmd cmd) {
+        return false;
     }
 
     @Override

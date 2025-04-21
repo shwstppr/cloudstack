@@ -41,11 +41,17 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
-    @Parameter(name = ApiConstants.ID, type = CommandType.UUID, entityType = GuestOSCategoryResponse.class, description = "list Os category by id")
+    @Parameter(name = ApiConstants.ID, type = CommandType.UUID, entityType = GuestOSCategoryResponse.class, description = "List OS category by id")
     private Long id;
 
-    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "list os category by name", since = "3.0.1")
+    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "List OS category by name", since = "3.0.1")
     private String name;
+
+    @Parameter(name = ApiConstants.IS_FEATURED,
+            type = CommandType.BOOLEAN,
+            description = "List available OS categories by featured or not",
+            since = "4.20.1")
+    private Boolean featured;
 
     @Parameter(name = ApiConstants.ZONE_ID,
             type = CommandType.UUID,
@@ -72,6 +78,10 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
         return name;
     }
 
+    public Boolean isFeatured() {
+        return featured;
+    }
+
     public Long getZoneId() {
         return zoneId;
     }
@@ -90,11 +100,7 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
         ListResponse<GuestOSCategoryResponse> response = new ListResponse<GuestOSCategoryResponse>();
         List<GuestOSCategoryResponse> osCatResponses = new ArrayList<GuestOSCategoryResponse>();
         for (GuestOsCategory osCategory : result.first()) {
-            GuestOSCategoryResponse categoryResponse = new GuestOSCategoryResponse();
-            categoryResponse.setId(osCategory.getUuid());
-            categoryResponse.setName(osCategory.getName());
-
-            categoryResponse.setObjectName("oscategory");
+            GuestOSCategoryResponse categoryResponse = _responseGenerator.createGuestOSCategoryResponse(osCategory);
             osCatResponses.add(categoryResponse);
         }
 

@@ -35,6 +35,10 @@ public class GuestOSCategoryResponse extends BaseResponse {
     @Param(description = "the name of the OS category")
     private String name;
 
+    @SerializedName(ApiConstants.IS_FEATURED)
+    @Param(description = "Whether the OS category is featured")
+    private Boolean featured;
+
     public String getId() {
         return id;
     }
@@ -49,5 +53,9 @@ public class GuestOSCategoryResponse extends BaseResponse {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void setFeatured(Boolean featured) {
+        this.featured = featured;
     }
 }

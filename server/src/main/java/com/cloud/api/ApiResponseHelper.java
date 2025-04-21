@@ -99,6 +99,7 @@ import org.apache.cloudstack.api.response.DomainResponse;
 import org.apache.cloudstack.api.response.DomainRouterResponse;
 import org.apache.cloudstack.api.response.EventResponse;
 import org.apache.cloudstack.api.response.ExtractResponse;
+import org.apache.cloudstack.api.response.GuestOSCategoryResponse;
 import org.apache.cloudstack.api.response.SharedFSResponse;
 import org.apache.cloudstack.api.response.FirewallResponse;
 import org.apache.cloudstack.api.response.FirewallRuleResponse;
@@ -3876,6 +3877,16 @@ public class ApiResponseHelper implements ResponseGenerator {
         response.setForDisplay(result.isDisplay());
         response.setObjectName("vpnconnection");
         return response;
+    }
+
+    @Override
+    public GuestOSCategoryResponse createGuestOSCategoryResponse(GuestOsCategory guestOsCategory) {
+        GuestOSCategoryResponse categoryResponse = new GuestOSCategoryResponse();
+        categoryResponse.setId(guestOsCategory.getUuid());
+        categoryResponse.setName(guestOsCategory.getName());
+        categoryResponse.setFeatured(guestOsCategory.isFeatured());
+        categoryResponse.setObjectName("oscategory");
+        return categoryResponse;
     }
 
     @Override
