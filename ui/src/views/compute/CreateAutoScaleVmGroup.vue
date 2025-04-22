@@ -86,7 +86,7 @@
                 </template>
               </a-step>
               <a-step
-                :title="$t('label.template')"
+                :title="$t('label.template.select')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">

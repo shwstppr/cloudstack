@@ -141,31 +141,27 @@
                 </template>
               </a-step>
               <a-step
-                :title="$t('label.templateiso')"
+                v-if="!zoneSelected || isZoneSelectedMultiArch"
+                :title="$t('label.arch')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
-
-                    <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid" v-if="templateview === 'new'">
-                      <div v-if="options.guestOsCategories.length <= 16">
+                    {{ $t('message.instance.architecture') }}
+                    <div style="width: 100%; margin-top: 5px">
+                      <div v-if="architectureTypes.opts.length <= 4">
                         <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="(item, idx) in options.guestOsCategories" :key="idx">
+                          <div v-for="opt in architectureTypes.opts" :key="opt.id">
                             <a-radio-group
-                              :key="idx"
-                              v-model:value="form.guestoscategoryid"
-                              @change="onSelectGuestOsCategory(item.id)">
+                              :key="opt.id"
+                              v-model:value="selectedArchitecture"
+                              @change="changeArchitecture(opt.id)">
                               <a-col :span="6">
                                 <a-radio-button
-                                  :value="item.id"
+                                  :value="opt.id"
                                   style="border-width: 2px"
-                                  class="guestoscategory-radio-button">
+                                  class="narrow-block-radio-button">
                                   <span>
-                                    <os-logo
-                                      class="radio-group__os-logo"
-                                      size="2x"
-                                      :osId="item.id"
-                                      :os-name="item.name" />
-                                    {{ item.name }}
+                                    {{ opt.name || opt.description }}
                                     </span>
                                 </a-radio-button>
                               </a-col>
@@ -175,25 +171,79 @@
                       </div>
                       <a-select
                         v-else
-                        v-model:value="form.guestOsCategoryId"
-                        showSearch
-                        optionFilterProp="label"
-                        :filterOption="(input, option) => {
-                          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                        }"
-                        @change="onSelectGuestOsCategory"
-                        :loading="loading.guestOsCategories"
-                        v-focus="true"
-                      >
-                        <a-select-option v-for="item in options.guestOsCategories" :key="item.id" :label="item.name">
-                          <span>
-                            <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
-                            <global-outlined v-else style="margin-right: 5px" />
-                            {{ item.name }}
-                          </span>
+                        style="width: 100%"
+                        v-model:value="selectedArchitecture"
+                        :defaultValue="architectureTypes.opts[0].id"
+                        @change="arch => changeArchitecture(arch)">
+                        <a-select-option v-for="opt in architectureTypes.opts" :key="opt.id">
+                          {{ opt.name || opt.description }}
                         </a-select-option>
                       </a-select>
-                    </a-form-item>
+                    </div>
+                  </div>
+                </template>
+              </a-step>
+              <a-step
+                :title="$t('label.image')"
+                :status="zoneSelected ? 'process' : 'wait'">
+                <template #description>
+                  <div v-if="zoneSelected" style="margin-top: 15px">
+                    <div v-if="templateview === 'new'">
+                      <a-form-item :label="$t('label.image.type')" name="imagetype" ref="imagetype">
+                        <a-radio-group v-model:value="form.imagetype" button-style="solid">
+                          <a-radio-button value="templateid">{{ $t('label.template') }}</a-radio-button>
+                          <a-radio-button value="isoid">{{ $t('label.iso') }}</a-radio-button>
+                        </a-radio-group>
+                      </a-form-item>
+                      <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
+                        <div v-if="options.guestOsCategories.length <= 16">
+                          <a-row type="flex" :gutter="[16, 18]" justify="start">
+                            <div v-for="(item, idx) in options.guestOsCategories" :key="idx">
+                              <a-radio-group
+                                :key="idx"
+                                v-model:value="form.guestoscategoryid"
+                                @change="onSelectGuestOsCategory(item.id)">
+                                <a-col :span="6">
+                                  <a-radio-button
+                                    :value="item.id"
+                                    style="border-width: 2px"
+                                    class="narrow-block-radio-button">
+                                    <span>
+                                      <os-logo
+                                        class="radio-group__os-logo"
+                                        size="2x"
+                                        :osId="item.id"
+                                        :os-name="item.name" />
+                                      {{ item.name }}
+                                      </span>
+                                  </a-radio-button>
+                                </a-col>
+                              </a-radio-group>
+                            </div>
+                          </a-row>
+                        </div>
+                        <a-select
+                          v-else
+                          v-model:value="form.guestOsCategoryId"
+                          showSearch
+                          optionFilterProp="label"
+                          :filterOption="(input, option) => {
+                            return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                          }"
+                          @change="onSelectGuestOsCategory"
+                          :loading="loading.guestOsCategories"
+                          v-focus="true"
+                        >
+                          <a-select-option v-for="item in options.guestOsCategories" :key="item.id" :label="item.name">
+                            <span>
+                              <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
+                              <global-outlined v-else style="margin-right: 5px" />
+                              {{ item.name }}
+                            </span>
+                          </a-select-option>
+                        </a-select>
+                      </a-form-item>
+                    </div>
 
                     <a-card
                       :tabList="tabList"
@@ -201,18 +251,6 @@
                       @tabChange="key => onTabChange(key, 'tabKey')">
                       <div v-if="tabKey === 'templateid'">
                         {{ $t('message.template.desc') }}
-                        <div v-if="isZoneSelectedMultiArch" style="width: 100%; margin-top: 5px">
-                          {{ $t('message.template.arch') }}
-                          <a-select
-                            style="width: 100%"
-                            v-model:value="selectedArchitecture"
-                            :defaultValue="architectureTypes.opts[0].id"
-                            @change="arch => changeArchitecture(arch, true)">
-                            <a-select-option v-for="opt in architectureTypes.opts" :key="opt.id">
-                              {{ opt.name || opt.description }}
-                            </a-select-option>
-                          </a-select>
-                        </div>
                         <new-template-iso-selection
                           v-if="templateview === 'new'"
                           input-decorator="templateid"
@@ -258,7 +296,7 @@
                             style="width: 100%"
                             v-model:value="selectedArchitecture"
                             :defaultValue="architectureTypes.opts[0].id"
-                            @change="arch => changeArchitecture(arch, false)">
+                            @change="arch => changeArchitecture(arch)">
                             <a-select-option v-for="opt in architectureTypes.opts" :key="opt.id">
                               {{ opt.name || opt.description }}
                             </a-select-option>
@@ -2084,9 +2122,9 @@ export default {
     getText (option) {
       return _.get(option, 'displaytext', _.get(option, 'name'))
     },
-    changeArchitecture (arch, isTemplate) {
+    changeArchitecture (arch) {
       this.selectedArchitecture = arch
-      if (isTemplate) {
+      if (this.tabKey === 'templateid') {
         this.fetchAllTemplates()
       } else {
         this.fetchAllIsos()
@@ -3083,7 +3121,7 @@ export default {
     align-items: center;
   }
 
-  .guestoscategory-radio-button {
+  .narrow-block-radio-button {
     width:100%;
     min-width: 160px;
     height: 60px;
