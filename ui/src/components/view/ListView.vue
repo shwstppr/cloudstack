@@ -463,6 +463,9 @@
       <template v-if="['startdate', 'enddate'].includes(column.key) && ['usage'].includes($route.path.split('/')[1])">
         {{ $toLocaleDate(text.replace('\'T\'', ' ')) }}
       </template>
+      <template v-if="['isfeatured'].includes(column.key) && ['guestoscategories'].includes($route.path.split('/')[1])">
+        {{ record.isfeatured ? $t('label.yes') : $t('label.no') }}
+      </template>
       <template v-if="column.key === 'order'">
         <div class="shift-btns">
           <a-tooltip :name="text" placement="top">
@@ -837,8 +840,9 @@ export default {
         case 'vpcoffering':
           apiString = 'updateVPCOffering'
           break
-        default:
-          apiString = 'updateTemplate'
+        case 'guestoscategories':
+          apiString = 'updateOsCategory'
+          break
       }
       return apiString
     },

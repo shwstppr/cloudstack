@@ -188,6 +188,41 @@ export default {
       ]
     },
     {
+      name: 'guestoscategories',
+      title: 'label.guest.os.categories',
+      docHelp: 'adminguide/guest_os.html#guest-os',
+      icon: 'group-outlined',
+      permission: ['listOsCategories'],
+      columns: ['name', 'isfeatured', 'order'],
+      details: ['name', 'isfeatured'],
+      actions: [
+        {
+          api: 'addOsCategory',
+          icon: 'plus-outlined',
+          label: 'label.add.guest.os.category',
+          listView: true,
+          dataView: false,
+          args: ['name', 'isfeatured']
+        },
+        {
+          api: 'updateOsCategory',
+          icon: 'edit-outlined',
+          label: 'label.edit',
+          dataView: true,
+          popup: true,
+          args: ['name', 'isfeatured']
+        },
+        {
+          api: 'deleteOsCategory',
+          icon: 'delete-outlined',
+          label: 'label.action.delete.guest.os.category',
+          message: 'message.action.delete.guest.os.category',
+          dataView: true,
+          popup: true
+        }
+      ]
+    },
+    {
       name: 'guestos',
       title: 'label.guest.os',
       docHelp: 'adminguide/guest_os.html#guest-os',

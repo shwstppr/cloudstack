@@ -53,6 +53,12 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
             since = "4.20.1")
     private Boolean featured;
 
+    @Parameter(name = ApiConstants.IS_ISO,
+            type = CommandType.BOOLEAN,
+            description = "List OS categories types for which an ISO is available",
+            since = "4.20.1")
+    private Boolean iso;
+
     @Parameter(name = ApiConstants.ZONE_ID,
             type = CommandType.UUID,
             entityType = ZoneResponse.class,
@@ -62,7 +68,7 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
 
     @Parameter(name = ApiConstants.ARCH,
             type = CommandType.STRING,
-            description = "List available OS categories types available for given CPU architecture",
+            description = "List OS categories types available for given CPU architecture",
             since = "4.20.1")
     private String arch;
 
@@ -82,12 +88,16 @@ public class ListGuestOsCategoriesCmd extends BaseListCmd {
         return featured;
     }
 
+    public Boolean isIso() {
+        return iso;
+    }
+
     public Long getZoneId() {
         return zoneId;
     }
 
     public CPU.CPUArch getArch() {
-        return CPU.CPUArch.fromType(arch);
+        return arch == null ? null : CPU.CPUArch.fromType(arch);
     }
 
     /////////////////////////////////////////////////////

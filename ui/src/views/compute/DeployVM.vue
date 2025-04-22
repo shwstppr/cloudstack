@@ -1373,7 +1373,8 @@ export default {
         guestOsCategories: {
           list: 'listOsCategories',
           options: {
-            zoneid: _.get(this.zone, 'id')
+            zoneid: _.get(this.zone, 'id'),
+            isfeatured: true
           },
           field: 'guestoscategoryid'
         }

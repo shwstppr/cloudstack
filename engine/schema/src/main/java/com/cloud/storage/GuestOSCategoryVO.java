@@ -42,6 +42,9 @@ public class GuestOSCategoryVO implements GuestOsCategory {
     @Column(name = "featured")
     boolean featured;
 
+    @Column(name = "sort_key")
+    private int sortKey;
+
     @Override
     public long getId() {
         return id;
@@ -73,5 +76,13 @@ public class GuestOSCategoryVO implements GuestOsCategory {
 
     public void setFeatured(Boolean featured) {
         this.featured = featured;
+    }
+
+    public void setSortKey(int key) {
+        sortKey = key;
+    }
+
+    public int getSortKey() {
+        return sortKey;
     }
 }

@@ -2727,42 +2727,46 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public Pair<List<? extends GuestOsCategory>, Integer> listGuestOSCategoriesByCriteria(final ListGuestOsCategoriesCmd cmd) {
-        final Filter searchFilter = new Filter(GuestOSCategoryVO.class, "id", true, cmd.getStartIndex(), cmd.getPageSizeVal());
+        final Filter searchFilter = new Filter(GuestOSCategoryVO.class, "sortKey", true,
+                cmd.getStartIndex(), cmd.getPageSizeVal());
+        searchFilter.addOrderBy(GuestOSCategoryVO.class, "id", true);
         final Long id = cmd.getId();
         final String name = cmd.getName();
         final String keyword = cmd.getKeyword();
         final Boolean featured = cmd.isFeatured();
         final Long zoneId = cmd.getZoneId();
         final CPU.CPUArch arch = cmd.getArch();
+        final Boolean isIso = cmd.isIso();
 
         final SearchBuilder<GuestOSCategoryVO> sb = _guestOSCategoryDao.createSearchBuilder();
         sb.and("id", sb.entity().getId(), SearchCriteria.Op.EQ);
         sb.and("name", sb.entity().getId(), SearchCriteria.Op.LIKE);
         sb.and("keyword", sb.entity().getId(), SearchCriteria.Op.LIKE);
         sb.and("featured", sb.entity().isFeatured(), SearchCriteria.Op.EQ);
-        if (zoneId != null) {
+        if (ObjectUtils.anyNotNull(zoneId, arch, isIso)) {
             final SearchBuilder<GuestOSVO> guestOsSearch = _guestOSDao.createSearchBuilder();
             guestOsSearch.and("ids", guestOsSearch.entity().getId(), SearchCriteria.Op.IN);
-            sb.join("guestOsSearch", guestOsSearch, guestOsSearch.entity().getCategoryId(), sb.entity().getId(), JoinType.INNER);
+            sb.join("guestOsSearch", guestOsSearch, guestOsSearch.entity().getCategoryId(), sb.entity().getId(),
+                    JoinType.INNER);
             guestOsSearch.done();
             sb.groupBy(sb.entity().getId());
         }
         sb.done();
         SearchCriteria<GuestOSCategoryVO> sc = sb.create();
         if (id != null) {
-            sc.setParameters("id", SearchCriteria.Op.EQ, id);
+            sc.setParameters("id", id);
         }
         if (name != null) {
-            sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + name + "%");
+            sc.setParameters("name", "%" + name + "%");
         }
         if (keyword != null) {
-            sc.setParameters("name", SearchCriteria.Op.LIKE, "%" + keyword + "%");
+            sc.setParameters("name", "%" + keyword + "%");
         }
         if (featured != null) {
-            sc.setParameters("featured", SearchCriteria.Op.EQ, featured);
+            sc.setParameters("featured", featured);
         }
-        if (ObjectUtils.anyNotNull(zoneId, arch)) {
-            List<Long> guestOsIds = templateDao.listTemplateGuestOsIdsInZone(zoneId, arch);
+        if (ObjectUtils.anyNotNull(zoneId, arch, isIso)) {
+            List<Long> guestOsIds = templateDao.listTemplateIsoByArchAndZone(zoneId, arch, isIso);
             if (CollectionUtils.isEmpty(guestOsIds)) {
                 return new Pair<>(Collections.emptyList(), 0);
             }
@@ -2774,17 +2778,55 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
 
     @Override
     public GuestOsCategory addGuestOsCategory(AddGuestOsCategoryCmd cmd) {
-        return null;
+        final String name = cmd.getName();
+        final boolean featured = cmd.isFeatured();
+        final GuestOSCategoryVO guestOSCategory = new GuestOSCategoryVO();
+        guestOSCategory.setName(name);
+        guestOSCategory.setFeatured(featured);
+        return _guestOSCategoryDao.persist(guestOSCategory);
     }
 
     @Override
     public GuestOsCategory updateGuestOsCategory(UpdateGuestOsCategoryCmd cmd) {
-        return null;
+        final long id = cmd.getId();
+        final String name = cmd.getName();
+        final Boolean featured = cmd.isFeatured();
+        Integer sortKey = cmd.getSortKey();
+        final GuestOSCategoryVO guestOSCategory = _guestOSCategoryDao.findById(id);
+        if (guestOSCategory == null) {
+            throw new InvalidParameterValueException("Invalid OS category ID specified");
+        }
+        if (ObjectUtils.allNull(name, featured, sortKey)) {
+            return guestOSCategory;
+        }
+        if (StringUtils.isNotBlank(name)) {
+            guestOSCategory.setName(name);
+        }
+        if (featured != null) {
+            guestOSCategory.setFeatured(featured);
+        }
+        if (sortKey != null) {
+            guestOSCategory.setSortKey(sortKey);
+        }
+        if (!_guestOSCategoryDao.update(id, guestOSCategory)) {
+            return null;
+        }
+        return guestOSCategory;
     }
 
     @Override
     public boolean deleteGuestOsCategory(DeleteGuestOsCategoryCmd cmd) {
-        return false;
+        final long id = cmd.getId();
+        final GuestOSCategoryVO guestOSCategory = _guestOSCategoryDao.findById(id);
+        if (guestOSCategory == null) {
+            throw new InvalidParameterValueException("Invalid OS category ID specified");
+        }
+        List<Long> guestOses = _guestOSDao.listIdsByCategoryId(id);
+        if (!guestOses.isEmpty()) {
+            throw new InvalidParameterValueException(String.format(
+                    "Unable to delete the OS category. %d guest OS exist for it.", guestOses.size()));
+        }
+        return _guestOSCategoryDao.remove(id);
     }
 
     @Override
@@ -3732,6 +3774,9 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         cmdList.add(ListPortForwardingRulesCmd.class);
         cmdList.add(UpdatePortForwardingRuleCmd.class);
         cmdList.add(ListGuestOsCategoriesCmd.class);
+        cmdList.add(AddGuestOsCategoryCmd.class);
+        cmdList.add(UpdateGuestOsCategoryCmd.class);
+        cmdList.add(DeleteGuestOsCategoryCmd.class);
         cmdList.add(ListGuestOsCmd.class);
         cmdList.add(ListGuestOsMappingCmd.class);
         cmdList.add(AddGuestOsCmd.class);

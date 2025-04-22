@@ -522,12 +522,15 @@ public class VMTemplateDaoImpl extends GenericDaoBase<VMTemplateVO, Long> implem
     }
 
     @Override
-    public List<Long> listTemplateGuestOsIdsInZone(Long dataCenterId, CPU.CPUArch arch) {
+    public List<Long> listTemplateIsoByArchAndZone(Long dataCenterId, CPU.CPUArch arch, Boolean isIso) {
         GenericSearchBuilder<VMTemplateVO, Long> sb = createSearchBuilder(Long.class);
         sb.select(null, Func.DISTINCT, sb.entity().getGuestOSId());
         sb.and("state", sb.entity().getState(), SearchCriteria.Op.IN);
         sb.and("type", sb.entity().getTemplateType(), SearchCriteria.Op.IN);
         sb.and("arch", sb.entity().getArch(), SearchCriteria.Op.EQ);
+        if (isIso != null) {
+            sb.and("isIso", sb.entity().getFormat(), isIso ? SearchCriteria.Op.EQ : SearchCriteria.Op.NEQ);
+        }
         if (dataCenterId != null) {
             SearchBuilder<VMTemplateZoneVO> templateZoneSearch = _templateZoneDao.createSearchBuilder();
             templateZoneSearch.and("removed", templateZoneSearch.entity().getRemoved(), SearchCriteria.Op.NULL);
@@ -537,13 +540,17 @@ public class VMTemplateDaoImpl extends GenericDaoBase<VMTemplateVO, Long> implem
         }
         sb.done();
         SearchCriteria<Long> sc = sb.create();
-        sc.setParameters("type", Arrays.asList(TemplateType.USER, TemplateType.BUILTIN).toArray());
+        List<TemplateType> types = Arrays.asList(TemplateType.USER, TemplateType.BUILTIN, TemplateType.PERHOST);
+        sc.setParameters("type", types.toArray());
         sc.setParameters("state", VirtualMachineTemplate.State.Active);
         if (dataCenterId != null) {
             sc.setJoinParameters("templateZoneSearch", "zoneId", dataCenterId);
         }
         if (arch != null) {
             sc.setParameters("arch", arch);
+        }
+        if (isIso != null) {
+            sc.setParameters("isIso", ImageFormat.ISO);
         }
         return customSearch(sc, null);
     }

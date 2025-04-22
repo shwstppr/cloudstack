@@ -24,13 +24,13 @@ import org.apache.cloudstack.api.ApiErrorCode;
 import org.apache.cloudstack.api.BaseCmd;
 import org.apache.cloudstack.api.Parameter;
 import org.apache.cloudstack.api.ServerApiException;
-import org.apache.cloudstack.api.response.GuestOSResponse;
+import org.apache.cloudstack.api.response.GuestOSCategoryResponse;
 import org.apache.cloudstack.api.response.SuccessResponse;
 
 import com.cloud.user.Account;
 
 
-@APICommand(name = "AddOsCategory",
+@APICommand(name = "deleteOsCategory",
         description = "Deletes an OS category",
         responseObject = SuccessResponse.class,
         requestHasSensitiveInfo = false,
@@ -44,7 +44,7 @@ public class DeleteGuestOsCategoryCmd extends BaseCmd {
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
-    @Parameter(name = ApiConstants.ID, type = CommandType.UUID, entityType = GuestOSResponse.class,
+    @Parameter(name = ApiConstants.ID, type = CommandType.UUID, entityType = GuestOSCategoryResponse.class,
             required = true, description = "ID of the guest OS")
     private Long id;
 

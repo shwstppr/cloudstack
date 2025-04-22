@@ -29,7 +29,7 @@ import org.apache.cloudstack.api.response.GuestOSCategoryResponse;
 import com.cloud.storage.GuestOsCategory;
 import com.cloud.user.Account;
 
-@APICommand(name = "AddOsCategory",
+@APICommand(name = "addOsCategory",
         description = "Adds a new OS category",
         responseObject = GuestOSCategoryResponse.class,
         requestHasSensitiveInfo = false,
@@ -43,10 +43,12 @@ public class AddGuestOsCategoryCmd extends BaseCmd {
     //////////////// API parameters /////////////////////
     /////////////////////////////////////////////////////
 
-    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "Name of the OS category")
+    @Parameter(name = ApiConstants.NAME, type = CommandType.STRING, description = "Name of the OS category",
+            required = true)
     private String name;
 
-    @Parameter(name = ApiConstants.IS_FEATURED, type = CommandType.BOOLEAN, description = "Whether the category is featured or not")
+    @Parameter(name = ApiConstants.IS_FEATURED, type = CommandType.BOOLEAN,
+            description = "Whether the category is featured or not")
     private Boolean featured;
 
     /////////////////////////////////////////////////////
