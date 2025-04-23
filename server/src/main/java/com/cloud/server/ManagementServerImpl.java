@@ -643,6 +643,7 @@ import org.apache.cloudstack.utils.CloudStackVersion;
 import org.apache.cloudstack.utils.identity.ManagementServerNode;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -3046,6 +3047,10 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
     public GuestOS updateGuestOs(final UpdateGuestOsCmd cmd) {
         final Long id = cmd.getId();
         final String displayName = cmd.getOsDisplayName();
+        final Long osCategoryId = cmd.getOsCategoryId();
+        final Boolean display = cmd.getForDisplay();
+        final Map<String, String> details = cmd.getDetails();
+        boolean updateNeeded = false;
 
         //check if guest OS exists
         final GuestOS guestOsHandle = ApiDBUtils.findGuestOSById(id);
@@ -3053,26 +3058,45 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             throw new InvalidParameterValueException("Guest OS not found. Please specify a valid ID for the Guest OS");
         }
 
-        if (!guestOsHandle.getIsUserDefined()) {
+        //Check if update is needed
+        if (StringUtils.isNotBlank(displayName) && !displayName.equals(guestOsHandle.getDisplayName())) {
+            //Check if another Guest OS by same name exists
+            final GuestOS duplicate = ApiDBUtils.findGuestOSByDisplayName(displayName);
+            if (duplicate != null) {
+                throw new InvalidParameterValueException("The specified Guest OS name : " + displayName + " already exists. Please specify a unique guest OS name");
+            }
+            updateNeeded = true;
+        }
+
+        if (osCategoryId != null) {
+            if (_guestOSCategoryDao.findById(osCategoryId) == null) {
+                throw new InvalidParameterValueException("Invalid OS category ID specified");
+            }
+            updateNeeded = true;
+        }
+
+        if (!guestOsHandle.getIsUserDefined() && (StringUtils.isNotBlank(displayName) || MapUtils.isNotEmpty(details)
+                || display != null)) {
             throw new InvalidParameterValueException("Unable to modify system defined guest OS");
         }
 
-        persistGuestOsDetails(cmd.getDetails(), id);
+        if (MapUtils.isNotEmpty(details)) {
+            persistGuestOsDetails(details, id);
+        }
 
-        //Check if update is needed
-        if (displayName.equals(guestOsHandle.getDisplayName())) {
+        if (!updateNeeded) {
             return guestOsHandle;
         }
 
-        //Check if another Guest OS by same name exists
-        final GuestOS duplicate = ApiDBUtils.findGuestOSByDisplayName(displayName);
-        if (duplicate != null) {
-            throw new InvalidParameterValueException("The specified Guest OS name : " + displayName + " already exists. Please specify a unique guest OS name");
-        }
         final GuestOSVO guestOs = _guestOSDao.createForUpdate(id);
-        guestOs.setDisplayName(displayName);
+        if (StringUtils.isNotBlank(displayName)) {
+            guestOs.setDisplayName(displayName);
+        }
         if (cmd.getForDisplay() != null) {
             guestOs.setDisplay(cmd.getForDisplay());
+        }
+        if (osCategoryId != null) {
+            guestOs.setCategoryId(osCategoryId);
         }
         if (_guestOSDao.update(id, guestOs)) {
             return _guestOSDao.findById(id);

@@ -192,9 +192,14 @@ export default {
       title: 'label.guest.os.categories',
       docHelp: 'adminguide/guest_os.html#guest-os',
       icon: 'group-outlined',
-      permission: ['listOsCategories'],
+      permission: ['listOsCategories', 'addOsCategory'],
       columns: ['name', 'isfeatured', 'order'],
       details: ['name', 'isfeatured'],
+      related: [{
+        name: 'guestos',
+        title: 'label.guest.os',
+        param: 'oscategoryid'
+      }],
       actions: [
         {
           api: 'addOsCategory',
@@ -256,7 +261,7 @@ export default {
           label: 'label.edit',
           dataView: true,
           popup: true,
-          args: ['osdisplayname']
+          args: ['osdisplayname', 'oscategoryid']
         },
         {
           api: 'addGuestOsMapping',

@@ -43,10 +43,6 @@ export default {
   name: 'NewTemplateIsoSelection',
   components: { NewTemplateIsoRadioGroup },
   props: {
-    selected: {
-      type: String,
-      default: null
-    },
     items: {
       type: Object,
       default: () => {}

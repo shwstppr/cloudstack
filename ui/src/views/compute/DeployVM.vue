@@ -159,7 +159,7 @@
                                 <a-radio-button
                                   :value="opt.id"
                                   style="border-width: 2px"
-                                  class="narrow-block-radio-button">
+                                  class="medium-block-radio-button">
                                   <span>
                                     {{ opt.name || opt.description }}
                                     </span>
@@ -189,15 +189,18 @@
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
                     <div v-if="templateview === 'new'">
-                      <a-form-item :label="$t('label.image.type')" name="imagetype" ref="imagetype">
-                        <a-radio-group v-model:value="form.imagetype" button-style="solid">
+                      <a-form-item :label="$t('label.type')" name="imagetype" ref="imagetype">
+                        <a-radio-group
+                          v-model:value="form.imagetype"
+                          button-style="solid"
+                          @change="changeImageType()">
                           <a-radio-button value="templateid">{{ $t('label.template') }}</a-radio-button>
                           <a-radio-button value="isoid">{{ $t('label.iso') }}</a-radio-button>
                         </a-radio-group>
                       </a-form-item>
                       <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
                         <div v-if="options.guestOsCategories.length <= 16">
-                          <a-row type="flex" :gutter="[16, 18]" justify="start">
+                          <a-row type="flex" :gutter="[6, 6]" justify="start">
                             <div v-for="(item, idx) in options.guestOsCategories" :key="idx">
                               <a-radio-group
                                 :key="idx"
@@ -207,13 +210,14 @@
                                   <a-radio-button
                                     :value="item.id"
                                     style="border-width: 2px"
-                                    class="narrow-block-radio-button">
+                                    :class="'medium-block-radio-button'">
                                     <span>
                                       <os-logo
                                         class="radio-group__os-logo"
                                         size="2x"
                                         :osId="item.id"
                                         :os-name="item.name" />
+                                      <br>
                                       {{ item.name }}
                                       </span>
                                   </a-radio-button>
@@ -243,9 +247,37 @@
                           </a-select-option>
                         </a-select>
                       </a-form-item>
+                      <a-card>
+                        <new-template-iso-selection
+                          :input-decorator="form.imagetype"
+                          :items="form.imagetype === 'isoid' ? options.isos : options.templates"
+                          :loading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
+                          :preFillContent="dataPreFill"
+                          @handle-search-filter="($event) => fetchImages($event)"
+                          @update-template-iso="updateFieldValue" />
+                        <div v-if="form.imagetype !== 'isoid'">
+                          <div>
+                            {{ $t('label.override.rootdisk.size') }}
+                            <a-switch
+                              v-model:checked="form.rootdisksizeitem"
+                              :disabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
+                              @change="val => { showRootDiskSizeChanger = val }"
+                              style="margin-left: 10px;"/>
+                            <div v-if="template.deployasis">  {{ $t('message.deployasis') }} </div>
+                          </div>
+                          <disk-size-selection
+                            v-if="showRootDiskSizeChanger"
+                            input-decorator="rootdisksize"
+                            :preFillContent="dataPreFill"
+                            :isCustomized="true"
+                            :minDiskSize="dataPreFill.minrootdisksize"
+                            @update-disk-size="updateFieldValue"
+                            style="margin-top: 10px;"/>
+                        </div>
+                      </a-card>
                     </div>
-
                     <a-card
+                      v-else
                       :tabList="tabList"
                       :activeTabKey="tabKey"
                       @tabChange="key => onTabChange(key, 'tabKey')">
@@ -270,7 +302,7 @@
                           :key="templateKey"
                           @handle-search-filter="($event) => fetchAllTemplates($event)"
                           @update-template-iso="updateFieldValue" />
-                         <div>
+                        <div>
                           {{ $t('label.override.rootdisk.size') }}
                           <a-switch
                             v-model:checked="form.rootdisksizeitem"
@@ -1412,7 +1444,9 @@ export default {
           list: 'listOsCategories',
           options: {
             zoneid: _.get(this.zone, 'id'),
-            isfeatured: true
+            isfeatured: true,
+            isiso: _.get(this.form, 'imagetype') === 'isoid',
+            arch: this.selectedArchitecture
           },
           field: 'guestoscategoryid'
         }
@@ -1746,6 +1780,7 @@ export default {
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
+      this.form.imagetype = 'templateid'
       this.rules = reactive({
         zoneid: [{ required: true, message: `${this.$t('message.error.select')}` }],
         hypervisor: [{ required: true, message: `${this.$t('message.error.select')}` }]
@@ -2122,12 +2157,43 @@ export default {
     getText (option) {
       return _.get(option, 'displaytext', _.get(option, 'name'))
     },
+    fetchGuestOsCategories (skipFetchImages) {
+      const key = 'guestOsCategories'
+      const param = this.params[key]
+      return this.fetchOptions(param, key, ['zones'])
+        .then((res) => {
+          if (!this.options.guestOsCategories) {
+            this.options.guestOsCategories = []
+          }
+          this.options.guestOsCategories.push({
+            id: 0,
+            name: this.$t('label.all')
+          })
+          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+          if (skipFetchImages) {
+            return
+          }
+          this.fetchImages()
+        })
+        .catch((e) => {
+          console.error('Error fetching guestOsCategories:', e)
+        })
+    },
     changeArchitecture (arch) {
       this.selectedArchitecture = arch
+      if (this.templateview === 'new') {
+        this.fetchGuestOsCategories()
+        return
+      }
       if (this.tabKey === 'templateid') {
         this.fetchAllTemplates()
       } else {
         this.fetchAllIsos()
+      }
+    },
+    changeImageType () {
+      if (this.templateview === 'new') {
+        this.fetchGuestOsCategories()
       }
     },
     handleSubmitAndStay (e) {
@@ -2606,6 +2672,14 @@ export default {
         })
       })
     },
+    fetchImages (params) {
+      const key = this.templateview === 'new' ? this.form.imagetype : this.tabKey
+      if (key === 'isoid') {
+        this.fetchAllIsos(params)
+        return
+      }
+      this.fetchAllTemplates(params)
+    },
     fetchAllTemplates (params) {
       const promises = []
       const templates = {}
@@ -2669,7 +2743,6 @@ export default {
     },
     async fetchZoneOptions () {
       let guestOsFetch = null
-
       for (const [name, param] of Object.entries(this.params)) {
         if (this.networkId && name === 'networks') {
           param.options = { id: this.networkId }
@@ -2677,15 +2750,7 @@ export default {
         const shouldLoad = !('isLoad' in param) || param.isLoad
         if (!shouldLoad) continue
         if (this.templateview === 'new' && name === 'guestOsCategories') {
-          guestOsFetch = this.fetchOptions(param, name, ['zones'])
-            .then((res) => {
-              if (!this.form.guestoscategoryid && this.options.guestOsCategories?.[0]) {
-                this.form.guestoscategoryid = this.options.guestOsCategories[0].id
-              }
-            })
-            .catch((e) => {
-              console.error('Error fetching guestOsCategories:', e)
-            })
+          guestOsFetch = this.fetchGuestOsCategories(true)
         } else {
           this.fetchOptions(param, name, ['zones'])
         }
@@ -2694,12 +2759,7 @@ export default {
       if (this.templateview === 'new' && guestOsFetch) {
         await guestOsFetch
       }
-
-      if (this.tabKey === 'templateid') {
-        this.fetchAllTemplates()
-      } else {
-        this.fetchAllIsos()
-      }
+      this.fetchImages()
       this.updateTemplateKey()
       this.formModel = toRaw(this.form)
     },
@@ -2769,12 +2829,8 @@ export default {
       this.changeArchitecture(resourceArch, this.tabKey === 'templateid')
     },
     onSelectGuestOsCategory (value) {
-      this.form.oscategoryid = value
-      if (this.tabKey === 'templateid') {
-        this.fetchAllTemplates()
-      } else {
-        this.fetchAllIsos()
-      }
+      this.form.guestoscategoryid = value
+      this.fetchImages()
     },
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }
@@ -3121,9 +3177,17 @@ export default {
     align-items: center;
   }
 
-  .narrow-block-radio-button {
+  .medium-block-radio-button {
     width:100%;
-    min-width: 160px;
+    min-width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+  }
+
+  .small-block-radio-button {
+    width:100%;
+    min-width: 80px;
     height: 60px;
     display: flex;
     padding-left: 20px;
