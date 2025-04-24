@@ -117,11 +117,7 @@ export default {
 
 <style lang="less" scoped>
   .search-input {
-    width: 25vw;
     z-index: 8;
-    position: absolute;
-    top: 11px;
-    right: 10px;
 
     @media (max-width: 600px) {
       position: relative;

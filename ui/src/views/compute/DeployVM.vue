@@ -159,7 +159,7 @@
                                 <a-radio-button
                                   :value="opt.id"
                                   style="border-width: 2px"
-                                  class="medium-block-radio-button">
+                                  class="zone-radio-button">
                                   <span>
                                     {{ opt.name || opt.description }}
                                     </span>
@@ -210,8 +210,8 @@
                                   <a-radio-button
                                     :value="item.id"
                                     style="border-width: 2px"
-                                    :class="'medium-block-radio-button'">
-                                    <span>
+                                    :class="'square-block-radio-button'">
+                                    <div style="text-align: center;">
                                       <os-logo
                                         class="radio-group__os-logo"
                                         size="2x"
@@ -219,7 +219,7 @@
                                         :os-name="item.name" />
                                       <br>
                                       {{ item.name }}
-                                      </span>
+                                    </div>
                                   </a-radio-button>
                                 </a-col>
                               </a-radio-group>
@@ -3177,12 +3177,16 @@ export default {
     align-items: center;
   }
 
-  .medium-block-radio-button {
-    width:100%;
-    min-width: 100px;
-    height: 100px;
+  .square-block-radio-button {
+    width: 88px;
+    height: 88px;
     display: flex;
     align-items: center;
+    text-align: center;
+  }
+
+  .square-block-radio-button span {
+    width: 100%;
   }
 
   .small-block-radio-button {
