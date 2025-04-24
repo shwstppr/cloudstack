@@ -279,15 +279,15 @@
                     <a-card
                       v-else
                       :tabList="tabList"
-                      :activeTabKey="tabKey"
-                      @tabChange="key => onTabChange(key, 'tabKey')">
-                      <div v-if="tabKey === 'templateid'">
+                      :activeTabKey="form.imagetype"
+                      @tabChange="key => changeImageType(key)">
+                      <div v-if="form.imagetype === 'templateid'">
                         {{ $t('message.template.desc') }}
                         <new-template-iso-selection
                           v-if="templateview === 'new'"
                           input-decorator="templateid"
                           :items="options.templates"
-                          :selected="tabKey"
+                          :selected="form.imagetype"
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           @handle-search-filter="($event) => fetchAllTemplates($event)"
@@ -296,7 +296,7 @@
                           v-else
                           input-decorator="templateid"
                           :items="options.templates"
-                          :selected="tabKey"
+                          :selected="form.imagetype"
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           :key="templateKey"
@@ -338,7 +338,7 @@
                           v-if="templateview === 'new'"
                           input-decorator="isoid"
                           :items="options.isos"
-                          :selected="tabKey"
+                          :selected="form.imagetype"
                           :loading="loading.isos"
                           :preFillContent="dataPreFill"
                           @handle-search-filter="($event) => fetchAllIsos($event)"
@@ -347,7 +347,7 @@
                           v-else
                           input-decorator="isoid"
                           :items="options.isos"
-                          :selected="tabKey"
+                          :selected="form.imagetype"
                           :loading="loading.isos"
                           :preFillContent="dataPreFill"
                           @handle-search-filter="($event) => fetchAllIsos($event)"
@@ -450,7 +450,7 @@
                         <a-input v-model:value="form.memory"/>
                       </a-form-item>
                     </span>
-                    <span v-if="tabKey!=='isoid'">
+                    <span v-if="form.imagetype!=='isoid'">
                       {{ $t('label.override.root.diskoffering') }}
                       <a-switch
                         v-model:checked="showOverrideDiskOfferingOption"
@@ -459,7 +459,7 @@
                         @change="val => { updateOverrideRootDiskShowParam(val) }"
                         style="margin-left: 10px;"/>
                     </span>
-                    <span v-if="tabKey!=='isoid' && serviceOffering && !serviceOffering.diskofferingstrictness">
+                    <span v-if="form.imagetype!=='isoid' && serviceOffering && !serviceOffering.diskofferingstrictness">
                       <a-step
                         :status="zoneSelected ? 'process' : 'wait'"
                         v-if="!template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
@@ -486,7 +486,7 @@
                               :value="overrideDiskOffering ? overrideDiskOffering.id : ''"
                               :loading="loading.diskOfferings"
                               :preFillContent="dataPreFill"
-                              :isIsoSelected="tabKey==='isoid'"
+                              :isIsoSelected="form.imagetype==='isoid'"
                               :isRootDiskOffering="true"
                               @on-selected-root-disk-size="onSelectRootDiskSize"
                               @select-disk-offering-item="($event) => updateOverrideDiskOffering($event)"
@@ -528,7 +528,7 @@
               </a-step>
               <a-step
                 v-else
-                :title="tabKey === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
+                :title="form.imagetype === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected">
@@ -539,7 +539,7 @@
                       :value="diskOffering ? diskOffering.id : ''"
                       :loading="loading.diskOfferings"
                       :preFillContent="dataPreFill"
-                      :isIsoSelected="tabKey==='isoid'"
+                      :isIsoSelected="form.imagetype==='isoid'"
                       @on-selected-disk-size="onSelectDiskSize"
                       @select-disk-offering-item="($event) => updateDiskOffering($event)"
                       @handle-search-filter="($event) => handleSearchFilter('diskOfferings', $event)"
@@ -725,7 +725,7 @@
                     </div>
                     <a-form-item
                       :label="$t('label.bootintosetup')"
-                      v-if="zoneSelected && ((tabKey === 'isoid' && hypervisor === 'VMware') || (tabKey === 'templateid' && template && template.hypervisor === 'VMware'))"
+                      v-if="zoneSelected && ((form.imagetype === 'isoid' && hypervisor === 'VMware') || (form.imagetype === 'templateid' && template && template.hypervisor === 'VMware'))"
                       name="bootintosetup"
                       ref="bootintosetup">
                       <a-switch v-model:checked="form.bootintosetup" />
@@ -1224,7 +1224,6 @@ export default {
       defaultnetworkid: '',
       networkConfig: [],
       dataNetworkCreated: [],
-      tabKey: 'templateid',
       userdataTabKey: 'userdataregistered',
       dataPreFill: {},
       showDetails: false,
@@ -2004,7 +2003,7 @@ export default {
     },
     updateFieldValue (name, value) {
       if (name === 'templateid') {
-        this.tabKey = 'templateid'
+        this.form.imagetype = 'templateid'
         this.form.templateid = value
         this.form.isoid = null
         this.resetFromTemplateConfiguration()
@@ -2047,7 +2046,7 @@ export default {
         this.templateNics = []
         this.templateLicenses = []
         this.templateProperties = {}
-        this.tabKey = 'isoid'
+        this.form.imagetype = 'isoid'
         this.resetFromTemplateConfiguration()
         this.form.isoid = value
         this.form.templateid = null
@@ -2185,15 +2184,18 @@ export default {
         this.fetchGuestOsCategories()
         return
       }
-      if (this.tabKey === 'templateid') {
+      if (this.form.imagetype === 'templateid') {
         this.fetchAllTemplates()
       } else {
         this.fetchAllIsos()
       }
     },
-    changeImageType () {
+    changeImageType (imageType) {
       if (this.templateview === 'new') {
         this.fetchGuestOsCategories()
+      } else {
+        this.form.imagetype = imageType
+        this.fetchImages()
       }
     },
     handleSubmitAndStay (e) {
@@ -2259,7 +2261,7 @@ export default {
           deployVmData.userdata = this.$toBase64AndURIEncoded(values.userdata)
         }
         // step 2: select template/iso
-        if (this.tabKey === 'templateid') {
+        if (this.form.imagetype === 'templateid') {
           deployVmData.templateid = values.templateid
           values.hypervisor = null
         } else {
@@ -2673,8 +2675,7 @@ export default {
       })
     },
     fetchImages (params) {
-      const key = this.templateview === 'new' ? this.form.imagetype : this.tabKey
-      if (key === 'isoid') {
+      if (this.form.imagetype === 'isoid') {
         this.fetchAllIsos(params)
         return
       }
@@ -2785,10 +2786,7 @@ export default {
       this.form.isoid = undefined
       this.resetTemplatesList()
       this.resetIsosList()
-      this.tabKey = 'templateid'
-      if (this.isoId) {
-        this.tabKey = 'isoid'
-      }
+      this.form.imagetype = this.isoId ? 'isoid' : 'templateid'
       this.fetchZoneOptions()
     },
     onSelectPodId (value) {
@@ -2835,12 +2833,6 @@ export default {
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }
       this.fetchOptions(this.params[name], name)
-    },
-    onTabChange (key, type) {
-      this[type] = key
-      if (key === 'isoid') {
-        this.fetchAllIsos()
-      }
     },
     onUserdataTabChange (key, type) {
       this[type] = key
