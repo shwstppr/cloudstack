@@ -212,10 +212,15 @@
                                     style="border-width: 2px"
                                     :class="'square-block-radio-button'">
                                     <div style="text-align: center;">
+                                      <resource-icon
+                                        v-if="item.icon && item.icon.base64image"
+                                        class="radio-group__os-logo"
+                                        :image="item.icon.base64image"
+                                        size="2x"/>
                                       <os-logo
+                                        v-else
                                         class="radio-group__os-logo"
                                         size="2x"
-                                        :osId="item.id"
                                         :os-name="item.name" />
                                       <br>
                                       {{ item.name }}
@@ -241,7 +246,7 @@
                           <a-select-option v-for="item in options.guestOsCategories" :key="item.id" :label="item.name">
                             <span>
                               <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
-                              <global-outlined v-else style="margin-right: 5px" />
+                              <os-logo v-else :os-name="item.name" style="margin-right: 5px" />
                               {{ item.name }}
                             </span>
                           </a-select-option>

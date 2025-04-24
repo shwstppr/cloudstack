@@ -48,6 +48,7 @@ import com.cloud.dc.dao.ASNumberDao;
 import com.cloud.dc.dao.ASNumberRangeDao;
 import com.cloud.dc.dao.VlanDetailsDao;
 import com.cloud.hypervisor.Hypervisor;
+import com.cloud.resource.icon.ResourceIconVO;
 import com.cloud.storage.BucketVO;
 import org.apache.cloudstack.acl.ControlledEntity;
 import org.apache.cloudstack.acl.ControlledEntity.ACLType;
@@ -3885,6 +3886,12 @@ public class ApiResponseHelper implements ResponseGenerator {
         categoryResponse.setId(guestOsCategory.getUuid());
         categoryResponse.setName(guestOsCategory.getName());
         categoryResponse.setFeatured(guestOsCategory.isFeatured());
+        ResourceIconVO resourceIcon = ApiDBUtils.getResourceIconByResourceUUID(guestOsCategory.getUuid(),
+                ResourceObjectType.GuestOsCategory);
+        if (resourceIcon != null) {
+            ResourceIconResponse iconResponse = ApiDBUtils.newResourceIconResponse(resourceIcon);
+            categoryResponse.setResourceIconResponse(iconResponse);
+        }
         categoryResponse.setObjectName("oscategory");
         return categoryResponse;
     }
