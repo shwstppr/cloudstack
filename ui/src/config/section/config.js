@@ -188,7 +188,7 @@ export default {
       ]
     },
     {
-      name: 'guestoscategories',
+      name: 'guestoscategory',
       title: 'label.guest.os.categories',
       docHelp: 'adminguide/guest_os.html#guest-os',
       icon: 'group-outlined',

@@ -463,7 +463,7 @@
       <template v-if="['startdate', 'enddate'].includes(column.key) && ['usage'].includes($route.path.split('/')[1])">
         {{ $toLocaleDate(text.replace('\'T\'', ' ')) }}
       </template>
-      <template v-if="['isfeatured'].includes(column.key) && ['guestoscategories'].includes($route.path.split('/')[1])">
+      <template v-if="['isfeatured'].includes(column.key) && ['guestoscategory'].includes($route.path.split('/')[1])">
         {{ record.isfeatured ? $t('label.yes') : $t('label.no') }}
       </template>
       <template v-if="column.key === 'order'">
@@ -840,7 +840,7 @@ export default {
         case 'vpcoffering':
           apiString = 'updateVPCOffering'
           break
-        case 'guestoscategories':
+        case 'guestoscategory':
           apiString = 'updateOsCategory'
           break
       }
