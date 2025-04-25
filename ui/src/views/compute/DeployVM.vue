@@ -159,10 +159,14 @@
                                 <a-radio-button
                                   :value="opt.id"
                                   style="border-width: 2px"
-                                  class="zone-radio-button">
+                                  class="medium-block-radio-button">
                                   <span>
                                     {{ opt.name || opt.description }}
-                                    </span>
+                                  </span>
+                                  <br>
+                                  <span>
+                                    {{ opt.id }}
+                                  </span>
                                 </a-radio-button>
                               </a-col>
                             </a-radio-group>
@@ -188,99 +192,28 @@
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
-                    <div v-if="templateview === 'new'">
-                      <a-form-item :label="$t('label.type')" name="imagetype" ref="imagetype">
-                        <a-radio-group
-                          v-model:value="form.imagetype"
-                          button-style="solid"
-                          @change="changeImageType()">
-                          <a-radio-button value="templateid">{{ $t('label.template') }}</a-radio-button>
-                          <a-radio-button value="isoid">{{ $t('label.iso') }}</a-radio-button>
-                        </a-radio-group>
-                      </a-form-item>
-                      <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
-                        <div v-if="options.guestOsCategories.length <= 16">
-                          <a-row type="flex" :gutter="[6, 6]" justify="start">
-                            <div v-for="(item, idx) in options.guestOsCategories" :key="idx">
-                              <a-radio-group
-                                :key="idx"
-                                v-model:value="form.guestoscategoryid"
-                                @change="onSelectGuestOsCategory(item.id)">
-                                <a-col :span="6">
-                                  <a-radio-button
-                                    :value="item.id"
-                                    style="border-width: 2px"
-                                    :class="'square-block-radio-button'">
-                                    <div style="text-align: center;">
-                                      <resource-icon
-                                        v-if="item.icon && item.icon.base64image"
-                                        class="radio-group__os-logo"
-                                        :image="item.icon.base64image"
-                                        size="2x"/>
-                                      <os-logo
-                                        v-else
-                                        class="radio-group__os-logo"
-                                        size="2x"
-                                        :os-name="item.name" />
-                                      <br>
-                                      {{ item.name }}
-                                    </div>
-                                  </a-radio-button>
-                                </a-col>
-                              </a-radio-group>
-                            </div>
-                          </a-row>
-                        </div>
-                        <a-select
-                          v-else
-                          v-model:value="form.guestOsCategoryId"
-                          showSearch
-                          optionFilterProp="label"
-                          :filterOption="(input, option) => {
-                            return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                          }"
-                          @change="onSelectGuestOsCategory"
-                          :loading="loading.guestOsCategories"
-                          v-focus="true"
-                        >
-                          <a-select-option v-for="item in options.guestOsCategories" :key="item.id" :label="item.name">
-                            <span>
-                              <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
-                              <os-logo v-else :os-name="item.name" style="margin-right: 5px" />
-                              {{ item.name }}
-                            </span>
-                          </a-select-option>
-                        </a-select>
-                      </a-form-item>
-                      <a-card>
-                        <new-template-iso-selection
-                          :input-decorator="form.imagetype"
-                          :items="form.imagetype === 'isoid' ? options.isos : options.templates"
-                          :loading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
-                          :preFillContent="dataPreFill"
-                          @handle-search-filter="($event) => fetchImages($event)"
-                          @update-template-iso="updateFieldValue" />
-                        <div v-if="form.imagetype !== 'isoid'">
-                          <div>
-                            {{ $t('label.override.rootdisk.size') }}
-                            <a-switch
-                              v-model:checked="form.rootdisksizeitem"
-                              :disabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
-                              @change="val => { showRootDiskSizeChanger = val }"
-                              style="margin-left: 10px;"/>
-                            <div v-if="template.deployasis">  {{ $t('message.deployasis') }} </div>
-                          </div>
-                          <disk-size-selection
-                            v-if="showRootDiskSizeChanger"
-                            input-decorator="rootdisksize"
-                            :preFillContent="dataPreFill"
-                            :isCustomized="true"
-                            :minDiskSize="dataPreFill.minrootdisksize"
-                            @update-disk-size="updateFieldValue"
-                            style="margin-top: 10px;"/>
-                        </div>
-                      </a-card>
-                    </div>
+                    <os-based-image-selection
+                      v-if="isModernImageSelection"
+                      :selectedImageType="form.imagetype"
+                      :guestOsCategories="options.guestOsCategories"
+                      :guestOsCategoriesLoading="loading.guestOsCategories"
+                      :selectedGuestOsCategoryId="form.guestoscategoryid"
+                      :imageItems="form.imagetype === 'isoid' ? options.isos : options.templates"
+                      :imagesLoading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
+                      :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
+                      :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
+                      :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
+                      :rootDiskOverrideChecked="form.rootdisksizeitem"
+                      :isoHypervisor="form.hypervisor"
+                      :isoHypervisorItems="hypervisorSelectOptions"
+                      :filterOption="filterOption"
+                      :preFillContent="dataPreFill"
+                      @change-image-type="changeImageType"
+                      @change-guest-os-category="onSelectGuestOsCategory"
+                      @handle-image-search-filter="($event) => fetchImages($event)"
+                      @update-image="updateFieldValue"
+                      @update-disk-size="updateFieldValue"
+                      @change-iso-hypervisor="value => hypervisor = value" />
                     <a-card
                       v-else
                       :tabList="tabList"
@@ -288,17 +221,7 @@
                       @tabChange="key => changeImageType(key)">
                       <div v-if="form.imagetype === 'templateid'">
                         {{ $t('message.template.desc') }}
-                        <new-template-iso-selection
-                          v-if="templateview === 'new'"
-                          input-decorator="templateid"
-                          :items="options.templates"
-                          :selected="form.imagetype"
-                          :loading="loading.templates"
-                          :preFillContent="dataPreFill"
-                          @handle-search-filter="($event) => fetchAllTemplates($event)"
-                          @update-template-iso="updateFieldValue" />
                         <template-iso-selection
-                          v-else
                           input-decorator="templateid"
                           :items="options.templates"
                           :selected="form.imagetype"
@@ -327,29 +250,7 @@
                       </div>
                       <div v-else>
                         {{ $t('message.iso.desc') }}
-                        <div v-if="isZoneSelectedMultiArch" style="width: 100%; margin-top: 5px">
-                          {{ $t('message.iso.arch') }}
-                          <a-select
-                            style="width: 100%"
-                            v-model:value="selectedArchitecture"
-                            :defaultValue="architectureTypes.opts[0].id"
-                            @change="arch => changeArchitecture(arch)">
-                            <a-select-option v-for="opt in architectureTypes.opts" :key="opt.id">
-                              {{ opt.name || opt.description }}
-                            </a-select-option>
-                          </a-select>
-                        </div>
-                        <new-template-iso-selection
-                          v-if="templateview === 'new'"
-                          input-decorator="isoid"
-                          :items="options.isos"
-                          :selected="form.imagetype"
-                          :loading="loading.isos"
-                          :preFillContent="dataPreFill"
-                          @handle-search-filter="($event) => fetchAllIsos($event)"
-                          @update-template-iso="updateFieldValue" />
                         <template-iso-selection
-                          v-else
                           input-decorator="isoid"
                           :items="options.isos"
                           :selected="form.imagetype"
@@ -1035,7 +936,8 @@ import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
 import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
 import MultiDiskSelection from '@views/compute/wizard/MultiDiskSelection'
-import NewTemplateIsoSelection from '@views/compute/wizard/NewTemplateIsoSelection'
+import TemplateIsoSelection from '@views/compute/wizard/TemplateIsoSelection'
+import OsBasedImageSelection from '@views/compute/wizard/OsBasedImageSelection'
 import AffinityGroupSelection from '@views/compute/wizard/AffinityGroupSelection'
 import NetworkSelection from '@views/compute/wizard/NetworkSelection'
 import NetworkConfiguration from '@views/compute/wizard/NetworkConfiguration'
@@ -1044,7 +946,6 @@ import UserDataSelection from '@views/compute/wizard/UserDataSelection'
 import SecurityGroupSelection from '@views/compute/wizard/SecurityGroupSelection'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 import InstanceNicsNetworkSelectListView from '@/components/view/InstanceNicsNetworkSelectListView.vue'
-import OsLogo from '@/components/widgets/OsLogo'
 
 export default {
   name: 'Wizard',
@@ -1055,7 +956,8 @@ export default {
     NetworkConfiguration,
     NetworkSelection,
     AffinityGroupSelection,
-    NewTemplateIsoSelection,
+    TemplateIsoSelection,
+    OsBasedImageSelection,
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
@@ -1065,8 +967,7 @@ export default {
     SecurityGroupSelection,
     ResourceIcon,
     TooltipLabel,
-    InstanceNicsNetworkSelectListView,
-    OsLogo
+    InstanceNicsNetworkSelectListView
   },
   props: {
     visible: {
@@ -1253,10 +1154,10 @@ export default {
         opts: [
           {
             id: 'x86_64',
-            description: 'AMD 64 bits (x86_64)'
+            description: 'AMD 64 bits'
           }, {
             id: 'aarch64',
-            description: 'ARM 64 bits (aarch64)'
+            description: 'ARM 64 bits'
           }
         ]
       }
@@ -1602,6 +1503,15 @@ export default {
     },
     isCustomizedIOPS () {
       return this.rootDiskSelected?.iscustomizediops || this.serviceOffering?.iscustomizediops || false
+    },
+    isModernImageSelection () {
+      return this.$config.imageSelectionInterface === undefined || this.$config.imageSelectionInterface === 'modern'
+    },
+    showUserCategoryForModernImageSelection () {
+      return this.$config.showUserCategoryForModernImageSelection === undefined || this.$config.showUserCategoryForModernImageSelection
+    },
+    showAllCategoryForModernImageSelection () {
+      return this.$config.showAllCategoryForModernImageSelection
     }
   },
   watch: {
@@ -2169,10 +2079,24 @@ export default {
           if (!this.options.guestOsCategories) {
             this.options.guestOsCategories = []
           }
-          this.options.guestOsCategories.push({
-            id: 0,
-            name: this.$t('label.all')
-          })
+          if (this.showUserCategoryForModernImageSelection) {
+            const userCategory = {
+              id: 0,
+              name: this.$t('label.user')
+            }
+            if (this.$store.getters.avatar) {
+              userCategory.icon = {
+                base64image: this.$store.getters.avatar
+              }
+            }
+            this.options.guestOsCategories.push(userCategory)
+          }
+          if (this.showAllCategoryForModernImageSelection) {
+            this.options.guestOsCategories.push({
+              id: -1,
+              name: this.$t('label.all')
+            })
+          }
           this.form.guestoscategoryid = this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
@@ -2185,7 +2109,7 @@ export default {
     },
     changeArchitecture (arch) {
       this.selectedArchitecture = arch
-      if (this.templateview === 'new') {
+      if (this.isModernImageSelection) {
         this.fetchGuestOsCategories()
         return
       }
@@ -2196,10 +2120,10 @@ export default {
       }
     },
     changeImageType (imageType) {
-      if (this.templateview === 'new') {
+      this.form.imagetype = imageType
+      if (this.isModernImageSelection) {
         this.fetchGuestOsCategories()
       } else {
-        this.form.imagetype = imageType
         this.fetchImages()
       }
     },
@@ -2755,14 +2679,14 @@ export default {
         }
         const shouldLoad = !('isLoad' in param) || param.isLoad
         if (!shouldLoad) continue
-        if (this.templateview === 'new' && name === 'guestOsCategories') {
+        if (this.isModernImageSelection && name === 'guestOsCategories') {
           guestOsFetch = this.fetchGuestOsCategories(true)
         } else {
           this.fetchOptions(param, name, ['zones'])
         }
       }
 
-      if (this.templateview === 'new' && guestOsFetch) {
+      if (this.isModernImageSelection && guestOsFetch) {
         await guestOsFetch
       }
       this.fetchImages()
@@ -3174,21 +3098,9 @@ export default {
     align-items: center;
   }
 
-  .square-block-radio-button {
-    width: 88px;
-    height: 88px;
-    display: flex;
-    align-items: center;
-    text-align: center;
-  }
-
-  .square-block-radio-button span {
-    width: 100%;
-  }
-
-  .small-block-radio-button {
+  .medium-block-radio-button {
     width:100%;
-    min-width: 80px;
+    min-width: 160px;
     height: 60px;
     display: flex;
     padding-left: 20px;

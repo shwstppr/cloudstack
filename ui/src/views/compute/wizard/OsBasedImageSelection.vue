@@ -1,0 +1,337 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+<template>
+  <div>
+    <a-form-item v-if="imageTypeSelectionAllowed" :label="$t('label.type')" name="imagetype" ref="imagetype">
+      <a-radio-group
+        v-model:value="localSelectedImageType"
+        button-style="solid"
+        @change="emitChangeImageType()">
+        <a-radio-button value="templateid">{{ $t('label.template') }}</a-radio-button>
+        <a-radio-button value="isoid">{{ $t('label.iso') }}</a-radio-button>
+      </a-radio-group>
+      <div style="margin-top: 5px; margin-bottom: 5px;">
+        {{ $t('message.' + localSelectedImageType.replace('id', '') + '.desc') }}
+      </div>
+    </a-form-item>
+    <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
+      <div v-if="guestOsCategories.length <= 16">
+        <a-row type="flex" :gutter="[6, 6]" justify="start">
+          <div v-for="(item, idx) in guestOsCategories" :key="idx">
+            <a-radio-group
+              :key="idx"
+              v-model:value="localSelectedGuestOsCategoryId"
+              @change="handleGuestOsCategoryChange()">
+              <a-col :span="6">
+                <a-radio-button
+                  :value="item.id"
+                  style="border-width: 2px"
+                  :class="'square-block-radio-button'">
+                  <div style="text-align: center;">
+                    <resource-icon
+                      v-if="item.icon && item.icon.base64image"
+                      class="radio-group__os-logo"
+                      :image="item.icon.base64image"
+                      size="2x"/>
+                    <font-awesome-icon
+                      v-else-if="item.id === 0"
+                      :icon="['fas', 'user']"
+                      size="2x"
+                      :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]"
+                      />
+                    <os-logo
+                      v-else
+                      class="radio-group__os-logo"
+                      size="2x"
+                      :os-name="item.name" />
+                    <br>
+                    {{ item.name }}
+                  </div>
+                </a-radio-button>
+              </a-col>
+            </a-radio-group>
+          </div>
+        </a-row>
+      </div>
+      <a-select
+        v-else
+        v-model:value="localSelectedGuestOsCategoryId"
+        showSearch
+        optionFilterProp="label"
+        :filterOption="filterOption"
+        @change="handleGuestOsCategoryChange()"
+        :loading="guestOsCategoriesLoading"
+        v-focus="true"
+      >
+        <a-select-option v-for="item in guestOsCategories" :key="item.id" :label="item.name">
+          <span>
+            <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
+            <os-logo v-else :os-name="item.name" style="margin-right: 5px" />
+            {{ item.name }}
+          </span>
+        </a-select-option>
+      </a-select>
+    </a-form-item>
+    <a-card>
+      <a-input-search
+        class="search-input"
+        :placeholder="$t('label.search')"
+        @search="handleImageSearch">
+      </a-input-search>
+      <a-spin :spinning="imagesLoading">
+        <os-based-image-radio-group
+          :osList="imageItems[filterType][localSelectedImageType.slice(0, -2)] || []"
+          :categoryIcon="selectedCategoryIcon"
+          :itemCount="imageItems[filterType].count || 0"
+          :input-decorator="localSelectedImageType"
+          :selected="checkedValue"
+          :preFillContent="preFillContent"
+          @emit-update-template-iso="updateImage"
+          @handle-search-filter="($event) => eventPagination($event)"
+        />
+      </a-spin>
+      <div v-if="diskSizeSelectionAllowed">
+        <div>
+          {{ $t('label.override.rootdisk.size') }}
+          <a-switch
+            v-model:checked="localRootDiskOverrideChecked"
+            :disabled="rootDiskOverrideDisabled"
+            @change="handleRootDiskOverrideCheckedChange"
+            style="margin-left: 10px;"/>
+          <div v-if="diskSizeSelectionDeployAsIsMessageVisible">  {{ $t('message.deployasis') }} </div>
+        </div>
+        <disk-size-selection
+          v-if="showRootDiskSizeChanger"
+          :input-decorator="diskSizeSelectionInputDecorator"
+          :preFillContent="preFillContent"
+          :isCustomized="true"
+          :minDiskSize="preFillContent.minrootdisksize"
+          @update-disk-size="emitUpdateDiskSize"
+          style="margin-top: 10px;"/>
+      </div>
+      <a-form-item :label="$t('label.hypervisor')" v-if="localSelectedImageType === 'isoid'">
+        <a-select
+          v-model:value="localSelectedIsoHypervisor"
+          :preFillContent="preFillContent"
+          :options="isoHypervisorItems"
+          @change="handleIsoHypervisorChange()"
+          showSearch
+          optionFilterProp="label"
+          :filterOption="filterOption" />
+      </a-form-item>
+    </a-card>
+  </div>
+</template>
+
+<script>
+import ResourceIcon from '@/components/view/ResourceIcon'
+import OsLogo from '@/components/widgets/OsLogo'
+import OsBasedImageRadioGroup from '@views/compute/wizard/OsBasedImageRadioGroup'
+import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
+
+export default {
+  name: 'OsBasedImageSelection',
+  components: {
+    ResourceIcon,
+    OsLogo,
+    OsBasedImageRadioGroup,
+    DiskSizeSelection
+  },
+  props: {
+    imageTypeSelectionAllowed: {
+      type: Boolean,
+      default: true
+    },
+    selectedImageType: {
+      type: String,
+      default: 'templateid'
+    },
+    guestOsCategories: {
+      type: Array,
+      default: () => []
+    },
+    guestOsCategoriesLoading: {
+      type: Boolean,
+      default: false
+    },
+    selectedGuestOsCategoryId: {
+      type: String,
+      default: undefined
+    },
+    imageItems: {
+      type: Object,
+      default: () => {}
+    },
+    imagesLoading: {
+      type: Boolean,
+      default: false
+    },
+    diskSizeSelectionAllowed: {
+      type: Boolean,
+      default: false
+    },
+    diskSizeSelectionDeployAsIsMessageVisible: {
+      type: Boolean,
+      default: false
+    },
+    diskSizeSelectionInputDecorator: {
+      type: String,
+      default: 'rootdisksize'
+    },
+    rootDiskOverrideDisabled: {
+      type: Boolean,
+      default: false
+    },
+    rootDiskOverrideChecked: {
+      type: Boolean,
+      default: false
+    },
+    isoHypervisorItems: {
+      type: Array,
+      default: () => []
+    },
+    selectedIsoHypervisor: {
+      type: String,
+      default: undefined
+    },
+    filterOption: {
+      type: Function,
+      required: true
+    },
+    preFillContent: {
+      type: Object,
+      default: () => {}
+    }
+  },
+  data () {
+    return {
+      filter: '',
+      checkedValue: '',
+      filterType: 'all',
+      pagination: false,
+      showRootDiskSizeChanger: false,
+      // Local data properties to mirror props
+      localSelectedImageType: this.selectedImageType,
+      localSelectedGuestOsCategoryId: this.selectedGuestOsCategoryId,
+      localRootDiskOverrideChecked: this.rootDiskOverrideChecked,
+      localSelectedIsoHypervisor: this.selectedIsoHypervisor
+    }
+  },
+  watch: {
+    selectedImageType (newValue, oldValue) {
+      this.localSelectedImageType = newValue
+      if (newValue !== oldValue) {
+        this.filter = ''
+      }
+    },
+    selectedGuestOsCategoryId (newValue) {
+      this.localSelectedGuestOsCategoryId = newValue
+    },
+    rootDiskOverrideChecked (newValue) {
+      this.localRootDiskOverrideChecked = newValue
+    },
+    selectedIsoHypervisor (newValue) {
+      this.localSelectedIsoHypervisor = newValue
+    }
+  },
+  computed: {
+    selectedCategoryIcon () {
+      if (this.localSelectedGuestOsCategoryId) {
+        const selectedCategory = this.guestOsCategories.find(option => option.id === this.localSelectedGuestOsCategoryId)
+        return selectedCategory?.icon?.base64image || ''
+      }
+      return ''
+    }
+  },
+  methods: {
+    emitChangeImageType () {
+      this.$emit('change-image-type', this.localSelectedImageType)
+    },
+    handleGuestOsCategoryChange () {
+      this.$emit('change-guest-os-category', this.localSelectedGuestOsCategoryId)
+    },
+    updateImage (decorator, id) {
+      this.checkedValue = id
+      this.$emit('update-image', decorator, id)
+    },
+    handleImageSearch (value) {
+      if (!this.filter && !value) {
+        return
+      }
+      this.pagination = false
+      this.filter = value
+      const options = {
+        page: 1,
+        pageSize: 10,
+        keyword: this.filter
+      }
+      this.emitSearchFilter(options)
+    },
+    eventPagination (options) {
+      this.pagination = true
+      this.emitSearchFilter(options)
+    },
+    emitSearchFilter (options) {
+      options.category = this.filterType
+      this.$emit('handle-image-search-filter', options)
+    },
+    changeFilterType (value) {
+      this.filterType = value
+    },
+    handleRootDiskOverrideCheckedChange (value) {
+      this.showRootDiskSizeChanger = value
+      this.$emit('change-root-disk-override-checked', value)
+    },
+    emitUpdateDiskSize (decorator, value) {
+      this.$emit('update-disk-size', decorator, value)
+    },
+    handleIsoHypervisorChange () {
+      this.$emit('change-iso-hypervisor', this.localIsoHypervisor)
+    }
+  }
+}
+</script>
+
+<style lang="less" scoped>
+  .search-input {
+    z-index: 8;
+
+    @media (max-width: 600px) {
+      position: relative;
+      width: 100%;
+      top: 0;
+      right: 0;
+    }
+  }
+
+  :deep(.ant-tabs-nav-scroll) {
+    min-height: 45px;
+  }
+
+  .square-block-radio-button {
+    width: 88px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    text-align: center;
+  }
+
+  .square-block-radio-button span {
+    width: 100%;
+  }
+</style>

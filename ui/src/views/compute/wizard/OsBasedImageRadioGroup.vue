@@ -34,9 +34,9 @@
               class="radio-group__radio"
               :value="item.id">
               <resource-icon
-                v-if="item.icon && item.icon.base64image"
+                v-if="(item.icon && item.icon.base64image) || categoryIcon"
                 class="radio-group__os-logo"
-                :image="item.icon.base64image"
+                :image="(item.icon && item.icon.base64image) ? item.icon.base64image : categoryIcon"
                 size="2x" />
               <os-logo
                 v-else
@@ -85,7 +85,7 @@ import OsLogo from '@/components/widgets/OsLogo'
 import ResourceIcon from '@/components/view/ResourceIcon'
 
 export default {
-  name: 'NewTemplateIsoRadioGroup',
+  name: 'OsBasedImageRadioGroup',
   components: {
     OsLogo,
     ResourceIcon
@@ -94,6 +94,10 @@ export default {
     osList: {
       type: Array,
       default: () => []
+    },
+    categoryIcon: {
+      type: String,
+      default: ''
     },
     inputDecorator: {
       type: String,
