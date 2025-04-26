@@ -34,50 +34,10 @@
                   <div style="margin-top: 15px">
                     <span>{{ $t('message.select.a.zone') }}</span><br/>
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
-                      <a-radio-group
-                        v-if="zones.length <= 8"
-                        v-model:value="form.zoneid"
-                        @change="e => onSelectZoneId(e.target.value)">
-                         <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="item in zones" :key="item.id">
-                            <a-col :span="6">
-                              <a-radio-button
-                              :value="item.id"
-                                style="border-width: 2px"
-                                class="zone-radio-button">
-                                <span>
-                                  <resource-icon
-                                  v-if="item && item.icon && item.icon.base64image"
-                                  :image="item.icon.base64image"
-                                    size="2x" />
-                                  <global-outlined size="2x" v-else />
-                                {{ item.name }}
-                                  </span>
-                              </a-radio-button>
-                            </a-col>
-                           </div>
-                         </a-row>
-                      </a-radio-group>
-                      <a-select
-                        v-else
-                        v-model:value="form.zoneid"
-                        showSearch
-                        optionFilterProp="label"
-                        :filterOption="(input, option) => {
-                          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                        }"
-                        @change="onSelectZoneId"
-                        :loading="loading.zones"
-                        v-focus="true"
-                      >
-                        <a-select-option v-for="zone1 in zones" :key="zone1.id" :label="zone1.name">
-                          <span>
-                            <resource-icon v-if="zone1.icon && zone1.icon.base64image" :image="zone1.icon.base64image" size="1x" style="margin-right: 5px"/>
-                            <global-outlined v-else style="margin-right: 5px" />
-                            {{ zone1.name }}
-                          </span>
-                        </a-select-option>
-                      </a-select>
+                      <zone-block-radio-group-select
+                        :items="zones"
+                        :selectedValue="form.item"
+                        @change="onSelectZoneId" />
                     </a-form-item>
                   </div>
                 </template>
@@ -95,12 +55,9 @@
                       :selectedGuestOsCategoryId="form.guestoscategoryid"
                       :imageItems="options.templates"
                       :imagesLoading="loading.templates"
-                      :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
                       :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
                       :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
                       :rootDiskOverrideChecked="form.rootdisksizeitem"
-                      :isoHypervisor="form.hypervisor"
-                      :isoHypervisorItems="hypervisorSelectOptions"
                       :filterOption="filterOption"
                       :preFillContent="dataPreFill"
                       @change-guest-os-category="onSelectGuestOsCategory"
@@ -110,13 +67,13 @@
                     <a-card
                       v-else
                       :tabList="imageTypeTabList"
-                      :activeTabKey="form.imagetype">
+                      :activeTabKey="imageType">
                       <div>
                         {{ $t('message.template.desc') }}
                         <template-iso-selection
                           input-decorator="templateid"
                           :items="options.templates"
-                          :selected="form.imagetype"
+                          :selected="imageType"
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           :key="templateKey"
@@ -261,7 +218,7 @@
                               :value="overrideDiskOffering ? overrideDiskOffering.id : ''"
                               :loading="loading.diskOfferings"
                               :preFillContent="dataPreFill"
-                              :isIsoSelected="form.imagetype==='isoid'"
+                              :isIsoSelected="imageType==='isoid'"
                               :isRootDiskOffering="true"
                               @on-selected-root-disk-size="onSelectRootDiskSize"
                               @select-disk-offering-item="($event) => updateOverrideDiskOffering($event)"
@@ -303,7 +260,7 @@
               </a-step>
               <a-step
                 v-else
-                :title="form.imagetype === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
+                :title="imageType === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected">
@@ -322,7 +279,7 @@
                       :value="diskOffering ? diskOffering.id : ''"
                       :loading="loading.diskOfferings"
                       :preFillContent="dataPreFill"
-                      :isIsoSelected="form.imagetype==='isoid'"
+                      :isIsoSelected="imageType==='isoid'"
                       @on-selected-disk-size="onSelectDiskSize"
                       @select-disk-offering-item="($event) => updateDiskOffering($event)"
                       @handle-search-filter="($event) => handleSearchFilter('diskOfferings', $event)"
@@ -1051,6 +1008,7 @@ import eventBus from '@/config/eventBus'
 
 import InfoCard from '@/components/view/InfoCard'
 import ResourceIcon from '@/components/view/ResourceIcon'
+import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect.vue'
 import ComputeOfferingSelection from '@views/compute/wizard/ComputeOfferingSelection'
 import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
@@ -1075,6 +1033,9 @@ const STATUS_FAILED = 'error'
 export default {
   name: 'Wizard',
   components: {
+    InfoCard,
+    ResourceIcon,
+    ZoneBlockRadioGroupSelect,
     SshKeyPairSelection,
     UserDataSelection,
     NetworkConfiguration,
@@ -1086,11 +1047,9 @@ export default {
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
-    InfoCard,
     ComputeOfferingSelection,
     ComputeSelection,
     SecurityGroupSelection,
-    ResourceIcon,
     TooltipLabel,
     InstanceNicsNetworkSelectListView
   },
@@ -1123,6 +1082,7 @@ export default {
       zoneId: '',
       zoneSelected: false,
       dynamicscalingenabled: true,
+      imageType: 'templateid',
       templateKey: 0,
       showRegisteredUserdata: true,
       doUserdataOverride: false,
@@ -1687,7 +1647,6 @@ export default {
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
-      this.form.imagetype = 'templateid'
       this.rules = reactive({
         zoneid: [
           { required: true, message: `${this.$t('message.error.select')}` }
@@ -2032,7 +1991,6 @@ export default {
     },
     updateFieldValue (name, value) {
       if (name === 'templateid') {
-        this.form.imagetype = 'templateid'
         this.form.templateid = value
         this.resetFromTemplateConfiguration()
         let template = ''
@@ -3032,7 +2990,6 @@ export default {
       this.selectedZone = this.zoneId
       this.form.zoneid = this.zoneId
       this.form.templateid = undefined
-      this.form.imagetype = 'templateid'
       this.resetTemplatesList()
       this.fetchZoneOptions()
     },

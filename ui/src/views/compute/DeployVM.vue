@@ -45,50 +45,10 @@
                   <div style="margin-top: 15px">
                     <span>{{ $t('message.select.a.zone') }}</span><br/>
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
-                      <a-radio-group
-                        v-if="zones.length <= 8"
-                        v-model:value="form.zoneid"
-                        @change="e => onSelectZoneId(e.target.value)">
-                         <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="item in zones" :key="item.id">
-                            <a-col :span="6">
-                              <a-radio-button
-                              :value="item.id"
-                                style="border-width: 2px"
-                                class="zone-radio-button">
-                                <span>
-                                  <resource-icon
-                                  v-if="item && item.icon && item.icon.base64image"
-                                  :image="item.icon.base64image"
-                                    size="2x" />
-                                  <global-outlined size="2x" v-else />
-                                {{ item.name }}
-                                  </span>
-                              </a-radio-button>
-                            </a-col>
-                           </div>
-                         </a-row>
-                      </a-radio-group>
-                      <a-select
-                        v-else
-                        v-model:value="form.zoneid"
-                        showSearch
-                        optionFilterProp="label"
-                        :filterOption="(input, option) => {
-                          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                        }"
-                        @change="onSelectZoneId"
-                        :loading="loading.zones"
-                        v-focus="true"
-                      >
-                        <a-select-option v-for="zone1 in zones" :key="zone1.id" :label="zone1.name">
-                          <span>
-                            <resource-icon v-if="zone1.icon && zone1.icon.base64image" :image="zone1.icon.base64image" size="2x" style="margin-right: 5px"/>
-                            <global-outlined v-else style="margin-right: 5px" />
-                            {{ zone1.name }}
-                          </span>
-                        </a-select-option>
-                      </a-select>
+                      <zone-block-radio-group-select
+                        :items="zones"
+                        :selectedValue="form.item"
+                        @change="onSelectZoneId" />
                     </a-form-item>
                     <a-form-item
                       v-if="!isNormalAndDomainUser"
@@ -927,6 +887,7 @@ import eventBus from '@/config/eventBus'
 import OwnershipSelection from '@views/compute/wizard/OwnershipSelection'
 import InfoCard from '@/components/view/InfoCard'
 import ResourceIcon from '@/components/view/ResourceIcon'
+import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect.vue'
 import ComputeOfferingSelection from '@views/compute/wizard/ComputeOfferingSelection'
 import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
@@ -947,6 +908,9 @@ export default {
   name: 'Wizard',
   components: {
     OwnershipSelection,
+    InfoCard,
+    ResourceIcon,
+    ZoneBlockRadioGroupSelect,
     SshKeyPairSelection,
     UserDataSelection,
     NetworkConfiguration,
@@ -957,11 +921,9 @@ export default {
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
-    InfoCard,
     ComputeOfferingSelection,
     ComputeSelection,
     SecurityGroupSelection,
-    ResourceIcon,
     TooltipLabel,
     InstanceNicsNetworkSelectListView
   },
@@ -983,6 +945,7 @@ export default {
       zoneSelected: false,
       isZoneSelectedMultiArch: false,
       dynamicscalingenabled: true,
+      imageType: 'templateid',
       templateKey: 0,
       showRegisteredUserdata: true,
       doUserdataOverride: false,
@@ -1692,7 +1655,7 @@ export default {
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
-      this.form.imagetype = 'templateid'
+      this.zoneid = null
       this.rules = reactive({
         zoneid: [{ required: true, message: `${this.$t('message.error.select')}` }],
         hypervisor: [{ required: true, message: `${this.$t('message.error.select')}` }]

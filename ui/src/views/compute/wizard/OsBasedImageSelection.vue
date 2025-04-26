@@ -30,62 +30,37 @@
       </div>
     </a-form-item>
     <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
-      <a-radio-group
-        v-if="guestOsCategories.length <= 16"
-        v-model:value="localSelectedGuestOsCategoryId"
+      <block-radio-group-select
+        :maxBlocks="16"
+        :items="guestOsCategories"
+        :selectedValue="localSelectedGuestOsCategoryId"
+        :horizontalGutter="6"
+        :verticalGutter="6"
+        blockSize="square"
         @change="handleGuestOsCategoryChange">
-        <a-row type="flex" :gutter="[6, 6]" justify="start">
-          <div v-for="item in guestOsCategories" :key="item.id">
-            <a-col :span="6">
-              <a-radio-button
-                :value="item.id"
-                style="border-width: 2px"
-                :class="'square-block-radio-button'">
-                <div style="text-align: center;">
-                  <resource-icon
-                    v-if="item.icon && item.icon.base64image"
-                    class="radio-group__os-logo"
-                    :image="item.icon.base64image"
-                    size="2x"
-                  />
-                  <font-awesome-icon
-                    v-else-if="item.id === '0'"
-                    :icon="['fas', 'user']"
-                    size="2x"
-                    :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]"
-                  />
-                  <os-logo
-                    v-else
-                    class="radio-group__os-logo"
-                    size="2x"
-                    :os-name="item.name"
-                  />
-                  <br>
-                  {{ item.name }}
-                </div>
-              </a-radio-button>
-            </a-col>
+        <template #radio-option="{ item }">
+          <div style="text-align: center;">
+            <resource-icon v-if="item.icon && item.icon.base64image" class="radio-group__os-logo" :image="item.icon.base64image" size="2x" />
+            <font-awesome-icon v-else-if="item.id === '0'" :icon="['fas', 'user']" size="2x" :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]" />
+            <os-logo v-else class="radio-group__os-logo" size="2x" :os-name="item.name" />
+            <br>
+            {{ item.name }}
           </div>
-        </a-row>
-      </a-radio-group>
-      <a-select
-        v-else
-        v-model:value="localSelectedGuestOsCategoryId"
-        showSearch
-        optionFilterProp="label"
-        :filterOption="filterOption"
-        @change="handleGuestOsCategoryChange()"
-        :loading="guestOsCategoriesLoading"
-        v-focus="true"
-      >
-        <a-select-option v-for="item in guestOsCategories" :key="item.id" :label="item.name">
+        </template>
+        <template #select-option="{ item }">
           <span>
             <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" style="margin-right: 5px"/>
+            <font-awesome-icon
+              v-else-if="item.id === '0'"
+              :icon="['fas', 'user']"
+              size="2x"
+              :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]"
+            />
             <os-logo v-else :os-name="item.name" style="margin-right: 5px" />
             {{ item.name }}
           </span>
-        </a-select-option>
-      </a-select>
+        </template>
+      </block-radio-group-select>
     </a-form-item>
     <a-card>
       <a-input-search
@@ -139,6 +114,7 @@
 </template>
 
 <script>
+import BlockRadioGroupSelect from '@/components/widgets/BlockRadioGroupSelect.vue'
 import ResourceIcon from '@/components/view/ResourceIcon'
 import OsLogo from '@/components/widgets/OsLogo'
 import OsBasedImageRadioGroup from '@views/compute/wizard/OsBasedImageRadioGroup'
@@ -147,6 +123,7 @@ import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
 export default {
   name: 'OsBasedImageSelection',
   components: {
+    BlockRadioGroupSelect,
     ResourceIcon,
     OsLogo,
     OsBasedImageRadioGroup,
@@ -183,7 +160,7 @@ export default {
     },
     diskSizeSelectionAllowed: {
       type: Boolean,
-      default: false
+      default: true
     },
     diskSizeSelectionDeployAsIsMessageVisible: {
       type: Boolean,
@@ -269,7 +246,8 @@ export default {
     emitChangeImageType () {
       this.$emit('change-image-type', this.localSelectedImageType)
     },
-    handleGuestOsCategoryChange () {
+    handleGuestOsCategoryChange (value) {
+      this.localSelectedGuestOsCategoryId = value
       this.$emit('change-guest-os-category', this.localSelectedGuestOsCategoryId)
     },
     updateImage (decorator, id) {

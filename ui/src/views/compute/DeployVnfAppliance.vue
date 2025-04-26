@@ -34,48 +34,10 @@
                   <div style="margin-top: 15px">
                     <span>{{ $t('message.select.a.zone') }}</span><br/>
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
-                      <a-radio-group
-                        v-if="zones.length <= 8"
-                        v-model:value="form.zoneid"
-                        @change="e => onSelectZoneId(e.target.value)">
-                         <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="item in zones" :key="item.id">
-                            <a-col :span="6">
-                              <a-radio-button
-                              :value="item.id"
-                                style="border-width: 2px"
-                                class="zone-radio-button">
-                                <span>
-                                  <resource-icon
-                                  v-if="item && item.icon && item.icon.base64image"
-                                  :image="item.icon.base64image"
-                                    size="2x" />
-                                  <global-outlined size="2x" v-else />
-                                {{ item.name }}
-                                  </span>
-                              </a-radio-button>
-                            </a-col>
-                           </div>
-                         </a-row>
-                      </a-radio-group>
-                      <a-select
-                        v-else
-                        v-model:value="form.zoneid"
-                        showSearch
-                        optionFilterProp="label"
-                        :filterOption="filterOption"
-                        @change="onSelectZoneId"
-                        :loading="loading.zones"
-                        v-focus="true"
-                      >
-                        <a-select-option v-for="zone1 in zones" :key="zone1.id" :label="zone1.name">
-                          <span>
-                            <resource-icon v-if="zone1.icon && zone1.icon.base64image" :image="zone1.icon.base64image" size="2x" style="margin-right: 5px"/>
-                            <global-outlined v-else style="margin-right: 5px" />
-                            {{ zone1.name }}
-                          </span>
-                        </a-select-option>
-                      </a-select>
+                      <zone-block-radio-group-select
+                        :items="zones"
+                        :selectedValue="form.item"
+                        @change="onSelectZoneId" />
                     </a-form-item>
                   </div>
                 </template>
@@ -93,12 +55,9 @@
                       :selectedGuestOsCategoryId="form.guestoscategoryid"
                       :imageItems="options.templates"
                       :imagesLoading="loading.templates"
-                      :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
                       :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
                       :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
                       :rootDiskOverrideChecked="form.rootdisksizeitem"
-                      :isoHypervisor="form.hypervisor"
-                      :isoHypervisorItems="hypervisorSelectOptions"
                       :filterOption="filterOption"
                       :preFillContent="dataPreFill"
                       @change-guest-os-category="onSelectGuestOsCategory"
@@ -109,12 +68,12 @@
                       v-else
                       :tabList="imageTypeList"
                       :activeTabKey="imageTypeList[0].key">
-                      <div v-if="form.imagetype === 'templateid'">
+                      <div>
                         {{ $t('message.template.desc') }}
                         <template-iso-selection
                           input-decorator="templateid"
                           :items="options.templates"
-                          :selected="form.imagetype"
+                          :selected="imageType"
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           :key="templateKey"
@@ -220,16 +179,7 @@
                         <a-input v-model:value="form.memory"/>
                       </a-form-item>
                     </span>
-                    <span v-if="form.imagetype!=='isoid'">
-                      {{ $t('label.override.root.diskoffering') }}
-                      <a-switch
-                        v-model:checked="showOverrideDiskOfferingOption"
-                        :checked="serviceOffering && !serviceOffering.diskofferingstrictness && showOverrideDiskOfferingOption"
-                        :disabled="(serviceOffering && serviceOffering.diskofferingstrictness)"
-                        @change="val => { updateOverrideRootDiskShowParam(val) }"
-                        style="margin-left: 10px;"/>
-                    </span>
-                    <span v-if="form.imagetype!=='isoid' && serviceOffering && !serviceOffering.diskofferingstrictness">
+                    <span v-if="imageType!=='isoid' && serviceOffering && !serviceOffering.diskofferingstrictness">
                       <a-step
                         :status="zoneSelected ? 'process' : 'wait'"
                         v-if="template && !template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
@@ -256,7 +206,7 @@
                               :value="overrideDiskOffering ? overrideDiskOffering.id : ''"
                               :loading="loading.diskOfferings"
                               :preFillContent="dataPreFill"
-                              :isIsoSelected="form.imagetype==='isoid'"
+                              :isIsoSelected="imageType==='isoid'"
                               :isRootDiskOffering="true"
                               @on-selected-root-disk-size="onSelectRootDiskSize"
                               @select-disk-offering-item="($event) => updateOverrideDiskOffering($event)"
@@ -298,7 +248,7 @@
               </a-step>
               <a-step
                 v-else-if="vm.templateid && template.templatetype !== 'VNF'"
-                :title="form.imagetype === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
+                :title="imageType === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected">
@@ -317,7 +267,7 @@
                       :value="diskOffering ? diskOffering.id : ''"
                       :loading="loading.diskOfferings"
                       :preFillContent="dataPreFill"
-                      :isIsoSelected="form.imagetype==='isoid'"
+                      :isIsoSelected="imageType==='isoid'"
                       @on-selected-disk-size="onSelectDiskSize"
                       @select-disk-offering-item="($event) => updateDiskOffering($event)"
                       @handle-search-filter="($event) => handleSearchFilter('diskOfferings', $event)"
@@ -558,7 +508,7 @@
                     </div>
                     <a-form-item
                       :label="$t('label.bootintosetup')"
-                      v-if="zoneSelected && ((form.imagetype === 'isoid' && hypervisor === 'VMware') || (form.imagetype === 'templateid' && template && template.hypervisor === 'VMware'))"
+                      v-if="zoneSelected && ((imageType === 'isoid' && hypervisor === 'VMware') || (imageType === 'templateid' && template && template.hypervisor === 'VMware'))"
                       name="bootintosetup"
                       ref="bootintosetup">
                       <a-switch v-model:checked="form.bootintosetup" />
@@ -875,6 +825,7 @@ import eventBus from '@/config/eventBus'
 
 import InfoCard from '@/components/view/InfoCard'
 import ResourceIcon from '@/components/view/ResourceIcon'
+import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect.vue'
 import ComputeOfferingSelection from '@views/compute/wizard/ComputeOfferingSelection'
 import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
@@ -895,6 +846,9 @@ import InstanceNicsNetworkSelectListView from '@/components/view/InstanceNicsNet
 export default {
   name: 'Wizard',
   components: {
+    InfoCard,
+    ResourceIcon,
+    ZoneBlockRadioGroupSelect,
     SshKeyPairSelection,
     UserDataSelection,
     NetworkConfiguration,
@@ -905,12 +859,10 @@ export default {
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
-    InfoCard,
     ComputeOfferingSelection,
     ComputeSelection,
     SecurityGroupSelection,
     VnfNicsSelection,
-    ResourceIcon,
     TooltipLabel,
     InstanceNicsNetworkSelectListView
   },
@@ -931,6 +883,7 @@ export default {
       clusterId: null,
       zoneSelected: false,
       dynamicscalingenabled: true,
+      imageType: 'templateid',
       templateKey: 0,
       showRegisteredUserdata: true,
       doUserdataOverride: false,
@@ -1570,7 +1523,6 @@ export default {
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
-      this.form.imagetype = 'templateid'
       this.rules = reactive({
         zoneid: [{ required: true, message: `${this.$t('message.error.select')}` }],
         hypervisor: [{ required: true, message: `${this.$t('message.error.select')}` }]
@@ -1849,7 +1801,6 @@ export default {
     },
     updateFieldValue (name, value) {
       if (name === 'templateid') {
-        this.form.imagetype = 'templateid'
         this.form.templateid = value
         this.form.isoid = null
         this.resetFromTemplateConfiguration()
@@ -1884,19 +1835,6 @@ export default {
           this.form.iodriverpolicy = template.details?.['io.policy']
           this.form.keyboard = template.details?.keyboard
         }
-      } else if (name === 'isoid') {
-        this.templateConfigurations = []
-        this.selectedTemplateConfiguration = {}
-        this.templateNics = []
-        this.templateLicenses = []
-        this.templateProperties = {}
-        this.templateVnfNics = []
-        this.form.imagetype = 'isoid'
-        this.resetFromTemplateConfiguration()
-        this.form.isoid = value
-        this.form.templateid = null
-        this.updateTemplateLinkedUserData(this.iso.userdataid)
-        this.userdataDefaultOverridePolicy = this.iso.userdatapolicy
       } else if (['cpuspeed', 'cpunumber', 'memory'].includes(name)) {
         this.vm[name] = value
         this.form[name] = value
@@ -2165,7 +2103,7 @@ export default {
           createVnfAppData.userdata = this.$toBase64AndURIEncoded(values.userdata)
         }
         // step 2: select template/iso
-        if (this.form.imagetype === 'templateid') {
+        if (this.imageType === 'templateid') {
           createVnfAppData.templateid = values.templateid
           values.hypervisor = null
         } else {
@@ -2623,10 +2561,6 @@ export default {
       this.form.hostid = undefined
       this.form.templateid = undefined
       this.form.isoid = undefined
-      this.form.imagetype = 'templateid'
-      if (this.isoId) {
-        this.form.imagetype = 'isoid'
-      }
       this.resetTemplatesList()
       this.fetchZoneOptions()
     },
