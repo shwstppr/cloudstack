@@ -39,12 +39,13 @@
         blockSize="square"
         @change="handleGuestOsCategoryChange">
         <template #radio-option="{ item }">
-          <div style="text-align: center;">
-            <resource-icon v-if="item.icon && item.icon.base64image" class="radio-group__os-logo" :image="item.icon.base64image" size="2x" />
-            <font-awesome-icon v-else-if="item.id === '0'" :icon="['fas', 'user']" size="2x" :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]" />
-            <os-logo v-else class="radio-group__os-logo" size="2x" :os-name="item.name" />
-            <br>
-            {{ item.name }}
+          <div class="radio-option">
+            <div class="radio-opion__icon">
+              <resource-icon v-if="item.icon && item.icon.base64image" :image="item.icon.base64image" size="2x" />
+              <font-awesome-icon v-else-if="item.id === '0'" :icon="['fas', 'user']" size="2x" :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]" />
+              <os-logo v-else size="2x" :os-name="item.name" />
+            </div>
+            <span>{{ item.name }}</span>
           </div>
         </template>
         <template #select-option="{ item }">
@@ -308,15 +309,18 @@ export default {
     min-height: 45px;
   }
 
-  .square-block-radio-button {
-    width: 88px;
-    height: 88px;
+  .radio-option {
     display: flex;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
     text-align: center;
+    padding-top: 8px;
   }
 
-  .square-block-radio-button span {
-    width: 100%;
+  .radio-opion__icon {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
   }
 </style>

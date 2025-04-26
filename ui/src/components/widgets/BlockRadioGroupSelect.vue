@@ -145,10 +145,10 @@ export default {
     width: 88px;
     height: 88px;
     display: flex;
+    justify-content: center;
     align-items: center;
     text-align: center;
-  }
-  .square-block-radio-button span {
-    width: 100%;
+    padding: 0;
+    box-sizing: border-box;
   }
 </style>
