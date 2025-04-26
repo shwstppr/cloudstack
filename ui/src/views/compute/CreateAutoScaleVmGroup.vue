@@ -34,33 +34,30 @@
                   <div style="margin-top: 15px">
                     <span>{{ $t('message.select.a.zone') }}</span><br/>
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
-                      <div v-if="zones.length <= 8">
-                        <a-row type="flex" :gutter="[16,18]" justify="start">
-                          <div v-for="(zoneItem, idx) in zones" :key="idx">
-                            <a-radio-group
-                              :key="idx"
-                              :size="large"
-                              v-model:value="form.zoneid"
-                              @change="onSelectZoneId(zoneItem.id)">
-                              <a-col :span="6">
-                                <a-radio-button
-                                  :value="zoneItem.id"
-                                  style="border-width: 2px"
-                                  class="zone-radio-button">
-                                  <span>
-                                    <resource-icon
-                                      v-if="zoneItem && zoneItem.icon && zoneItem.icon.base64image"
-                                      :image="zoneItem.icon.base64image"
-                                      size="2x" />
-                                    <global-outlined size="2x" v-else />
-                                    {{ zoneItem.name }}
-                                    </span>
-                                </a-radio-button>
-                              </a-col>
-                            </a-radio-group>
-                          </div>
-                        </a-row>
-                      </div>
+                      <a-radio-group
+                        v-if="zones.length <= 8"
+                        v-model:value="form.zoneid"
+                        @change="e => onSelectZoneId(e.target.value)">
+                         <a-row type="flex" :gutter="[16, 18]" justify="start">
+                          <div v-for="item in zones" :key="item.id">
+                            <a-col :span="6">
+                              <a-radio-button
+                              :value="item.id"
+                                style="border-width: 2px"
+                                class="zone-radio-button">
+                                <span>
+                                  <resource-icon
+                                  v-if="item && item.icon && item.icon.base64image"
+                                  :image="item.icon.base64image"
+                                    size="2x" />
+                                  <global-outlined size="2x" v-else />
+                                {{ item.name }}
+                                  </span>
+                              </a-radio-button>
+                            </a-col>
+                           </div>
+                         </a-row>
+                      </a-radio-group>
                       <a-select
                         v-else
                         v-model:value="form.zoneid"
@@ -90,16 +87,36 @@
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
+                    <os-based-image-selection
+                      v-if="isModernImageSelection"
+                      :imageTypeSelectionAllowed="false"
+                      :guestOsCategories="options.guestOsCategories"
+                      :guestOsCategoriesLoading="loading.guestOsCategories"
+                      :selectedGuestOsCategoryId="form.guestoscategoryid"
+                      :imageItems="options.templates"
+                      :imagesLoading="loading.templates"
+                      :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
+                      :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
+                      :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
+                      :rootDiskOverrideChecked="form.rootdisksizeitem"
+                      :isoHypervisor="form.hypervisor"
+                      :isoHypervisorItems="hypervisorSelectOptions"
+                      :filterOption="filterOption"
+                      :preFillContent="dataPreFill"
+                      @change-guest-os-category="onSelectGuestOsCategory"
+                      @handle-image-search-filter="($event) => fetchAllTemplates($event)"
+                      @update-image="updateFieldValue"
+                      @update-disk-size="updateFieldValue" />
                     <a-card
-                      :tabList="tabList"
-                      :activeTabKey="tabKey"
-                      @tabChange="key => onTabChange(key, 'tabKey')">
-                      <div v-if="tabKey === 'templateid'">
+                      v-else
+                      :tabList="imageTypeTabList"
+                      :activeTabKey="form.imagetype">
+                      <div>
                         {{ $t('message.template.desc') }}
                         <template-iso-selection
                           input-decorator="templateid"
                           :items="options.templates"
-                          :selected="tabKey"
+                          :selected="form.imagetype"
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           :key="templateKey"
@@ -109,10 +126,10 @@
                           {{ $t('label.override.rootdisk.size') }}
                           <a-switch
                             v-model:checked="form.rootdisksizeitem"
-                            :disabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
+                            :disabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
                             @change="val => { showRootDiskSizeChanger = val }"
                             style="margin-left: 10px;"/>
-                          <div v-if="template.deployasis">  {{ $t('message.deployasis') }} </div>
+                          <div v-if="template && template.deployasis">  {{ $t('message.deployasis') }} </div>
                         </div>
                         <disk-size-selection
                           v-if="showRootDiskSizeChanger"
@@ -220,7 +237,7 @@
                     <span v-if="serviceOffering && !serviceOffering.diskofferingstrictness">
                       <a-step
                         :status="zoneSelected ? 'process' : 'wait'"
-                        v-if="!template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
+                        v-if="template && !template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
                         <template #description>
                           <div v-if="zoneSelected">
                             <multi-disk-selection
@@ -244,7 +261,7 @@
                               :value="overrideDiskOffering ? overrideDiskOffering.id : ''"
                               :loading="loading.diskOfferings"
                               :preFillContent="dataPreFill"
-                              :isIsoSelected="tabKey==='isoid'"
+                              :isIsoSelected="form.imagetype==='isoid'"
                               :isRootDiskOffering="true"
                               @on-selected-root-disk-size="onSelectRootDiskSize"
                               @select-disk-offering-item="($event) => updateOverrideDiskOffering($event)"
@@ -273,7 +290,7 @@
               <a-step
                 :title="$t('label.data.disk')"
                 :status="zoneSelected ? 'process' : 'wait'"
-                v-if="!template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
+                v-if="template && !template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
                 <template #description>
                   <div v-if="zoneSelected">
                     <multi-disk-selection
@@ -286,7 +303,7 @@
               </a-step>
               <a-step
                 v-else
-                :title="tabKey === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
+                :title="form.imagetype === 'templateid' ? $t('label.data.disk') : $t('label.disk.size')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
                   <div v-if="zoneSelected">
@@ -305,7 +322,7 @@
                       :value="diskOffering ? diskOffering.id : ''"
                       :loading="loading.diskOfferings"
                       :preFillContent="dataPreFill"
-                      :isIsoSelected="tabKey==='isoid'"
+                      :isIsoSelected="form.imagetype==='isoid'"
                       @on-selected-disk-size="onSelectDiskSize"
                       @select-disk-offering-item="($event) => updateDiskOffering($event)"
                       @handle-search-filter="($event) => handleSearchFilter('diskOfferings', $event)"
@@ -768,13 +785,13 @@
                       </template>
                       <a-card>
                         <div v-if="this.template && this.template.userdataid">
-                          <a-text type="primary">
+                          <a-typography-text>
                             Userdata "{{ $t(this.template.userdataname) }}" is linked with template "{{ $t(this.template.name) }}" with override policy "{{ $t(this.template.userdatapolicy) }}"
-                          </a-text><br/><br/>
+                          </a-typography-text><br/><br/>
                           <div v-if="templateUserDataParams.length > 0 && !doUserdataOverride">
-                            <a-text type="primary" v-if="this.template && this.template.userdataid && templateUserDataParams.length > 0">
+                            <a-typography-text v-if="this.template && this.template.userdataid && templateUserDataParams.length > 0">
                               Enter the values for the variables in userdata
-                            </a-text>
+                            </a-typography-text>
                             <a-input-group>
                               <a-table
                                 size="small"
@@ -1040,6 +1057,7 @@ import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
 import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
 import MultiDiskSelection from '@views/compute/wizard/MultiDiskSelection'
 import TemplateIsoSelection from '@views/compute/wizard/TemplateIsoSelection'
+import OsBasedImageSelection from '@views/compute/wizard/OsBasedImageSelection'
 import AffinityGroupSelection from '@views/compute/wizard/AffinityGroupSelection'
 import NetworkSelection from '@views/compute/wizard/NetworkSelection'
 import NetworkConfiguration from '@views/compute/wizard/NetworkConfiguration'
@@ -1064,6 +1082,7 @@ export default {
     LoadBalancerSelection,
     AffinityGroupSelection,
     TemplateIsoSelection,
+    OsBasedImageSelection,
     DiskSizeSelection,
     MultiDiskSelection,
     DiskOfferingSelection,
@@ -1126,6 +1145,7 @@ export default {
         disksize: null
       },
       options: {
+        guestOsCategories: [],
         templates: {},
         serviceOfferings: [],
         diskOfferings: [],
@@ -1139,6 +1159,7 @@ export default {
       rowCount: {},
       loading: {
         deploy: false,
+        guestOsCategories: false,
         templates: false,
         serviceOfferings: false,
         diskOfferings: false,
@@ -1251,16 +1272,20 @@ export default {
       templateUserDataParams: [],
       templateUserDataValues: {},
       overrideDiskOffering: {},
-      templateFilter: [
-        'featured',
-        'community',
-        'selfexecutable',
-        'sharedexecutable'
-      ],
+      templateFilter: {
+        legacy: [
+          'featured',
+          'community',
+          'selfexecutable',
+          'sharedexecutable'
+        ],
+        modern: [
+          'all'
+        ]
+      },
       initDataConfig: {},
       defaultNetworkId: '',
       dataNetworkCreated: [],
-      tabKey: 'templateid',
       userdataTabKey: 'userdataregistered',
       dataPreFill: {},
       showDetails: false,
@@ -1389,6 +1414,15 @@ export default {
             keyword: undefined,
             showIcon: true
           }
+        },
+        guestOsCategories: {
+          list: 'listOsCategories',
+          options: {
+            zoneid: _.get(this.zone, 'id'),
+            isfeatured: true,
+            isiso: _.get(this.form, 'imagetype') === 'isoid'
+          },
+          field: 'guestoscategoryid'
         }
       }
     },
@@ -1415,12 +1449,11 @@ export default {
     lbRuleId () {
       return this.$route.query.lbruleid || null
     },
-    tabList () {
-      const tabList = [{
+    imageTypeTabList () {
+      return [{
         key: 'templateid',
         tab: this.$t('label.templates')
       }]
-      return tabList
     },
     userdataTabList () {
       let tabList = []
@@ -1451,6 +1484,18 @@ export default {
     },
     isCustomizedIOPS () {
       return this.rootDiskSelected?.iscustomizediops || this.serviceOffering?.iscustomizediops || false
+    },
+    isModernImageSelection () {
+      return this.$config.imageSelectionInterface === undefined || this.$config.imageSelectionInterface === 'modern'
+    },
+    imageSelection () {
+      return this.isModernImageSelection ? 'modern' : 'legacy'
+    },
+    showUserCategoryForModernImageSelection () {
+      return this.$config.showUserCategoryForModernImageSelection === undefined || this.$config.showUserCategoryForModernImageSelection
+    },
+    showAllCategoryForModernImageSelection () {
+      return this.$config.showAllCategoryForModernImageSelection
     }
   },
   watch: {
@@ -1466,7 +1511,7 @@ export default {
         Object.keys(vmgroupConfig).forEach(field => {
           this.vm[field] = this.vmgroupConfig[field]
         })
-        this.template = ''
+        this.template = null
         for (const key in this.options.templates) {
           var template = _.find(_.get(this.options.templates[key], 'template', []), (option) => option.id === vmgroupConfig.templateid)
           if (template) {
@@ -1545,7 +1590,7 @@ export default {
           }
         }
 
-        if (!this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
+        if (this.template && !this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
           this.vm.diskofferingid = ''
           this.vm.diskofferingname = ''
           this.vm.diskofferingsize = ''
@@ -1642,6 +1687,7 @@ export default {
     initForm () {
       this.formRef = ref()
       this.form = reactive({})
+      this.form.imagetype = 'templateid'
       this.rules = reactive({
         zoneid: [
           { required: true, message: `${this.$t('message.error.select')}` }
@@ -1986,7 +2032,7 @@ export default {
     },
     updateFieldValue (name, value) {
       if (name === 'templateid') {
-        this.tabKey = 'templateid'
+        this.form.imagetype = 'templateid'
         this.form.templateid = value
         this.resetFromTemplateConfiguration()
         let template = ''
@@ -2392,6 +2438,42 @@ export default {
     getText (option) {
       return _.get(option, 'displaytext', _.get(option, 'name'))
     },
+    fetchGuestOsCategories (skipFetchImages) {
+      const key = 'guestOsCategories'
+      const param = this.params[key]
+      return this.fetchOptions(param, key, ['zones'])
+        .then((res) => {
+          if (!this.options.guestOsCategories) {
+            this.options.guestOsCategories = []
+          }
+          if (this.showUserCategoryForModernImageSelection) {
+            const userCategory = {
+              id: '0',
+              name: this.$t('label.user')
+            }
+            if (this.$store.getters.avatar) {
+              userCategory.icon = {
+                base64image: this.$store.getters.avatar
+              }
+            }
+            this.options.guestOsCategories.push(userCategory)
+          }
+          if (this.showAllCategoryForModernImageSelection) {
+            this.options.guestOsCategories.push({
+              id: '-1',
+              name: this.$t('label.all')
+            })
+          }
+          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+          if (skipFetchImages) {
+            return
+          }
+          this.fetchAllTemplates()
+        })
+        .catch((e) => {
+          console.error('Error fetching guestOsCategories:', e)
+        })
+    },
     async handleSubmit (e) {
       console.log('wizard submit')
       e.preventDefault()
@@ -2552,7 +2634,7 @@ export default {
 
         if (this.showRootDiskSizeChanger && values.rootdisksize && values.rootdisksize > 0) {
           createVmGroupData.rootdisksize = values.rootdisksize
-        } else if (this.rootDiskSizeFixed > 0 && !this.template.deployasis) {
+        } else if (this.rootDiskSizeFixed > 0 && this.template && !this.template.deployasis) {
           createVmGroupData.rootdisksize = this.rootDiskSizeFixed
         }
 
@@ -2799,60 +2881,62 @@ export default {
       })
     },
     fetchOptions (param, name, exclude) {
-      if (exclude && exclude.length > 0) {
-        if (exclude.includes(name)) {
-          return
+      return new Promise((resolve, reject) => {
+        if (exclude && exclude.length > 0 && exclude.includes(name)) {
+          return resolve(null)
         }
-      }
-      this.loading[name] = true
-      param.loading = true
-      param.opts = []
-      const options = param.options || {}
-      if (!('listall' in options) && !['zones', 'pods', 'clusters', 'hosts', 'dynamicScalingVmConfig', 'hypervisors'].includes(name)) {
-        options.listall = true
-      }
-      api(param.list, options).then((response) => {
-        param.loading = false
-        _.map(response, (responseItem, responseKey) => {
-          if (Object.keys(responseItem).length === 0) {
-            this.rowCount[name] = 0
-            this.options[name] = []
-            return
-          }
-          if (!responseKey.includes('response')) {
-            return
-          }
-          _.map(responseItem, (response, key) => {
-            if (key === 'count') {
-              this.rowCount[name] = response
-              return
+        this.loading[name] = true
+        param.loading = true
+        param.opts = []
+        const options = param.options || {}
+        if (!('listall' in options) && !['zones', 'pods', 'clusters', 'hosts', 'dynamicScalingVmConfig', 'hypervisors'].includes(name)) {
+          options.listall = true
+        }
+        api(param.list, options).then((response) => {
+          param.loading = false
+          _.map(response, (responseItem, responseKey) => {
+            if (Object.keys(responseItem).length === 0) {
+              this.rowCount[name] = 0
+              this.options[name] = []
+              return resolve(null)
             }
-            param.opts = response
-            this.options[name] = response
+            if (!responseKey.includes('response')) {
+              return resolve(null)
+            }
+            _.map(responseItem, (response, key) => {
+              if (key === 'count') {
+                this.rowCount[name] = response
+                return
+              }
+              param.opts = response
+              this.options[name] = response
 
-            if (param.field) {
-              this.fillValue(param.field)
+              if (param.field) {
+                this.fillValue(param.field)
+              }
+            })
+
+            if (name === 'zones') {
+              let zoneid = ''
+              if (this.$route.query.zoneid) {
+                zoneid = this.$route.query.zoneid
+              } else if (this.options.zones.length === 1) {
+                zoneid = this.options.zones[0].id
+              }
+              if (zoneid) {
+                this.form.zoneid = zoneid
+                this.onSelectZoneId(zoneid)
+              }
             }
           })
-
-          if (name === 'zones') {
-            let zoneid = ''
-            if (this.$route.query.zoneid) {
-              zoneid = this.$route.query.zoneid
-            } else if (this.options.zones.length === 1) {
-              zoneid = this.options.zones[0].id
-            }
-            if (zoneid) {
-              this.form.zoneid = zoneid
-              this.onSelectZoneId(zoneid)
-            }
-          }
+          resolve(response)
+        }).catch(function (error) {
+          console.log(error.stack)
+          param.loading = false
+          reject(error)
+        }).finally(() => {
+          this.loading[name] = false
         })
-      }).catch(function (error) {
-        console.log(error.stack)
-        param.loading = false
-      }).finally(() => {
-        this.loading[name] = false
       })
     },
     fetchTemplates (templateFilter, params) {
@@ -2862,6 +2946,9 @@ export default {
         args.pageSize = args.pageSize || 10
       }
       args.zoneid = _.get(this.zone, 'id')
+      if (this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
+      }
       args.templatefilter = templateFilter
       args.details = 'all'
       args.showicon = 'true'
@@ -2879,14 +2966,15 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      this.templateFilter.forEach((filter) => {
+      const templateFilters = this.templateFilter[this.imageSelection]
+      templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
       })
       this.options.templates = templates
       Promise.all(promises).then((response) => {
         response.forEach((resItem, idx) => {
-          templates[this.templateFilter[idx]] = _.isEmpty(resItem.listtemplatesresponse) ? { count: 0, template: [] } : resItem.listtemplatesresponse
+          templates[templateFilters[idx]] = _.isEmpty(resItem.listtemplatesresponse) ? { count: 0, template: [] } : resItem.listtemplatesresponse
           this.options.templates = { ...templates }
         })
       }).catch((reason) => {
@@ -2898,6 +2986,44 @@ export default {
     filterOption (input, option) {
       return option.label.toUpperCase().indexOf(input.toUpperCase()) >= 0
     },
+    resetTemplatesList () {
+      const templates = {}
+      const templateFilters = this.templateFilter[this.imageSelection]
+      templateFilters.forEach((filter) => {
+        templates[filter] = { count: 0, template: [] }
+      })
+      this.options.templates = templates
+    },
+    async fetchZoneOptions () {
+      let guestOsFetch = null
+      for (const [name, param] of Object.entries(this.params)) {
+        if (this.networkId && name === 'networks') {
+          param.options = { id: this.networkId }
+        }
+        if (name === 'loadbalancers') {
+          if (!this.lbRuleId && !this.defaultNetworkId) {
+            continue
+          }
+          if (this.lbRuleId) {
+            param.options = { id: this.lbRuleId }
+          }
+        }
+        const shouldLoad = !('isLoad' in param) || param.isLoad
+        if (!shouldLoad) continue
+        if (this.isModernImageSelection && name === 'guestOsCategories') {
+          guestOsFetch = this.fetchGuestOsCategories(true)
+        } else {
+          this.fetchOptions(param, name, ['zones'])
+        }
+      }
+
+      if (this.isModernImageSelection && guestOsFetch) {
+        await guestOsFetch
+      }
+      this.fetchAllTemplates()
+      this.updateTemplateKey()
+      this.formModel = toRaw(this.form)
+    },
     onSelectZoneId (value) {
       this.dataPreFill = {}
       this.zoneId = value
@@ -2906,27 +3032,13 @@ export default {
       this.selectedZone = this.zoneId
       this.form.zoneid = this.zoneId
       this.form.templateid = undefined
-      this.tabKey = 'templateid'
-      _.each(this.params, (param, name) => {
-        if (this.networkId && name === 'networks') {
-          param.options = {
-            id: this.networkId
-          }
-        }
-        if (this.lbRuleId && name === 'loadbalancers') {
-          param.options = {
-            id: this.lbRuleId
-          }
-        }
-        if (!('isLoad' in param) || param.isLoad) {
-          this.fetchOptions(param, name, ['zones'])
-        }
-      })
-      if (this.tabKey === 'templateid') {
-        this.fetchAllTemplates()
-      }
-      this.updateTemplateKey()
-      this.formModel = toRaw(this.form)
+      this.form.imagetype = 'templateid'
+      this.resetTemplatesList()
+      this.fetchZoneOptions()
+    },
+    onSelectGuestOsCategory (value) {
+      this.form.guestoscategoryid = value
+      this.fetchAllTemplates()
     },
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }

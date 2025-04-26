@@ -16,68 +16,66 @@
 // under the License.
 
 <template>
-  <a-form-item>
-    <a-list
-      class="form-item-scroll"
-      itemLayout="vertical"
-      size="small"
-      :dataSource="osList"
-      :pagination="false">
-      <template #renderItem="{ item, index }">
-        <a-list-item :key="item.id" @click="onClickRow(item)">
-          <a-radio-group
-            class="radio-group"
-            :key="index"
-            v-model:value="value"
-            @change="($event) => updateSelectionTemplateIso($event.target.value)">
-            <a-radio
-              class="radio-group__radio"
-              :value="item.id">
-              <resource-icon
-                v-if="(item.icon && item.icon.base64image) || categoryIcon"
-                class="radio-group__os-logo"
-                :image="(item.icon && item.icon.base64image) ? item.icon.base64image : categoryIcon"
-                size="2x" />
-              <os-logo
-                v-else
-                class="radio-group__os-logo"
-                size="2x"
-                :osId="item.ostypeid"
-                :os-name="item.osName" />
-              &nbsp;
-              {{ item.displaytext }}
-              <a-tag v-if="item.isfeatured">
-                {{ $t('label.isfeatured') }}
-              </a-tag>
-              <a-tag v-if="item.ispublic">
-                {{ $t('label.ispublic') }}
-              </a-tag>
-              <span v-if="item?.projectid">
-                | <project-outlined /> {{ item.project }}
-            </span>
-            </a-radio>
-          </a-radio-group>
-        </a-list-item>
-      </template>
-    </a-list>
+  <a-list
+    class="form-item-scroll"
+    itemLayout="vertical"
+    size="small"
+    :dataSource="imagesList"
+    :pagination="false">
+    <template #renderItem="{ item, index }">
+      <a-list-item :key="item.id" @click="onClickRow(item)">
+        <a-radio-group
+          class="radio-group"
+          :key="index"
+          v-model:value="value"
+          @change="($event) => updateSelectionTemplateIso($event.target.value)">
+          <a-radio
+            class="radio-group__radio"
+            :value="item.id">
+            <resource-icon
+              v-if="(item.icon && item.icon.base64image) || categoryIcon"
+              class="radio-group__os-logo"
+              :image="(item.icon && item.icon.base64image) ? item.icon.base64image : categoryIcon"
+              size="2x" />
+            <os-logo
+              v-else
+              class="radio-group__os-logo"
+              size="2x"
+              :osId="item.ostypeid"
+              :os-name="item.osName" />
+            &nbsp;
+            {{ item.displaytext }}
+            <a-tag v-if="item.isfeatured">
+              {{ $t('label.isfeatured') }}
+            </a-tag>
+            <a-tag v-if="item.ispublic">
+              {{ $t('label.ispublic') }}
+            </a-tag>
+            <span v-if="item?.projectid">
+              | <project-outlined /> {{ item.project }}
+          </span>
+          </a-radio>
+        </a-radio-group>
+      </a-list-item>
+    </template>
+  </a-list>
 
-    <div style="display: block; text-align: right;">
-      <a-pagination
-        size="small"
-        :current="options.page"
-        :pageSize="options.pageSize"
-        :total="itemCount"
-        :showTotal="total => `${$t('label.total')} ${total} ${$t('label.items')}`"
-        :pageSizeOptions="['10', '20', '40', '80', '100', '200']"
-        @change="onChangePage"
-        @showSizeChange="onChangePageSize"
-        showSizeChanger>
-        <template #buildOptionText="props">
-          <span>{{ props.value }} / {{ $t('label.page') }}</span>
-        </template>
-      </a-pagination>
-    </div>
-  </a-form-item>
+  <div style="display: block; text-align: right;">
+    <a-pagination
+      size="small"
+      :current="options.page"
+      :pageSize="options.pageSize"
+      :total="itemCount"
+      :showTotal="total => `${$t('label.total')} ${total} ${$t('label.items')}`"
+      :pageSizeOptions="['10', '20', '40', '80', '100', '200']"
+      @change="onChangePage"
+      @showSizeChange="onChangePageSize"
+      showSizeChanger>
+      <template #buildOptionText="props">
+        <span>{{ props.value }} / {{ $t('label.page') }}</span>
+      </template>
+    </a-pagination>
+  </div>
 </template>
 
 <script>
@@ -91,7 +89,7 @@ export default {
     ResourceIcon
   },
   props: {
-    osList: {
+    imagesList: {
       type: Array,
       default: () => []
     },
@@ -135,6 +133,7 @@ export default {
       this.onSelectTemplateIso()
     }
   },
+  emits: ['emit-update-template-iso', 'handle-search-filter'],
   methods: {
     onSelectTemplateIso () {
       if (this.inputDecorator === 'templateid') {

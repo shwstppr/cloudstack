@@ -45,32 +45,30 @@
                   <div style="margin-top: 15px">
                     <span>{{ $t('message.select.a.zone') }}</span><br/>
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
-                      <div v-if="zones.length <= 8">
-                        <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="(zoneItem, idx) in zones" :key="idx">
-                            <a-radio-group
-                              :key="idx"
-                              v-model:value="form.zoneid"
-                              @change="onSelectZoneId(zoneItem.id)">
-                              <a-col :span="6">
-                                <a-radio-button
-                                  :value="zoneItem.id"
-                                  style="border-width: 2px"
-                                  class="zone-radio-button">
-                                  <span>
-                                    <resource-icon
-                                      v-if="zoneItem && zoneItem.icon && zoneItem.icon.base64image"
-                                      :image="zoneItem.icon.base64image"
-                                      size="2x" />
-                                    <global-outlined size="2x" v-else />
-                                    {{ zoneItem.name }}
-                                    </span>
-                                </a-radio-button>
-                              </a-col>
-                            </a-radio-group>
-                          </div>
-                        </a-row>
-                      </div>
+                      <a-radio-group
+                        v-if="zones.length <= 8"
+                        v-model:value="form.zoneid"
+                        @change="e => onSelectZoneId(e.target.value)">
+                         <a-row type="flex" :gutter="[16, 18]" justify="start">
+                          <div v-for="item in zones" :key="item.id">
+                            <a-col :span="6">
+                              <a-radio-button
+                              :value="item.id"
+                                style="border-width: 2px"
+                                class="zone-radio-button">
+                                <span>
+                                  <resource-icon
+                                  v-if="item && item.icon && item.icon.base64image"
+                                  :image="item.icon.base64image"
+                                    size="2x" />
+                                  <global-outlined size="2x" v-else />
+                                {{ item.name }}
+                                  </span>
+                              </a-radio-button>
+                            </a-col>
+                           </div>
+                         </a-row>
+                      </a-radio-group>
                       <a-select
                         v-else
                         v-model:value="form.zoneid"
@@ -148,31 +146,29 @@
                   <div v-if="zoneSelected" style="margin-top: 15px">
                     {{ $t('message.instance.architecture') }}
                     <div style="width: 100%; margin-top: 5px">
-                      <div v-if="architectureTypes.opts.length <= 4">
-                        <a-row type="flex" :gutter="[16, 18]" justify="start">
+                      <a-radio-group
+                        v-if="zones.length <= 4"
+                        v-model:value="selectedArchitecture"
+                        @change="e => changeArchitecture(e.target.value)">
+                         <a-row type="flex" :gutter="[16, 18]" justify="start">
                           <div v-for="opt in architectureTypes.opts" :key="opt.id">
-                            <a-radio-group
-                              :key="opt.id"
-                              v-model:value="selectedArchitecture"
-                              @change="changeArchitecture(opt.id)">
-                              <a-col :span="6">
-                                <a-radio-button
-                                  :value="opt.id"
-                                  style="border-width: 2px"
-                                  class="medium-block-radio-button">
-                                  <span>
-                                    {{ opt.name || opt.description }}
-                                  </span>
-                                  <br>
-                                  <span>
-                                    {{ opt.id }}
-                                  </span>
-                                </a-radio-button>
-                              </a-col>
-                            </a-radio-group>
-                          </div>
-                        </a-row>
-                      </div>
+                            <a-col :span="6">
+                              <a-radio-button
+                                :value="opt.id"
+                                style="border-width: 2px"
+                                class="medium-block-radio-button">
+                                <span>
+                                  {{ opt.name || opt.description }}
+                                </span>
+                                <br>
+                                <span>
+                                  {{ opt.id }}
+                                </span>
+                              </a-radio-button>
+                            </a-col>
+                           </div>
+                         </a-row>
+                      </a-radio-group>
                       <a-select
                         v-else
                         style="width: 100%"
@@ -202,7 +198,7 @@
                       :imagesLoading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
                       :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
                       :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
-                      :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
+                      :rootDiskOverrideDisabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
                       :rootDiskOverrideChecked="form.rootdisksizeitem"
                       :isoHypervisor="form.hypervisor"
                       :isoHypervisorItems="hypervisorSelectOptions"
@@ -234,10 +230,10 @@
                           {{ $t('label.override.rootdisk.size') }}
                           <a-switch
                             v-model:checked="form.rootdisksizeitem"
-                            :disabled="rootDiskSizeFixed > 0 || template.deployasis || showOverrideDiskOfferingOption"
+                            :disabled="rootDiskSizeFixed > 0 || (template && template.deployasis) || showOverrideDiskOfferingOption"
                             @change="val => { showRootDiskSizeChanger = val }"
                             style="margin-left: 10px;"/>
-                          <div v-if="template.deployasis">  {{ $t('message.deployasis') }} </div>
+                          <div v-if="(template && template.deployasis)">  {{ $t('message.deployasis') }} </div>
                         </div>
                         <disk-size-selection
                           v-if="showRootDiskSizeChanger"
@@ -368,7 +364,7 @@
                     <span v-if="form.imagetype!=='isoid' && serviceOffering && !serviceOffering.diskofferingstrictness">
                       <a-step
                         :status="zoneSelected ? 'process' : 'wait'"
-                        v-if="!template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
+                        v-if="template && !template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
                         <template #description>
                           <div v-if="zoneSelected">
                             <multi-disk-selection
@@ -421,7 +417,7 @@
               <a-step
                 :title="$t('label.data.disk')"
                 :status="zoneSelected ? 'process' : 'wait'"
-                v-if="!template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
+                v-if="template && !template.deployasis && template.childtemplates && template.childtemplates.length > 0" >
                 <template #description>
                   <div v-if="zoneSelected">
                     <multi-disk-selection
@@ -604,7 +600,7 @@
                   </span>
                   <div style="margin-top: 15px" v-if="showDetails">
                     <div
-                      v-if="['KVM', 'VMware', 'XenServer'].includes(hypervisor) && ((vm.templateid && !template.deployasis) || vm.isoid)">
+                      v-if="['KVM', 'VMware', 'XenServer'].includes(hypervisor) && ((vm.templateid && template && !template.deployasis) || vm.isoid)">
                       <a-form-item :label="$t('label.boottype')" name="boottype" ref="boottype">
                         <a-select
                           v-model:value="form.boottype"
@@ -651,13 +647,13 @@
                     <a-form-item :label="$t('label.userdata')">
                       <a-card>
                         <div v-if="this.template && this.template.userdataid">
-                          <a-text type="primary">
-                              Userdata "{{ $t(this.template.userdataname) }}" is linked with template "{{ $t(this.template.name) }}" with override policy "{{ $t(this.template.userdatapolicy) }}"
-                          </a-text><br/><br/>
+                          <a-typography-text>
+                            Userdata "{{ $t(this.template.userdataname) }}" is linked with template "{{ $t(this.template.name) }}" with override policy "{{ $t(this.template.userdatapolicy) }}"
+                          </a-typography-text><br/><br/>
                           <div v-if="templateUserDataParams.length > 0 && !doUserdataOverride">
-                            <a-text type="primary" v-if="this.template && this.template.userdataid && templateUserDataParams.length > 0">
-                                Enter the values for the variables in userdata
-                            </a-text>
+                            <a-typography-text v-if="this.template && this.template.userdataid && templateUserDataParams.length > 0">
+                              Enter the values for the variables in userdata
+                            </a-typography-text>
                             <a-input-group>
                               <a-table
                                 size="small"
@@ -676,13 +672,13 @@
                           </div>
                         </div>
                         <div v-if="this.iso && this.iso.userdataid">
-                          <a-text type="primary">
-                              Userdata "{{ $t(this.iso.userdataname) }}" is linked with ISO "{{ $t(this.iso.name) }}" with override policy "{{ $t(this.iso.userdatapolicy) }}"
-                          </a-text><br/><br/>
+                          <a-typography-text>
+                            Userdata "{{ $t(this.iso.userdataname) }}" is linked with ISO "{{ $t(this.iso.name) }}" with override policy "{{ $t(this.iso.userdatapolicy) }}"
+                          </a-typography-text><br/><br/>
                           <div v-if="templateUserDataParams.length > 0 && !doUserdataOverride">
-                            <a-text type="primary" v-if="this.iso && this.iso.userdataid && templateUserDataParams.length > 0">
-                                Enter the values for the variables in userdata
-                            </a-text>
+                            <a-typography-text v-if="this.iso && this.iso.userdataid && templateUserDataParams.length > 0">
+                              Enter the values for the variables in userdata
+                            </a-typography-text>
                             <a-input-group>
                               <a-table
                                 size="small"
@@ -981,7 +977,6 @@ export default {
   mixins: [mixin, mixinDevice],
   data () {
     return {
-      templateview: 'new',
       zoneId: '',
       podId: null,
       clusterId: null,
@@ -1105,24 +1100,24 @@ export default {
       templateUserDataValues: {},
       overrideDiskOffering: {},
       templateFilter: {
-        old: [
+        legacy: [
           'featured',
           'community',
           'selfexecutable',
           'sharedexecutable'
         ],
-        new: [
+        modern: [
           'all'
         ]
       },
       isoFilter: {
-        old: [
+        legacy: [
           'featured',
           'community',
           'selfexecutable',
           'sharedexecutable'
         ],
-        new: [
+        modern: [
           'all'
         ]
       },
@@ -1507,6 +1502,9 @@ export default {
     isModernImageSelection () {
       return this.$config.imageSelectionInterface === undefined || this.$config.imageSelectionInterface === 'modern'
     },
+    imageSelection () {
+      return this.isModernImageSelection ? 'modern' : 'legacy'
+    },
     showUserCategoryForModernImageSelection () {
       return this.$config.showUserCategoryForModernImageSelection === undefined || this.$config.showUserCategoryForModernImageSelection
     },
@@ -1527,7 +1525,7 @@ export default {
         Object.keys(instanceConfig).forEach(field => {
           this.vm[field] = this.instanceConfig[field]
         })
-        this.template = ''
+        this.template = null
         for (const key in this.options.templates) {
           var template = _.find(_.get(this.options.templates[key], 'template', []), (option) => option.id === instanceConfig.templateid)
           if (template) {
@@ -1536,7 +1534,7 @@ export default {
           }
         }
 
-        this.iso = ''
+        this.iso = null
         for (const key in this.options.isos) {
           var iso = _.find(_.get(this.options.isos[key], 'iso', []), (option) => option.id === instanceConfig.isoid)
           if (iso) {
@@ -1559,7 +1557,7 @@ export default {
           this.overrideDiskOffering = null
         }
 
-        if (iso && this.serviceOffering?.diskofferingid) {
+        if (this.iso && this.serviceOffering?.diskofferingid) {
           this.diskOffering = _.find(this.options.diskOfferings, (option) => option.id === this.serviceOffering.diskofferingid)
         } else if (!iso && this.diskSelected) {
           this.diskOffering = _.find(this.options.diskOfferings, (option) => option.id === instanceConfig.diskofferingid)
@@ -1638,7 +1636,7 @@ export default {
           }
         }
 
-        if (!this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
+        if (this.template && !this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
           this.vm.diskofferingid = ''
           this.vm.diskofferingname = ''
           this.vm.diskofferingsize = ''
@@ -2081,7 +2079,7 @@ export default {
           }
           if (this.showUserCategoryForModernImageSelection) {
             const userCategory = {
-              id: 0,
+              id: '0',
               name: this.$t('label.user')
             }
             if (this.$store.getters.avatar) {
@@ -2093,7 +2091,7 @@ export default {
           }
           if (this.showAllCategoryForModernImageSelection) {
             this.options.guestOsCategories.push({
-              id: -1,
+              id: '-1',
               name: this.$t('label.all')
             })
           }
@@ -2113,11 +2111,7 @@ export default {
         this.fetchGuestOsCategories()
         return
       }
-      if (this.form.imagetype === 'templateid') {
-        this.fetchAllTemplates()
-      } else {
-        this.fetchAllIsos()
-      }
+      this.fetchImages()
     },
     changeImageType (imageType) {
       this.form.imagetype = imageType
@@ -2199,7 +2193,7 @@ export default {
 
         if (this.showRootDiskSizeChanger && values.rootdisksize && values.rootdisksize > 0) {
           deployVmData.rootdisksize = values.rootdisksize
-        } else if (this.rootDiskSizeFixed > 0 && !this.template.deployasis) {
+        } else if (this.rootDiskSizeFixed > 0 && !this.template?.deployasis) {
           deployVmData.rootdisksize = this.rootDiskSizeFixed
         }
 
@@ -2236,7 +2230,7 @@ export default {
           deployVmData['details[0].maxIops'] = this.maxIops
         }
         // step 4: select disk offering
-        if (!this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
+        if (this.template && !this.template.deployasis && this.template.childtemplates && this.template.childtemplates.length > 0) {
           if (values.multidiskoffering) {
             let i = 0
             Object.entries(values.multidiskoffering).forEach(([disk, offering]) => {
@@ -2614,7 +2608,7 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      const templateFilters = this.templateFilter[this.templateview]
+      const templateFilters = this.templateFilter[this.imageSelection]
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
@@ -2635,7 +2629,7 @@ export default {
       const promises = []
       const isos = {}
       this.loading.isos = true
-      const isoFilters = this.templateFilter[this.templateview]
+      const isoFilters = this.templateFilter[this.imageSelection]
       isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
         promises.push(this.fetchIsos(filter, params))
@@ -2657,7 +2651,7 @@ export default {
     },
     resetTemplatesList () {
       const templates = {}
-      const templateFilters = this.templateFilter[this.templateview]
+      const templateFilters = this.templateFilter[this.imageSelection]
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
       })
@@ -2665,7 +2659,7 @@ export default {
     },
     resetIsosList () {
       const isos = {}
-      const isoFilters = this.isoFilter[this.templateview]
+      const isoFilters = this.isoFilter[this.imageSelection]
       isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
       })

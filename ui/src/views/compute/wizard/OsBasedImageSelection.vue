@@ -30,44 +30,44 @@
       </div>
     </a-form-item>
     <a-form-item :label="$t('label.os')" name="guestoscategoryid" ref="guestoscategoryid">
-      <div v-if="guestOsCategories.length <= 16">
+      <a-radio-group
+        v-if="guestOsCategories.length <= 16"
+        v-model:value="localSelectedGuestOsCategoryId"
+        @change="handleGuestOsCategoryChange">
         <a-row type="flex" :gutter="[6, 6]" justify="start">
-          <div v-for="(item, idx) in guestOsCategories" :key="idx">
-            <a-radio-group
-              :key="idx"
-              v-model:value="localSelectedGuestOsCategoryId"
-              @change="handleGuestOsCategoryChange()">
-              <a-col :span="6">
-                <a-radio-button
-                  :value="item.id"
-                  style="border-width: 2px"
-                  :class="'square-block-radio-button'">
-                  <div style="text-align: center;">
-                    <resource-icon
-                      v-if="item.icon && item.icon.base64image"
-                      class="radio-group__os-logo"
-                      :image="item.icon.base64image"
-                      size="2x"/>
-                    <font-awesome-icon
-                      v-else-if="item.id === 0"
-                      :icon="['fas', 'user']"
-                      size="2x"
-                      :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]"
-                      />
-                    <os-logo
-                      v-else
-                      class="radio-group__os-logo"
-                      size="2x"
-                      :os-name="item.name" />
-                    <br>
-                    {{ item.name }}
-                  </div>
-                </a-radio-button>
-              </a-col>
-            </a-radio-group>
+          <div v-for="item in guestOsCategories" :key="item.id">
+            <a-col :span="6">
+              <a-radio-button
+                :value="item.id"
+                style="border-width: 2px"
+                :class="'square-block-radio-button'">
+                <div style="text-align: center;">
+                  <resource-icon
+                    v-if="item.icon && item.icon.base64image"
+                    class="radio-group__os-logo"
+                    :image="item.icon.base64image"
+                    size="2x"
+                  />
+                  <font-awesome-icon
+                    v-else-if="item.id === '0'"
+                    :icon="['fas', 'user']"
+                    size="2x"
+                    :style="[$store.getters.darkMode ? { color: 'rgba(255, 255, 255, 0.65)' } : { color: '#666' }]"
+                  />
+                  <os-logo
+                    v-else
+                    class="radio-group__os-logo"
+                    size="2x"
+                    :os-name="item.name"
+                  />
+                  <br>
+                  {{ item.name }}
+                </div>
+              </a-radio-button>
+            </a-col>
           </div>
         </a-row>
-      </div>
+      </a-radio-group>
       <a-select
         v-else
         v-model:value="localSelectedGuestOsCategoryId"
@@ -95,9 +95,9 @@
       </a-input-search>
       <a-spin :spinning="imagesLoading">
         <os-based-image-radio-group
-          :osList="imageItems[filterType][localSelectedImageType.slice(0, -2)] || []"
+          :imagesList="imagesList"
           :categoryIcon="selectedCategoryIcon"
-          :itemCount="imageItems[filterType].count || 0"
+          :itemCount="imageItems[filterType] ? imageItems[filterType].count || 0 : 0"
           :input-decorator="localSelectedImageType"
           :selected="checkedValue"
           :preFillContent="preFillContent"
@@ -250,6 +250,13 @@ export default {
     }
   },
   computed: {
+    imagesList () {
+      if (!this.localSelectedImageType || !this.imageItems || !this.imageItems[this.filterType]) {
+        return []
+      }
+      const imageTypeKey = this.localSelectedImageType.slice(0, -2)
+      return this.imageItems[this.filterType][imageTypeKey] || []
+    },
     selectedCategoryIcon () {
       if (this.localSelectedGuestOsCategoryId) {
         const selectedCategory = this.guestOsCategories.find(option => option.id === this.localSelectedGuestOsCategoryId)
