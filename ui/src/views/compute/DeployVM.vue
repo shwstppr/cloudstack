@@ -1339,13 +1339,13 @@ export default {
     queryArchId () {
       return this.$route.query.arch || null
     },
-    templateId () {
+    queryTemplateId () {
       return this.$route.query.templateid || null
     },
-    isoId () {
+    queryIsoId () {
       return this.$route.query.isoid || null
     },
-    networkId () {
+    queryNetworkId () {
       return this.$route.query.networkid || null
     },
     queryGuestOsCategoryId () {
@@ -1353,12 +1353,12 @@ export default {
     },
     imageTabList () {
       let imageTabList = []
-      if (this.templateId) {
+      if (this.queryTemplateId) {
         imageTabList = [{
           key: 'templateid',
           tab: this.$t('label.templates')
         }]
-      } else if (this.isoId) {
+      } else if (this.queryIsoId) {
         imageTabList = [{
           key: 'isoid',
           tab: this.$t('label.isos')
@@ -1707,27 +1707,28 @@ export default {
         const params = {}
         if (this.queryZoneId) {
           zones.push(this.queryZoneId)
-          if (this.templateId) {
-            this.dataPreFill.templateid = this.templateId
-          } else if (this.isoId) {
-            this.dataPreFill.isoid = this.isoId
+          if (this.queryTemplateId) {
+            this.dataPreFill.templateid = this.queryTemplateId
+          } else if (this.queryIsoId) {
+            this.dataPreFill.isoid = this.queryIsoId
           }
           return resolve(zones)
-        } else if (this.templateId) {
+        } else if (this.queryTemplateId) {
           apiName = 'listTemplates'
           params.listall = true
           params.templatefilter = this.isNormalAndDomainUser ? 'executable' : 'all'
-          params.id = this.templateId
-          this.dataPreFill.templateid = this.templateId
-        } else if (this.isoId) {
+          params.id = this.queryTemplateId
+          this.dataPreFill.templateid = this.queryTemplateId
+        } else if (this.queryIsoId) {
+          apiName = 'listIsos'
           params.listall = true
           params.isofilter = this.isNormalAndDomainUser ? 'executable' : 'all'
-          params.id = this.isoId
-          apiName = 'listIsos'
-        } else if (this.networkId) {
-          params.listall = true
-          params.id = this.networkId
+          params.id = this.queryIsoId
+          this.dataPreFill.isoid = this.queryIsoId
+        } else if (this.queryNetworkId) {
           apiName = 'listNetworks'
+          params.listall = true
+          params.id = this.queryNetworkId
         }
         if (!apiName) return resolve(zones)
 
@@ -2513,7 +2514,7 @@ export default {
       args.templatefilter = templateFilter
       args.details = 'all'
       args.showicon = 'true'
-      args.id = this.templateId
+      args.id = this.queryTemplateId
       args.isvnf = false
 
       delete args.category
@@ -2548,7 +2549,7 @@ export default {
       args.isoFilter = isoFilter
       args.bootable = true
       args.showicon = 'true'
-      args.id = this.isoId
+      args.id = this.queryIsoId
 
       delete args.category
       delete args.public
@@ -2636,8 +2637,8 @@ export default {
     async fetchZoneOptions () {
       let guestOsFetch = null
       for (const [name, param] of Object.entries(this.params)) {
-        if (this.networkId && name === 'networks') {
-          param.options = { id: this.networkId }
+        if (this.queryNetworkId && name === 'networks') {
+          param.options = { id: this.queryNetworkId }
         }
         const shouldLoad = !('isLoad' in param) || param.isLoad
         if (!shouldLoad) continue
@@ -2679,7 +2680,7 @@ export default {
       this.form.isoid = undefined
       this.resetTemplatesList()
       this.resetIsosList()
-      this.form.imagetype = this.isoId ? 'isoid' : 'templateid'
+      this.form.imagetype = this.queryIsoId ? 'isoid' : 'templateid'
       this.fetchZoneOptions()
     },
     onSelectPodId (value) {
