@@ -180,18 +180,8 @@ export default {
       rootdisksize: 0,
       minIops: 0,
       maxIops: 0,
-      templateFilter: {
-        legacy: [
-          'featured',
-          'community',
-          'selfexecutable',
-          'sharedexecutable'
-        ],
-        modern: [
-          'all'
-        ]
-      },
       diskOffering: {},
+      imageSearchFilters: null,
       templateid: null,
       templateKey: 0,
       dataPreFill: {
@@ -228,6 +218,27 @@ export default {
       } else {
         this.fetchAllTemplates()
       }
+    },
+    getImageFilters (params, forReset) {
+      if (this.isModernImageSelection) {
+        if (this.selectedGuestOsCategoryId === '0') {
+          return ['self']
+        }
+        if (this.isModernImageSelection && params && !forReset) {
+          if (params.featured) {
+            return ['featured']
+          } else if (params.public) {
+            return ['community']
+          }
+        }
+        return ['all']
+      }
+      return [
+        'featured',
+        'community',
+        'selfexecutable',
+        'sharedexecutable'
+      ]
     },
     closeAction () {
       this.$emit('close-action')
@@ -323,7 +334,8 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      const templateFilters = this.templateFilter[this.imageSelection]
+      this.imageSearchFilters = params
+      const templateFilters = this.getImageFilters(params)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
@@ -342,6 +354,9 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
+      if (this.isModernImageSelection && this.selectedGuestOsCategoryId) {
+        args.oscategoryid = this.selectedGuestOsCategoryId
+      }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
         args.pageSize = args.pageSize || 10
@@ -350,9 +365,6 @@ export default {
       args.templatefilter = templateFilter
       if (this.resource.arch) {
         args.arch = this.resource.arch
-      }
-      if (this.selectedGuestOsCategoryId) {
-        args.oscategoryid = this.selectedGuestOsCategoryId
       }
       args.details = 'all'
       args.showicon = 'true'
@@ -373,7 +385,7 @@ export default {
     },
     onSelectGuestOsCategory (value) {
       this.selectedGuestOsCategoryId = value
-      this.fetchAllTemplates()
+      this.fetchAllTemplates(this.imageSearchFilters)
     },
     onSelectDiskSize (rowSelected) {
       this.diskOffering = rowSelected

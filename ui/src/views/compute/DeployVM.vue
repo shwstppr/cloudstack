@@ -130,7 +130,7 @@
                       :selectedImageType="form.imagetype"
                       :guestOsCategories="options.guestOsCategories"
                       :guestOsCategoriesLoading="loading.guestOsCategories"
-                      :selectedGuestOsCategoryId="form.guestoscategoryid"
+                      :selectedGuestOsCategoryId="selectedGuestCategoryId"
                       :imageItems="form.imagetype === 'isoid' ? options.isos : options.templates"
                       :imagesLoading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
                       :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
@@ -1638,14 +1638,13 @@ export default {
     },
     getImageFilters (params, forReset) {
       if (this.isModernImageSelection) {
-        if (this.form.guestoscategoryid === '0') {
+        if (this.selectedGuestCategoryId === '0') {
           return ['self']
         }
         if (this.isModernImageSelection && params && !forReset) {
           if (params.featured) {
             return ['featured']
-          }
-          if (params.public) {
+          } else if (params.public) {
             return ['community']
           }
         }
@@ -2030,7 +2029,7 @@ export default {
               name: this.$t('label.all')
             })
           }
-          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+          this.selectedGuestCategoryId = this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
           }
@@ -2479,8 +2478,8 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
-      if (this.isModernImageSelection && this.form.guestoscategoryid) {
-        args.oscategoryid = this.form.guestoscategoryid
+      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
+        args.oscategoryid = this.selectedGuestCategoryId
       }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
@@ -2514,8 +2513,8 @@ export default {
     },
     fetchIsos (isoFilter, params) {
       const args = Object.assign({}, params)
-      if (this.isModernImageSelection && this.form.guestoscategoryid) {
-        args.oscategoryid = this.form.guestoscategoryid
+      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
+        args.oscategoryid = this.selectedGuestCategoryId
       }
       if (args.keyword || args.category !== isoFilter) {
         args.page = 1
@@ -2602,7 +2601,7 @@ export default {
     },
     resetTemplatesList () {
       const templates = {}
-      const templateFilters = this.getImageFilters({}, true)
+      const templateFilters = this.getImageFilters(null, true)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
       })
@@ -2610,7 +2609,7 @@ export default {
     },
     resetIsosList () {
       const isos = {}
-      const isoFilters = this.getImageFilters({}, true)
+      const isoFilters = this.getImageFilters(null, true)
       isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
       })
@@ -2644,18 +2643,18 @@ export default {
       this.podId = null
       this.clusterId = null
       this.zone = _.find(this.options.zones, (option) => option.id === value)
+      this.zoneSelected = true
       this.isZoneSelectedMultiArch = this.zone.ismultiarch
       if (this.isZoneSelectedMultiArch) {
         this.selectedArchitecture = this.architectureTypes.opts[0].id
       }
-      this.zoneSelected = true
       this.form.startvm = true
       this.selectedZone = this.zoneId
       this.form.zoneid = this.zoneId
       this.form.clusterid = undefined
       this.form.podid = undefined
       this.form.hostid = undefined
-      this.form.guestoscategoryid = undefined
+      this.selectedGuestCategoryId = undefined
       this.form.templateid = undefined
       this.form.isoid = undefined
       this.resetTemplatesList()
@@ -2701,7 +2700,7 @@ export default {
       this.changeArchitecture(resourceArch, this.tabKey === 'templateid')
     },
     onSelectGuestOsCategory (value) {
-      this.form.guestoscategoryid = value
+      this.selectedGuestCategoryId = value
       this.fetchImages(this.imageSearchFilters)
     },
     handleSearchFilter (name, options) {

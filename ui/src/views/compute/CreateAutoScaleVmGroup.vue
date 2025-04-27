@@ -43,6 +43,28 @@
                 </template>
               </a-step>
               <a-step
+                v-if="!zoneSelected || isZoneSelectedMultiArch"
+                :title="$t('label.arch')"
+                :status="zoneSelected ? 'process' : 'wait'">
+                <template #description>
+                  <div v-if="zoneSelected" style="margin-top: 15px">
+                    {{ $t('message.instance.architecture') }}
+                    <block-radio-group-select
+                      style="margin-top: 5px;"
+                      :items="architectureTypes.opts"
+                      :selectedValue="selectedArchitecture"
+                      @change="changeArchitecture">
+                        <template #radio-option="{ item }">
+                          <span>{{ item.name || item.description }}</span>
+                        </template>
+                        <template #select-option="{ item }">
+                          <span>{{ item.name || item.description }}</span>
+                        </template>
+                    </block-radio-group-select>
+                  </div>
+                </template>
+              </a-step>
+              <a-step
                 :title="$t('label.template.select')"
                 :status="zoneSelected ? 'process' : 'wait'">
                 <template #description>
@@ -52,7 +74,7 @@
                       :imageTypeSelectionAllowed="false"
                       :guestOsCategories="options.guestOsCategories"
                       :guestOsCategoriesLoading="loading.guestOsCategories"
-                      :selectedGuestOsCategoryId="form.guestoscategoryid"
+                      :selectedGuestOsCategoryId="selectedGuestCategoryId"
                       :imageItems="options.templates"
                       :imagesLoading="loading.templates"
                       :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
@@ -1009,6 +1031,7 @@ import eventBus from '@/config/eventBus'
 import InfoCard from '@/components/view/InfoCard'
 import ResourceIcon from '@/components/view/ResourceIcon'
 import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect.vue'
+import BlockRadioGroupSelect from '@/components/widgets/BlockRadioGroupSelect'
 import ComputeOfferingSelection from '@views/compute/wizard/ComputeOfferingSelection'
 import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
@@ -1036,6 +1059,7 @@ export default {
     InfoCard,
     ResourceIcon,
     ZoneBlockRadioGroupSelect,
+    BlockRadioGroupSelect,
     SshKeyPairSelection,
     UserDataSelection,
     NetworkConfiguration,
@@ -1081,8 +1105,10 @@ export default {
       },
       zoneId: '',
       zoneSelected: false,
+      isZoneSelectedMultiArch: false,
       dynamicscalingenabled: true,
       imageType: 'templateid',
+      imageSearchFilters: null,
       templateKey: 0,
       showRegisteredUserdata: true,
       doUserdataOverride: false,
@@ -1232,17 +1258,6 @@ export default {
       templateUserDataParams: [],
       templateUserDataValues: {},
       overrideDiskOffering: {},
-      templateFilter: {
-        legacy: [
-          'featured',
-          'community',
-          'selfexecutable',
-          'sharedexecutable'
-        ],
-        modern: [
-          'all'
-        ]
-      },
       initDataConfig: {},
       defaultNetworkId: '',
       dataNetworkCreated: [],
@@ -1265,7 +1280,9 @@ export default {
       zones: [],
       selectedZone: '',
       formModel: {},
-      nicToNetworkSelection: []
+      nicToNetworkSelection: [],
+      selectedArchitecture: null,
+      architectureTypes: {}
     }
   },
   computed: {
@@ -1771,6 +1788,27 @@ export default {
         }
       }
     },
+    getImageFilters (params, forReset) {
+      if (this.isModernImageSelection) {
+        if (this.selectedGuestCategoryId === '0') {
+          return ['self']
+        }
+        if (this.isModernImageSelection && params && !forReset) {
+          if (params.featured) {
+            return ['featured']
+          } else if (params.public) {
+            return ['community']
+          }
+        }
+        return ['all']
+      }
+      return [
+        'featured',
+        'community',
+        'selfexecutable',
+        'sharedexecutable'
+      ]
+    },
     getPropertyQualifiers (qualifiers, type) {
       var result = ''
       switch (type) {
@@ -1845,6 +1883,7 @@ export default {
       })
     },
     async fetchData () {
+      this.architectureTypes.opts = this.$fetchCpuArchitectureTypes()
       const zones = await this.fetchZoneByQuery()
       if (zones && zones.length === 1) {
         this.selectedZone = zones[0]
@@ -2422,7 +2461,7 @@ export default {
               name: this.$t('label.all')
             })
           }
-          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+          this.selectedGuestCategoryId = this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
           }
@@ -2431,6 +2470,14 @@ export default {
         .catch((e) => {
           console.error('Error fetching guestOsCategories:', e)
         })
+    },
+    changeArchitecture (arch) {
+      this.selectedArchitecture = arch
+      if (this.isModernImageSelection) {
+        this.fetchGuestOsCategories()
+        return
+      }
+      this.fetchAllTemplates()
     },
     async handleSubmit (e) {
       console.log('wizard submit')
@@ -2899,17 +2946,24 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
+      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
+        args.oscategoryid = this.selectedGuestCategoryId
+      }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
         args.pageSize = args.pageSize || 10
       }
       args.zoneid = _.get(this.zone, 'id')
-      if (this.form.guestoscategoryid) {
-        args.oscategoryid = this.form.guestoscategoryid
+      if (this.isZoneSelectedMultiArch) {
+        args.arch = this.selectedArchitecture
       }
       args.templatefilter = templateFilter
       args.details = 'all'
       args.showicon = 'true'
+
+      delete args.category
+      delete args.public
+      delete args.featured
 
       return new Promise((resolve, reject) => {
         api('listTemplates', args).then((response) => {
@@ -2924,7 +2978,8 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      const templateFilters = this.templateFilter[this.imageSelection]
+      this.imageSearchFilters = params
+      const templateFilters = this.getImageFilters(params)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
@@ -2946,7 +3001,7 @@ export default {
     },
     resetTemplatesList () {
       const templates = {}
-      const templateFilters = this.templateFilter[this.imageSelection]
+      const templateFilters = this.getImageFilters(null, true)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
       })
@@ -2987,6 +3042,10 @@ export default {
       this.zoneId = value
       this.zone = _.find(this.options.zones, (option) => option.id === value)
       this.zoneSelected = true
+      this.isZoneSelectedMultiArch = this.zone.ismultiarch
+      if (this.isZoneSelectedMultiArch) {
+        this.selectedArchitecture = this.architectureTypes.opts[0].id
+      }
       this.selectedZone = this.zoneId
       this.form.zoneid = this.zoneId
       this.form.templateid = undefined
@@ -2994,8 +3053,8 @@ export default {
       this.fetchZoneOptions()
     },
     onSelectGuestOsCategory (value) {
-      this.form.guestoscategoryid = value
-      this.fetchAllTemplates()
+      this.selectedGuestCategoryId = value
+      this.fetchAllTemplates(this.imageSearchFilters)
     },
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }

@@ -48,7 +48,9 @@
             <span v-if="item?.projectid">
             | <project-outlined /> {{ item.project }}
             </span>
-            <lock-outlined v-if="item.passwordenabled" style="margin-left: 10px;" />
+            <a-tooltip :title="$t('label.passwordenabled')" v-if="item.passwordenabled">
+              <lock-outlined style="margin-left: 10px;"/>
+            </a-tooltip>
             <a-tag v-if="item.isfeatured" style="margin-left: 10px;">
               {{ $t('label.isfeatured') }}
             </a-tag>
