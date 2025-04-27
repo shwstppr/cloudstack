@@ -1336,6 +1336,9 @@ export default {
     queryZoneId () {
       return this.$route.query.zoneid || null
     },
+    queryArchId () {
+      return this.$route.query.arch || null
+    },
     templateId () {
       return this.$route.query.templateid || null
     },
@@ -2663,7 +2666,7 @@ export default {
       this.zoneSelected = true
       this.isZoneSelectedMultiArch = this.zone.ismultiarch
       if (this.isZoneSelectedMultiArch) {
-        this.selectedArchitecture = this.architectureTypes.opts[0].id
+        this.selectedArchitecture = this.queryArchId || this.architectureTypes.opts[0].id
       }
       this.form.startvm = true
       this.selectedZone = this.zoneId

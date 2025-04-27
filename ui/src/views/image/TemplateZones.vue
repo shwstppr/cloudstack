@@ -658,6 +658,9 @@ export default {
     },
     onAddInstance (record) {
       const query = { templateid: this.resource.id, zoneid: record.zoneid }
+      if (this.resource.arch) {
+        query.arch = this.resource.arch
+      }
       if (this.osCategoryId) {
         query.oscategoryid = this.osCategoryId
       }
