@@ -105,41 +105,18 @@
                 <template #description>
                   <div v-if="zoneSelected" style="margin-top: 15px">
                     {{ $t('message.instance.architecture') }}
-                    <div style="width: 100%; margin-top: 5px">
-                      <a-radio-group
-                        v-if="zones.length <= 4"
-                        v-model:value="selectedArchitecture"
-                        @change="e => changeArchitecture(e.target.value)">
-                         <a-row type="flex" :gutter="[16, 18]" justify="start">
-                          <div v-for="opt in architectureTypes.opts" :key="opt.id">
-                            <a-col :span="6">
-                              <a-radio-button
-                                :value="opt.id"
-                                style="border-width: 2px"
-                                class="medium-block-radio-button">
-                                <span>
-                                  {{ opt.name || opt.description }}
-                                </span>
-                                <br>
-                                <span>
-                                  {{ opt.id }}
-                                </span>
-                              </a-radio-button>
-                            </a-col>
-                           </div>
-                         </a-row>
-                      </a-radio-group>
-                      <a-select
-                        v-else
-                        style="width: 100%"
-                        v-model:value="selectedArchitecture"
-                        :defaultValue="architectureTypes.opts[0].id"
-                        @change="arch => changeArchitecture(arch)">
-                        <a-select-option v-for="opt in architectureTypes.opts" :key="opt.id">
-                          {{ opt.name || opt.description }}
-                        </a-select-option>
-                      </a-select>
-                    </div>
+                    <block-radio-group-select
+                      style="margin-top: 5px;"
+                      :items="architectureTypes.opts"
+                      :selectedValue="selectedArchitecture"
+                      @change="changeArchitecture">
+                        <template #radio-option="{ item }">
+                          <span>{{ item.name || item.description }}</span>
+                        </template>
+                        <template #select-option="{ item }">
+                          <span>{{ item.name || item.description }}</span>
+                        </template>
+                    </block-radio-group-select>
                   </div>
                 </template>
               </a-step>
@@ -166,7 +143,7 @@
                       :preFillContent="dataPreFill"
                       @change-image-type="changeImageType"
                       @change-guest-os-category="onSelectGuestOsCategory"
-                      @handle-image-search-filter="($event) => fetchImages($event)"
+                      @handle-image-search-filter="filters => fetchImages(filters)"
                       @update-image="updateFieldValue"
                       @update-disk-size="updateFieldValue"
                       @change-iso-hypervisor="value => hypervisor = value" />
@@ -184,7 +161,7 @@
                           :loading="loading.templates"
                           :preFillContent="dataPreFill"
                           :key="templateKey"
-                          @handle-search-filter="($event) => fetchAllTemplates($event)"
+                          @handle-search-filter="filters => fetchAllTemplates(filters)"
                           @update-template-iso="updateFieldValue" />
                         <div>
                           {{ $t('label.override.rootdisk.size') }}
@@ -212,7 +189,7 @@
                           :selected="form.imagetype"
                           :loading="loading.isos"
                           :preFillContent="dataPreFill"
-                          @handle-search-filter="($event) => fetchAllIsos($event)"
+                          @handle-search-filter="filters => fetchAllIsos(filters)"
                           @update-template-iso="updateFieldValue" />
                         <a-form-item :label="$t('label.hypervisor')">
                           <a-select
@@ -887,7 +864,8 @@ import eventBus from '@/config/eventBus'
 import OwnershipSelection from '@views/compute/wizard/OwnershipSelection'
 import InfoCard from '@/components/view/InfoCard'
 import ResourceIcon from '@/components/view/ResourceIcon'
-import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect.vue'
+import ZoneBlockRadioGroupSelect from '@views/compute/wizard/ZoneBlockRadioGroupSelect'
+import BlockRadioGroupSelect from '@/components/widgets/BlockRadioGroupSelect'
 import ComputeOfferingSelection from '@views/compute/wizard/ComputeOfferingSelection'
 import ComputeSelection from '@views/compute/wizard/ComputeSelection'
 import DiskOfferingSelection from '@views/compute/wizard/DiskOfferingSelection'
@@ -902,7 +880,7 @@ import SshKeyPairSelection from '@views/compute/wizard/SshKeyPairSelection'
 import UserDataSelection from '@views/compute/wizard/UserDataSelection'
 import SecurityGroupSelection from '@views/compute/wizard/SecurityGroupSelection'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
-import InstanceNicsNetworkSelectListView from '@/components/view/InstanceNicsNetworkSelectListView.vue'
+import InstanceNicsNetworkSelectListView from '@/components/view/InstanceNicsNetworkSelectListView'
 
 export default {
   name: 'Wizard',
@@ -911,6 +889,7 @@ export default {
     InfoCard,
     ResourceIcon,
     ZoneBlockRadioGroupSelect,
+    BlockRadioGroupSelect,
     SshKeyPairSelection,
     UserDataSelection,
     NetworkConfiguration,
@@ -946,6 +925,7 @@ export default {
       isZoneSelectedMultiArch: false,
       dynamicscalingenabled: true,
       imageType: 'templateid',
+      imageSearchFilters: null,
       templateKey: 0,
       showRegisteredUserdata: true,
       doUserdataOverride: false,
@@ -1062,28 +1042,6 @@ export default {
       templateUserDataParams: [],
       templateUserDataValues: {},
       overrideDiskOffering: {},
-      templateFilter: {
-        legacy: [
-          'featured',
-          'community',
-          'selfexecutable',
-          'sharedexecutable'
-        ],
-        modern: [
-          'all'
-        ]
-      },
-      isoFilter: {
-        legacy: [
-          'featured',
-          'community',
-          'selfexecutable',
-          'sharedexecutable'
-        ],
-        modern: [
-          'all'
-        ]
-      },
       initDataConfig: {},
       defaultnetworkid: '',
       networkConfig: [],
@@ -1108,17 +1066,7 @@ export default {
       formModel: {},
       nicToNetworkSelection: [],
       selectedArchitecture: null,
-      architectureTypes: {
-        opts: [
-          {
-            id: 'x86_64',
-            description: 'AMD 64 bits'
-          }, {
-            id: 'aarch64',
-            description: 'ARM 64 bits'
-          }
-        ]
-      }
+      architectureTypes: {}
     }
   },
   computed: {
@@ -1688,6 +1636,28 @@ export default {
         }
       }
     },
+    getImageFilters (params, forReset) {
+      if (this.isModernImageSelection) {
+        if (this.form.guestoscategoryid === '0') {
+          return ['self']
+        }
+        if (this.isModernImageSelection && params && !forReset) {
+          if (params.featured) {
+            return ['featured']
+          }
+          if (params.public) {
+            return ['community']
+          }
+        }
+        return ['all']
+      }
+      return [
+        'featured',
+        'community',
+        'selfexecutable',
+        'sharedexecutable'
+      ]
+    },
     getPropertyQualifiers (qualifiers, type) {
       var result = ''
       switch (type) {
@@ -1763,6 +1733,7 @@ export default {
       })
     },
     async fetchData () {
+      this.architectureTypes.opts = this.$fetchCpuArchitectureTypes()
       const zones = await this.fetchZoneByQuery()
       if (zones && zones.length === 1) {
         this.selectedZone = zones[0]
@@ -2043,7 +2014,8 @@ export default {
           if (this.showUserCategoryForModernImageSelection) {
             const userCategory = {
               id: '0',
-              name: this.$t('label.user')
+              name: this.$t('label.user'),
+              disableimagefilters: true
             }
             if (this.$store.getters.avatar) {
               userCategory.icon = {
@@ -2507,6 +2479,9 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
+      if (this.isModernImageSelection && this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
+      }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
         args.pageSize = args.pageSize || 10
@@ -2514,9 +2489,6 @@ export default {
       args.zoneid = _.get(this.zone, 'id')
       if (this.isZoneSelectedMultiArch) {
         args.arch = this.selectedArchitecture
-      }
-      if (this.form.guestoscategoryid) {
-        args.oscategoryid = this.form.guestoscategoryid
       }
       args.account = store.getters.project?.id ? null : this.owner.account
       args.domainid = store.getters.project?.id ? null : this.owner.domainid
@@ -2526,6 +2498,10 @@ export default {
       args.showicon = 'true'
       args.id = this.templateId
       args.isvnf = false
+
+      delete args.category
+      delete args.public
+      delete args.featured
 
       return new Promise((resolve, reject) => {
         api('listTemplates', args).then((response) => {
@@ -2538,6 +2514,9 @@ export default {
     },
     fetchIsos (isoFilter, params) {
       const args = Object.assign({}, params)
+      if (this.isModernImageSelection && this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
+      }
       if (args.keyword || args.category !== isoFilter) {
         args.page = 1
         args.pageSize = args.pageSize || 10
@@ -2546,10 +2525,17 @@ export default {
       if (this.isZoneSelectedMultiArch) {
         args.arch = this.selectedArchitecture
       }
+      args.account = store.getters.project?.id ? null : this.owner.account
+      args.domainid = store.getters.project?.id ? null : this.owner.domainid
+      args.projectid = store.getters.project?.id || this.owner.projectid
       args.isoFilter = isoFilter
       args.bootable = true
       args.showicon = 'true'
       args.id = this.isoId
+
+      delete args.category
+      delete args.public
+      delete args.featured
 
       return new Promise((resolve, reject) => {
         api('listIsos', args).then((response) => {
@@ -2571,7 +2557,8 @@ export default {
       const promises = []
       const templates = {}
       this.loading.templates = true
-      const templateFilters = this.templateFilter[this.imageSelection]
+      this.imageSearchFilters = params
+      const templateFilters = this.getImageFilters(params)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
         promises.push(this.fetchTemplates(filter, params))
@@ -2592,7 +2579,8 @@ export default {
       const promises = []
       const isos = {}
       this.loading.isos = true
-      const isoFilters = this.templateFilter[this.imageSelection]
+      this.imageSearchFilters = params
+      const isoFilters = this.getImageFilters(params)
       isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
         promises.push(this.fetchIsos(filter, params))
@@ -2614,7 +2602,7 @@ export default {
     },
     resetTemplatesList () {
       const templates = {}
-      const templateFilters = this.templateFilter[this.imageSelection]
+      const templateFilters = this.getImageFilters({}, true)
       templateFilters.forEach((filter) => {
         templates[filter] = { count: 0, template: [] }
       })
@@ -2622,7 +2610,7 @@ export default {
     },
     resetIsosList () {
       const isos = {}
-      const isoFilters = this.isoFilter[this.imageSelection]
+      const isoFilters = this.getImageFilters({}, true)
       isoFilters.forEach((filter) => {
         isos[filter] = { count: 0, iso: [] }
       })
@@ -2714,7 +2702,7 @@ export default {
     },
     onSelectGuestOsCategory (value) {
       this.form.guestoscategoryid = value
-      this.fetchImages()
+      this.fetchImages(this.imageSearchFilters)
     },
     handleSearchFilter (name, options) {
       this.params[name].options = { ...this.params[name].options, ...options }
@@ -3044,24 +3032,6 @@ export default {
     border: 1px solid @border-color-split;
     border-radius: @border-radius-base !important;
     margin: 0 0 1.2rem;
-  }
-
-  .zone-radio-button {
-    width:100%;
-    min-width: 345px;
-    height: 60px;
-    display: flex;
-    padding-left: 20px;
-    align-items: center;
-  }
-
-  .medium-block-radio-button {
-    width:100%;
-    min-width: 160px;
-    height: 60px;
-    display: flex;
-    padding-left: 20px;
-    align-items: center;
   }
 
   .vm-info-card {

@@ -45,15 +45,16 @@
               :os-name="item.osName" />
             &nbsp;
             {{ item.displaytext }}
-            <a-tag v-if="item.isfeatured">
+            <span v-if="item?.projectid">
+            | <project-outlined /> {{ item.project }}
+            </span>
+            <lock-outlined v-if="item.passwordenabled" style="margin-left: 10px;" />
+            <a-tag v-if="item.isfeatured" style="margin-left: 10px;">
               {{ $t('label.isfeatured') }}
             </a-tag>
-            <a-tag v-if="item.ispublic">
+            <a-tag v-if="item.ispublic" style="margin-left: 10px;">
               {{ $t('label.ispublic') }}
             </a-tag>
-            <span v-if="item?.projectid">
-              | <project-outlined /> {{ item.project }}
-          </span>
           </a-radio>
         </a-radio-group>
       </a-list-item>
@@ -133,7 +134,7 @@ export default {
       this.onSelectTemplateIso()
     }
   },
-  emits: ['emit-update-template-iso', 'handle-search-filter'],
+  emits: ['emit-update-image', 'handle-search-filter'],
   methods: {
     onSelectTemplateIso () {
       if (this.inputDecorator === 'templateid') {
@@ -142,10 +143,10 @@ export default {
         this.value = !this.preFillContent.isoid ? this.selected : this.preFillContent.isoid
       }
 
-      this.$emit('emit-update-template-iso', this.inputDecorator, this.value)
+      this.$emit('emit-update-image', this.inputDecorator, this.value)
     },
     updateSelectionTemplateIso (id) {
-      this.$emit('emit-update-template-iso', this.inputDecorator, id)
+      this.$emit('emit-update-image', this.inputDecorator, id)
     },
     onChangePage (page, pageSize) {
       this.options.page = page
@@ -159,7 +160,7 @@ export default {
     },
     onClickRow (os) {
       this.value = os.id
-      this.$emit('emit-update-template-iso', this.inputDecorator, this.value)
+      this.$emit('emit-update-image', this.inputDecorator, this.value)
     }
   }
 }

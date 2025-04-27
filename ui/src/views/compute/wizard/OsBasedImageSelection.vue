@@ -64,20 +64,20 @@
       </block-radio-group-select>
     </a-form-item>
     <a-card>
-      <a-input-search
+      <os-based-image-selection-search-view
         class="search-input"
-        :placeholder="$t('label.search')"
+        :filtersDisabled="searchFiltersDisabled"
         @search="handleImageSearch">
-      </a-input-search>
+      </os-based-image-selection-search-view>
       <a-spin :spinning="imagesLoading">
         <os-based-image-radio-group
           :imagesList="imagesList"
           :categoryIcon="selectedCategoryIcon"
           :itemCount="imageItems[filterType] ? imageItems[filterType].count || 0 : 0"
           :input-decorator="localSelectedImageType"
-          :selected="checkedValue"
+          :selected="selectedImageId"
           :preFillContent="preFillContent"
-          @emit-update-template-iso="updateImage"
+          @emit-update-image="updateImage"
           @handle-search-filter="($event) => eventPagination($event)"
         />
       </a-spin>
@@ -118,6 +118,7 @@
 import BlockRadioGroupSelect from '@/components/widgets/BlockRadioGroupSelect.vue'
 import ResourceIcon from '@/components/view/ResourceIcon'
 import OsLogo from '@/components/widgets/OsLogo'
+import OsBasedImageSelectionSearchView from '@views/compute/wizard/OsBasedImageSelectionSearchView'
 import OsBasedImageRadioGroup from '@views/compute/wizard/OsBasedImageRadioGroup'
 import DiskSizeSelection from '@views/compute/wizard/DiskSizeSelection'
 
@@ -127,6 +128,7 @@ export default {
     BlockRadioGroupSelect,
     ResourceIcon,
     OsLogo,
+    OsBasedImageSelectionSearchView,
     OsBasedImageRadioGroup,
     DiskSizeSelection
   },
@@ -198,10 +200,9 @@ export default {
   },
   data () {
     return {
-      filter: '',
-      checkedValue: '',
       filterType: 'all',
-      pagination: false,
+      selectedImageId: '',
+      imageSearchFilters: {},
       showRootDiskSizeChanger: false,
       // Local data properties to mirror props
       localSelectedImageType: this.selectedImageType,
@@ -213,12 +214,13 @@ export default {
   watch: {
     selectedImageType (newValue, oldValue) {
       this.localSelectedImageType = newValue
-      if (newValue !== oldValue) {
-        this.filter = ''
-      }
+    },
+    guestOsCategories (newValue) {
+      this.imageSearchFilters = {}
     },
     selectedGuestOsCategoryId (newValue) {
       this.localSelectedGuestOsCategoryId = newValue
+      this.updateImageFilterType()
     },
     rootDiskOverrideChecked (newValue) {
       this.localRootDiskOverrideChecked = newValue
@@ -235,12 +237,17 @@ export default {
       const imageTypeKey = this.localSelectedImageType.slice(0, -2)
       return this.imageItems[this.filterType][imageTypeKey] || []
     },
-    selectedCategoryIcon () {
-      if (this.localSelectedGuestOsCategoryId) {
-        const selectedCategory = this.guestOsCategories.find(option => option.id === this.localSelectedGuestOsCategoryId)
-        return selectedCategory?.icon?.base64image || ''
+    selectedCategory () {
+      if (this.localSelectedGuestOsCategoryId && this.guestOsCategories) {
+        return this.guestOsCategories.find(option => option.id === this.localSelectedGuestOsCategoryId)
       }
-      return ''
+      return null
+    },
+    selectedCategoryIcon () {
+      return this.selectedCategory?.icon?.base64image || ''
+    },
+    searchFiltersDisabled () {
+      return this.selectedCategory?.disableimagefilters
     }
   },
   methods: {
@@ -252,29 +259,37 @@ export default {
       this.$emit('change-guest-os-category', this.localSelectedGuestOsCategoryId)
     },
     updateImage (decorator, id) {
-      this.checkedValue = id
+      this.selectedImageId = id
       this.$emit('update-image', decorator, id)
     },
-    handleImageSearch (value) {
-      if (!this.filter && !value) {
-        return
-      }
-      this.pagination = false
-      this.filter = value
-      const options = {
+    handleImageSearch (searchFilters) {
+      this.imageSearchFilters = {
         page: 1,
-        pageSize: 10,
-        keyword: this.filter
+        pageSize: 10
       }
-      this.emitSearchFilter(options)
+      Object.assign(this.imageSearchFilters, searchFilters)
+      this.updateImageFilterType()
+      this.emitSearchFilter()
     },
-    eventPagination (options) {
-      this.pagination = true
-      this.emitSearchFilter(options)
+    updateImageFilterType () {
+      this.filterType = 'all'
+      if (this.localSelectedGuestOsCategoryId === '0') {
+        this.filterType = 'self'
+      } else {
+        if (this.imageSearchFilters?.featured) {
+          this.filterType = 'featured'
+        } else if (this.imageSearchFilters?.public) {
+          this.filterType = 'community'
+        }
+      }
     },
-    emitSearchFilter (options) {
-      options.category = this.filterType
-      this.$emit('handle-image-search-filter', options)
+    eventPagination (pagination) {
+      Object.assign(this.imageSearchFilters, pagination)
+      this.emitSearchFilter()
+    },
+    emitSearchFilter () {
+      console.log('@@@', this.imageSearchFilters)
+      this.$emit('handle-image-search-filter', this.imageSearchFilters)
     },
     changeFilterType (value) {
       this.filterType = value
