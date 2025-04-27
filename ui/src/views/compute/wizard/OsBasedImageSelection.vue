@@ -212,7 +212,7 @@ export default {
     }
   },
   watch: {
-    selectedImageType (newValue, oldValue) {
+    selectedImageType (newValue) {
       this.localSelectedImageType = newValue
     },
     guestOsCategories (newValue) {
@@ -288,7 +288,6 @@ export default {
       this.emitSearchFilter()
     },
     emitSearchFilter () {
-      console.log('@@@', this.imageSearchFilters)
       this.$emit('handle-image-search-filter', this.imageSearchFilters)
     },
     changeFilterType (value) {

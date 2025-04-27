@@ -140,9 +140,9 @@ export default {
   methods: {
     onSelectTemplateIso () {
       if (this.inputDecorator === 'templateid') {
-        this.value = !this.preFillContent.templateid ? this.selected : this.preFillContent.templateid
+        this.value = this.preFillContent?.templateid ? this.preFillContent.templateid : this.selected
       } else {
-        this.value = !this.preFillContent.isoid ? this.selected : this.preFillContent.isoid
+        this.value = this.preFillContent?.isoid ? this.preFillContent.isoid : this.selected
       }
 
       this.$emit('emit-update-image', this.inputDecorator, this.value)

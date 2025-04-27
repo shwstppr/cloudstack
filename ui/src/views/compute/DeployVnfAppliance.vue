@@ -36,7 +36,7 @@
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
                       <zone-block-radio-group-select
                         :items="zones"
-                        :selectedValue="form.item"
+                        :selectedValue="form.zoneid"
                         @change="onSelectZoneId" />
                     </a-form-item>
                   </div>

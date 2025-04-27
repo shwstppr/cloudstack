@@ -47,7 +47,7 @@
                     <a-form-item :label="$t('label.zoneid')" name="zoneid" ref="zoneid">
                       <zone-block-radio-group-select
                         :items="zones"
-                        :selectedValue="form.item"
+                        :selectedValue="form.zoneid"
                         @change="onSelectZoneId" />
                     </a-form-item>
                     <a-form-item
@@ -149,7 +149,7 @@
                       @change-iso-hypervisor="value => hypervisor = value" />
                     <a-card
                       v-else
-                      :tabList="tabList"
+                      :tabList="imageTabList"
                       :activeTabKey="form.imagetype"
                       @tabChange="key => changeImageType(key)">
                       <div v-if="form.imagetype === 'templateid'">
@@ -1333,6 +1333,9 @@ export default {
     templateConfigurationExists () {
       return this.vm.templateid && this.templateConfigurations && this.templateConfigurations.length > 0
     },
+    queryZoneId () {
+      return this.$route.query.zoneid || null
+    },
     templateId () {
       return this.$route.query.templateid || null
     },
@@ -1342,20 +1345,23 @@ export default {
     networkId () {
       return this.$route.query.networkid || null
     },
-    tabList () {
-      let tabList = []
+    queryGuestOsCategoryId () {
+      return this.$route.query.oscategoryid || null
+    },
+    imageTabList () {
+      let imageTabList = []
       if (this.templateId) {
-        tabList = [{
+        imageTabList = [{
           key: 'templateid',
           tab: this.$t('label.templates')
         }]
       } else if (this.isoId) {
-        tabList = [{
+        imageTabList = [{
           key: 'isoid',
           tab: this.$t('label.isos')
         }]
       } else {
-        tabList = [{
+        imageTabList = [{
           key: 'templateid',
           tab: this.$t('label.templates')
         },
@@ -1365,7 +1371,7 @@ export default {
         }]
       }
 
-      return tabList
+      return imageTabList
     },
     userdataTabList () {
       let tabList = []
@@ -1696,11 +1702,20 @@ export default {
         let zones = []
         let apiName = ''
         const params = {}
-        if (this.templateId) {
+        if (this.queryZoneId) {
+          zones.push(this.queryZoneId)
+          if (this.templateId) {
+            this.dataPreFill.templateid = this.templateId
+          } else if (this.isoId) {
+            this.dataPreFill.isoid = this.isoId
+          }
+          return resolve(zones)
+        } else if (this.templateId) {
           apiName = 'listTemplates'
           params.listall = true
           params.templatefilter = this.isNormalAndDomainUser ? 'executable' : 'all'
           params.id = this.templateId
+          this.dataPreFill.templateid = this.templateId
         } else if (this.isoId) {
           params.listall = true
           params.isofilter = this.isNormalAndDomainUser ? 'executable' : 'all'
@@ -2029,7 +2044,7 @@ export default {
               name: this.$t('label.all')
             })
           }
-          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
+          this.form.guestoscategoryid = this.queryGuestOsCategoryId || this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
           }
@@ -2638,7 +2653,9 @@ export default {
       this.formModel = toRaw(this.form)
     },
     onSelectZoneId (value) {
-      this.dataPreFill = {}
+      if (this.dataPreFill.zoneid !== value) {
+        this.dataPreFill = {}
+      }
       this.zoneId = value
       this.podId = null
       this.clusterId = null
