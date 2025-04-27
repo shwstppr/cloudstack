@@ -74,7 +74,7 @@
                       :imageTypeSelectionAllowed="false"
                       :guestOsCategories="options.guestOsCategories"
                       :guestOsCategoriesLoading="loading.guestOsCategories"
-                      :selectedGuestOsCategoryId="selectedGuestCategoryId"
+                      :selectedGuestOsCategoryId="form.guestoscategoryid"
                       :imageItems="options.templates"
                       :imagesLoading="loading.templates"
                       :diskSizeSelectionDeployAsIsMessageVisible="template && template.deployasis"
@@ -1790,7 +1790,7 @@ export default {
     },
     getImageFilters (params, forReset) {
       if (this.isModernImageSelection) {
-        if (this.selectedGuestCategoryId === '0') {
+        if (this.form.guestoscategoryid === '0') {
           return ['self']
         }
         if (this.isModernImageSelection && params && !forReset) {
@@ -2461,7 +2461,7 @@ export default {
               name: this.$t('label.all')
             })
           }
-          this.selectedGuestCategoryId = this.options.guestOsCategories[0].id
+          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
           }
@@ -2946,8 +2946,8 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
-      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
-        args.oscategoryid = this.selectedGuestCategoryId
+      if (this.isModernImageSelection && this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
       }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
@@ -3053,7 +3053,7 @@ export default {
       this.fetchZoneOptions()
     },
     onSelectGuestOsCategory (value) {
-      this.selectedGuestCategoryId = value
+      this.form.guestoscategoryid = value
       this.fetchAllTemplates(this.imageSearchFilters)
     },
     handleSearchFilter (name, options) {
@@ -3312,7 +3312,7 @@ export default {
   .vm-info-card {
     .ant-card-body {
       min-height: 250px;
-      max-height: calc(100vh - 150px);
+      max-height: calc(100vh - 250px);
       overflow-y: auto;
       scroll-behavior: smooth;
     }

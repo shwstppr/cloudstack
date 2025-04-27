@@ -130,7 +130,7 @@
                       :selectedImageType="form.imagetype"
                       :guestOsCategories="options.guestOsCategories"
                       :guestOsCategoriesLoading="loading.guestOsCategories"
-                      :selectedGuestOsCategoryId="selectedGuestCategoryId"
+                      :selectedGuestOsCategoryId="form.guestoscategoryid"
                       :imageItems="form.imagetype === 'isoid' ? options.isos : options.templates"
                       :imagesLoading="form.imagetype === 'isoid' ? loading.isos : loading.templates"
                       :diskSizeSelectionAllowed="form.imagetype !== 'isoid'"
@@ -1638,7 +1638,7 @@ export default {
     },
     getImageFilters (params, forReset) {
       if (this.isModernImageSelection) {
-        if (this.selectedGuestCategoryId === '0') {
+        if (this.form.guestoscategoryid === '0') {
           return ['self']
         }
         if (this.isModernImageSelection && params && !forReset) {
@@ -2029,7 +2029,7 @@ export default {
               name: this.$t('label.all')
             })
           }
-          this.selectedGuestCategoryId = this.options.guestOsCategories[0].id
+          this.form.guestoscategoryid = this.options.guestOsCategories[0].id
           if (skipFetchImages) {
             return
           }
@@ -2478,8 +2478,8 @@ export default {
     },
     fetchTemplates (templateFilter, params) {
       const args = Object.assign({}, params)
-      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
-        args.oscategoryid = this.selectedGuestCategoryId
+      if (this.isModernImageSelection && this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
       }
       if (args.keyword || args.category !== templateFilter) {
         args.page = 1
@@ -2513,8 +2513,8 @@ export default {
     },
     fetchIsos (isoFilter, params) {
       const args = Object.assign({}, params)
-      if (this.isModernImageSelection && this.selectedGuestCategoryId) {
-        args.oscategoryid = this.selectedGuestCategoryId
+      if (this.isModernImageSelection && this.form.guestoscategoryid) {
+        args.oscategoryid = this.form.guestoscategoryid
       }
       if (args.keyword || args.category !== isoFilter) {
         args.page = 1
@@ -2654,7 +2654,7 @@ export default {
       this.form.clusterid = undefined
       this.form.podid = undefined
       this.form.hostid = undefined
-      this.selectedGuestCategoryId = undefined
+      this.form.guestoscategoryid = undefined
       this.form.templateid = undefined
       this.form.isoid = undefined
       this.resetTemplatesList()
@@ -2700,7 +2700,7 @@ export default {
       this.changeArchitecture(resourceArch, this.tabKey === 'templateid')
     },
     onSelectGuestOsCategory (value) {
-      this.selectedGuestCategoryId = value
+      this.form.guestoscategoryid = value
       this.fetchImages(this.imageSearchFilters)
     },
     handleSearchFilter (name, options) {
