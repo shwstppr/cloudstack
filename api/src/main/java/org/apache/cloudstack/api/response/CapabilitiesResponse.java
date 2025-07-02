@@ -140,6 +140,10 @@ public class CapabilitiesResponse extends BaseResponse {
     @Param(description = "true if instance lease feature is enabled", since = "4.21.0")
     private Boolean instanceLeaseEnabled;
 
+    @SerializedName(ApiConstants.LOGS_WEB_SERVER_ENABLED)
+    @Param(description = "true if Logs Web Server plugin is enabled, false otherwise", since = "4.21.0")
+    private boolean logsWebServerEnabled;
+
     public void setSecurityGroupsEnabled(boolean securityGroupsEnabled) {
         this.securityGroupsEnabled = securityGroupsEnabled;
     }
@@ -254,5 +258,9 @@ public class CapabilitiesResponse extends BaseResponse {
 
     public void setInstanceLeaseEnabled(Boolean instanceLeaseEnabled) {
         this.instanceLeaseEnabled = instanceLeaseEnabled;
+    }
+
+    public void setLogsWebServerEnabled(boolean logsWebServerEnabled) {
+        this.logsWebServerEnabled = logsWebServerEnabled;
     }
 }
