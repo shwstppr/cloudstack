@@ -26,7 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 
-public class FilteredLogTailerListener  extends TailerListenerAdapter {
+public class FilteredLogTailerListener extends TailerListenerAdapter {
     private final List<String> filters;
     private final Channel channel;
     private final boolean isFilterEmpty;

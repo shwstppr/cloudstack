@@ -49,10 +49,12 @@ public class LogsWebSocketBroadcastHandler extends ChannelInboundHandlerAdapter 
     private String route;
     private Tailer tailer;
     private ExecutorService tailerExecutor;
+    private final LogsWebSession logsWebSession;
     private final LogsWebSocketServerHelper serverHelper;
-    private LogsWebSession logsWebSession;
 
-    public LogsWebSocketBroadcastHandler(final LogsWebSocketServerHelper serverHelper) {
+    public LogsWebSocketBroadcastHandler(final LogsWebSession logsWebSession,
+                 final LogsWebSocketServerHelper serverHelper) {
+        this.logsWebSession = logsWebSession;
         this.serverHelper = serverHelper;
     }
 
@@ -109,12 +111,6 @@ public class LogsWebSocketBroadcastHandler extends ChannelInboundHandlerAdapter 
 
     private void startLogsBroadcasting(final ChannelHandlerContext ctx) {
         route = ctx.channel().attr(LogsWebSocketRoutingHandler.LOGGER_ROUTE_ATTR).get();
-        logsWebSession = serverHelper.getSession(route);
-        if (logsWebSession == null) {
-            LOGGER.warn("Unauthorized session for route: {}", route);
-            ctx.close();
-            return;
-        }
         File logFile = new File(serverHelper.getLogFile());
         if (!logFile.exists() || !logFile.canRead()) {
             ctx.channel().writeAndFlush(new TextWebSocketFrame("Log file not available or cannot be read."));

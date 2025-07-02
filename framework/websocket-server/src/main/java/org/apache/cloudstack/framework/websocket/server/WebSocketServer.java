@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.cloudstack.logsws.server;
+package org.apache.cloudstack.framework.websocket.server;
 
 import java.util.concurrent.TimeUnit;
 
@@ -35,27 +35,22 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 
-public class LogsWebSocketServer {
+public class WebSocketServer {
 
-    protected static Logger LOGGER = LogManager.getLogger(LogsWebSocketServer.class);
+    protected static Logger LOGGER = LogManager.getLogger(WebSocketServer.class);
 
     private final int port;
-    private final String path;
     private final int idleTimeoutSeconds;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
     private boolean running;
-    private final LogsWebSocketRouteManager routeManager;
-    private final LogsWebSocketServerHelper serverHelper;
+    private final WebSocketServerHelper serverHelper;
 
-    public LogsWebSocketServer(final int port, final String path, final int idleTimeoutSeconds,
-                               final LogsWebSocketServerHelper serverHelper) {
+    public WebSocketServer(final int port, final int idleTimeoutSeconds, final WebSocketServerHelper serverHelper) {
         this.port = port;
-        this.path = path;
         this.idleTimeoutSeconds = idleTimeoutSeconds;
         this.serverHelper = serverHelper;
-        this.routeManager = new LogsWebSocketRouteManager();
     }
 
     public void start() throws InterruptedException {
@@ -70,15 +65,15 @@ public class LogsWebSocketServer {
                         ChannelPipeline pipeline = ch.pipeline();
                         pipeline.addLast(new HttpServerCodec());
                         pipeline.addLast(new HttpObjectAggregator(65536));
-                        pipeline.addLast(new LogsWebSocketRoutingHandler(routeManager, serverHelper));
-                        pipeline.addLast(new WebSocketServerProtocolHandler(path, null, true));
+                        pipeline.addLast(new WebSocketServerRoutingHandler(serverHelper));
+                        pipeline.addLast(new WebSocketServerProtocolHandler(null, null, true));
                         pipeline.addLast("idleStateHandler", new IdleStateHandler(0, idleTimeoutSeconds, 0, TimeUnit.SECONDS));
                     }
                 });
 
         // Bind and store the server channel.
         serverChannel = b.bind(port).sync().channel();
-        LOGGER.debug("Logger WebSocket server started on port {}", port);
+        LOGGER.debug("WebSocket server started on port {}", port);
         // Note: We do not block here with serverChannel.closeFuture().sync()
         running = true;
     }
@@ -112,7 +107,7 @@ public class LogsWebSocketServer {
                 workerGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
             }
         }
-        LOGGER.debug("Logger WebSocket server stopped");
+        LOGGER.debug("WebSocket server stopped");
         running = false;
     }
 

@@ -30,8 +30,10 @@ import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
 import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.framework.websocket.server.manager.WebSocketServerManager;
 import org.apache.cloudstack.logsws.dao.LogsWebSessionDao;
-import org.apache.cloudstack.logsws.server.LogsWebSocketServer;
+import org.apache.cloudstack.logsws.server.LogsWebSocketRouteManager;
+import org.apache.cloudstack.logsws.server.LogsWebSocketRoutingHandler;
 import org.apache.cloudstack.logsws.server.LogsWebSocketServerHelper;
 import org.apache.cloudstack.logsws.vo.LogsWebSessionVO;
 import org.apache.cloudstack.managed.context.ManagedContextRunnable;
@@ -49,16 +51,16 @@ import com.cloud.utils.db.GlobalLock;
 public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSessionManager, LogsWebSocketServerHelper {
 
     @Inject
+    WebSocketServerManager webSocketServerManager;
+    @Inject
     LogsWebSessionDao logsWebSessionDao;
     @Inject
     ManagementServerHostDao managementServerHostDao;
 
-    private int serverPort;
     private String serverPath;
-    private int serverIdleTimeoutSeconds;
-    private LogsWebSocketServer loggerWebSocketServer;
     private ScheduledExecutorService staleLogsWebSessionCleanupExecutor;
     private Long managementServerId = null;
+    private LogsWebSocketRouteManager logsWebSocketRouteManager;
 
     protected Long getManagementServerId() {
         if (managementServerId != null) {
@@ -92,10 +94,10 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
         if (!LogsWebServerEnabled.value()) {
             return true;
         }
-        serverPort = LogsWebServerPort.valueIn(getManagementServerId());
         serverPath = LogsWebServerPath.valueIn(getManagementServerId());
-        serverIdleTimeoutSeconds = LogsWebServerSessionIdleTimeout.valueIn(getManagementServerId());
-        startWebSocketServer();
+        logsWebSocketRouteManager = new LogsWebSocketRouteManager();
+        webSocketServerManager.registerRoute(serverPath, new LogsWebSocketRoutingHandler(logsWebSocketRouteManager,
+                this));
         long staleLogsWebSessionCleanupInterval = LogsWebServerSessionStaleCleanupInterval.value();
         staleLogsWebSessionCleanupExecutor.scheduleWithFixedDelay(new StaleLogsWebSessionCleanupWorker(),
                 staleLogsWebSessionCleanupInterval, staleLogsWebSessionCleanupInterval, TimeUnit.SECONDS);
@@ -104,38 +106,8 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
 
     @Override
     public boolean stop() {
-        stopWebSocketServer(1);
         logsWebSessionDao.markAllActiveAsDisconnected();
         return true;
-    }
-
-    @Override
-    public void startWebSocketServer() {
-        if (loggerWebSocketServer != null && loggerWebSocketServer.isRunning()) {
-            logger.info("Logger Web Socket Server is already running!");
-            return;
-        }
-        loggerWebSocketServer = new LogsWebSocketServer(serverPort, serverPath, serverIdleTimeoutSeconds,
-                this);
-        try {
-            loggerWebSocketServer.start();
-        } catch (InterruptedException e) {
-            logger.error("Failed to start Logger Web Socket Server", e);
-        }
-    }
-
-    protected void stopWebSocketServer(Integer maxWaitSeconds) {
-        if (loggerWebSocketServer == null || !loggerWebSocketServer.isRunning()) {
-            logger.info("Logger Web Socket Server is already stopped!");
-            return;
-        }
-        loggerWebSocketServer.stop(maxWaitSeconds == null ? 5 : maxWaitSeconds);
-        loggerWebSocketServer = null;
-    }
-
-    @Override
-    public void stopWebSocketServer() {
-        stopWebSocketServer(null);
     }
 
     private String getLogsWebSessionWebSocketPathUsingVO(long msId, LogsWebSession session) {
@@ -161,12 +133,10 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     public ConfigKey<?>[] getConfigKeys() {
         return new ConfigKey[]{
                 LogsWebServerEnabled,
-                LogsWebServerPort,
                 LogsWebServerPath,
                 LogsWebServerConcurrentSessions,
                 LogsWebServerLogFile,
                 LogsWebServerSessionTailExistingLines,
-                LogsWebServerSessionIdleTimeout,
                 LogsWebServerSessionStaleCleanupInterval
         };
     }
@@ -205,6 +175,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
             logsWebSessionVO.setConnectedTime(new Date());
             logsWebSessionVO.setClientAddress(clientAddress);
         } else {
+            logsWebSocketRouteManager.removeRoute(logsWebSessionVO.getUuid());
             if (logsWebSessionVO.getConnections() == 0) {
                 return;
             }
@@ -224,7 +195,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
                 managementServerHostDao.listBy(ManagementServerHost.State.Up);
         for (ManagementServerHostVO managementServerHostVO : activeMsList) {
             LogsWebSessionWebSocket logsWebSessionWebSocket = new LogsWebSessionWebSocket(managementServerHostVO,
-                    LogsWebServerPort.valueIn(managementServerHostVO.getId()),
+                    webSocketServerManager.getServerPort(),
                     getLogsWebSessionWebSocketPathUsingVO(managementServerHostVO.getId(), logsWebSession));
             webSockets.add(logsWebSessionWebSocket);
         }

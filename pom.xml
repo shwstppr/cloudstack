@@ -274,6 +274,7 @@
         <module>client</module>
         <module>services</module>
         <module>quickcloud</module>
+        <module>framework/websocket-server</module>
     </modules>
 
     <dependencyManagement>

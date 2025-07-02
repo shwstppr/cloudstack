@@ -96,11 +96,22 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
             req = newReq;
         }
         LOGGER.debug("Rewritten URI: {}", req.uri());
+        ctx.pipeline().addLast(new LogsWebSocketBroadcastHandler(session, serverHelper));
         ctx.fireChannelRead(req);
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        String route = ctx.channel().attr(LogsWebSocketRoutingHandler.LOGGER_ROUTE_ATTR).get();
+        if (route != null) {
+            LOGGER.debug("Channel is being closed for route: {}, context: {}", route, ctx.hashCode());
+            routeManager.removeRoute(route);
+        }
+        super.channelInactive(ctx);
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         LOGGER.error("Exception in LoggerWebSocketRoutingHandler", cause);
         ctx.close();
     }
