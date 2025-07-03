@@ -28,6 +28,7 @@ import { toLocalDate, toLocaleDate } from '@/utils/date'
 export const pollJobPlugin = {
   install (app) {
     function canViewLogs (logIds) {
+      console.log('canViewLogs', store.getters.features.logswebserverenabled, 'createLogsWebSession' in store.getters.apis, logIds, logIds && logIds.length > 0)
       return store.getters.features.logswebserverenabled &&
         'createLogsWebSession' in store.getters.apis &&
         logIds && logIds.length > 0
@@ -112,7 +113,7 @@ export const pollJobPlugin = {
 
       const allLogIds = []
       if (logIds) {
-        allLogIds.concat(logIds)
+        allLogIds.push(...logIds)
       }
 
       options.originalPage = options.originalPage || this.$router.currentRoute.value.path
@@ -120,8 +121,9 @@ export const pollJobPlugin = {
         const result = json.queryasyncjobresultresponse
         eventBus.emit('update-job-details', { jobId, resourceId })
         if (result.logids) {
-          allLogIds.concat(result.logids)
+          allLogIds.push(...result.logids)
         }
+        console.log('pollJobPlugin', result.logids, allLogIds)
         if (result.jobstatus === 1) {
           var content = successMessage
           if (successMessage === 'Success' && action && action.label) {

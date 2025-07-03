@@ -32,7 +32,7 @@ public class LogsWebSessionWebSocketResponse extends BaseResponse {
     @Param(description = "The name of the management for this websocket")
     private String managementServerName;
 
-    @SerializedName("host")
+    @SerializedName(ApiConstants.HOST)
     @Param(description = "the websocket host")
     private String host;
 

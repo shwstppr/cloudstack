@@ -17,8 +17,14 @@
 
 package org.apache.cloudstack.logsws;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +56,7 @@ import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
 import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.utils.net.NetUtils;
 
 public class LogsWebSessionApiServiceImpl implements LogsWebSessionApiService {
 
@@ -116,6 +123,24 @@ public class LogsWebSessionApiServiceImpl implements LogsWebSessionApiService {
         return logsWebSessionDao.remove(id);
     }
 
+    protected String getRealIp4Address() {
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (iface.isLoopback() || iface.isPointToPoint() || !iface.isUp()) continue;
+
+                for (InterfaceAddress addr : iface.getInterfaceAddresses()) {
+                    InetAddress inetAddr = addr.getAddress();
+                    if (inetAddr instanceof Inet4Address && !inetAddr.isLoopbackAddress()) {
+                        return inetAddr.getHostAddress();
+                    }
+                }
+            }
+        } catch (SocketException ignored) {}
+        return null;
+    }
+
     protected Set<LogsWebSessionWebSocketResponse> getLogsWebSessionWebSocketResponses(
             final LogsWebSessionVO logsWebSessionVO) {
         Set<LogsWebSessionWebSocketResponse> responses = new HashSet<>();
@@ -124,7 +149,14 @@ public class LogsWebSessionApiServiceImpl implements LogsWebSessionApiService {
             LogsWebSessionWebSocketResponse webSocketResponse = new LogsWebSessionWebSocketResponse();
             webSocketResponse.setManagementServerId(socket.getManagementServerHost().getUuid());
             webSocketResponse.setManagementServerName(socket.getManagementServerHost().getName());
-            webSocketResponse.setHost(socket.getManagementServerHost().getServiceIP());
+            String serviceIp = socket.getManagementServerHost().getServiceIP();
+            if (webSockets.size() == 1 && NetUtils.isLocalAddress(serviceIp)) {
+                String realIp = getRealIp4Address();
+                if (realIp != null) {
+                    serviceIp = realIp;
+                }
+            }
+            webSocketResponse.setHost(serviceIp);
             webSocketResponse.setPort(socket.getPort());
             webSocketResponse.setPath(socket.getPath());
             responses.add(webSocketResponse);

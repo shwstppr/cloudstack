@@ -95,6 +95,7 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
         serverPort = WebSocketServerPort.value();
         serverSessionIdleTimeoutSeconds = WebSocketServerSessionIdleTimeout.value();
         routeHandlers = new HashMap<>();
+        startWebSocketServer();
         return true;
     }
 
