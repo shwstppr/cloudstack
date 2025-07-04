@@ -17,17 +17,27 @@
 
 package org.apache.cloudstack.logsws.server;
 
+import java.nio.charset.StandardCharsets;
+
 import org.apache.cloudstack.logsws.LogsWebSession;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.util.AttributeKey;
 
+@ChannelHandler.Sharable
 public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
     protected static Logger LOGGER = LogManager.getLogger(LogsWebSocketRoutingHandler.class);
     public static final AttributeKey<String> LOGGER_ROUTE_ATTR = AttributeKey.valueOf("loggerRoute");
@@ -38,6 +48,14 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
                                        LogsWebSocketServerHelper serverHelper) {
         this.routeManager = routeManager;
         this.serverHelper = serverHelper;
+    }
+
+    protected void closeChannelWithErrorResponse(ChannelHandlerContext ctx, FullHttpRequest req, String message) {
+        LOGGER.warn("Error with request: {}, closing connection", message);
+        FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), HttpResponseStatus.BAD_REQUEST,
+                Unpooled.copiedBuffer(message, StandardCharsets.UTF_8));
+        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
     @Override
@@ -52,20 +70,20 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
         final String serverPath = serverHelper.getServerPath();
         final String expectedPathPrefix = serverPath + "/";
         if (!uri.startsWith(expectedPathPrefix)) {
-            ctx.close();
+            closeChannelWithErrorResponse(ctx, req,
+                    String.format("Invalid request path in URI: %s. Expected path: %s", uri, expectedPathPrefix));
             return;
         }
         // Extract the route portion.
         String route = uri.substring(expectedPathPrefix.length());
         if (route.isEmpty()) {
-            ctx.close();
+            closeChannelWithErrorResponse(ctx, req, String.format("Empty route in request URI: %s", uri));
             return;
         }
-
         LogsWebSession session = serverHelper.getSession(route);
         if (session == null) {
-            LOGGER.warn("Unauthorized connection attempt for route: {}", route);
-            ctx.close();
+            closeChannelWithErrorResponse(ctx, req,
+                    String.format("Unauthorized connection attempt for route: %s", route));
             return;
         }
         // Retrieve or add the route.

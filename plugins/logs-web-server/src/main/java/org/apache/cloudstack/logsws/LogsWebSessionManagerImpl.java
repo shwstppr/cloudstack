@@ -58,6 +58,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     ManagementServerHostDao managementServerHostDao;
 
     private String serverPath;
+    private int idleTimeoutSeconds;
     private ScheduledExecutorService staleLogsWebSessionCleanupExecutor;
     private Long managementServerId = null;
     private LogsWebSocketRouteManager logsWebSocketRouteManager;
@@ -71,6 +72,13 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
             }
         }
         return managementServerId;
+    }
+
+    protected void registerLogsWebSocketServerRoute() {
+        logsWebSocketRouteManager = new LogsWebSocketRouteManager();
+        logger.info("Registering Logs WebSocket server at path: {}", serverPath);
+        webSocketServerManager.registerRoute(serverPath, new LogsWebSocketRoutingHandler(logsWebSocketRouteManager,
+                this), idleTimeoutSeconds);
     }
 
     @Override
@@ -95,9 +103,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
             return true;
         }
         serverPath = LogsWebServerPath.valueIn(getManagementServerId());
-        logsWebSocketRouteManager = new LogsWebSocketRouteManager();
-        webSocketServerManager.registerRoute(serverPath, new LogsWebSocketRoutingHandler(logsWebSocketRouteManager,
-                this));
+        idleTimeoutSeconds = LogsWebServerSessionIdleTimeout.value();
         long staleLogsWebSessionCleanupInterval = LogsWebServerSessionStaleCleanupInterval.value();
         staleLogsWebSessionCleanupExecutor.scheduleWithFixedDelay(new StaleLogsWebSessionCleanupWorker(),
                 staleLogsWebSessionCleanupInterval, staleLogsWebSessionCleanupInterval, TimeUnit.SECONDS);
@@ -107,6 +113,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     @Override
     public boolean stop() {
         logsWebSessionDao.markAllActiveAsDisconnected();
+        webSocketServerManager.unregisterRoute(serverPath);
         return true;
     }
 
@@ -134,6 +141,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
         return new ConfigKey[]{
                 LogsWebServerEnabled,
                 LogsWebServerPath,
+                LogsWebServerSessionIdleTimeout,
                 LogsWebServerConcurrentSessions,
                 LogsWebServerLogFile,
                 LogsWebServerSessionTailExistingLines,

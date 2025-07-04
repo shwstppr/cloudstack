@@ -22,5 +22,6 @@ import java.util.Map;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public interface WebSocketServerHelper {
-    Map<String, ChannelInboundHandlerAdapter> getRouteHandlers();
+    ChannelInboundHandlerAdapter getRouteHandler(String route);
+    int getRouteIdleTimeout(String route);
 }

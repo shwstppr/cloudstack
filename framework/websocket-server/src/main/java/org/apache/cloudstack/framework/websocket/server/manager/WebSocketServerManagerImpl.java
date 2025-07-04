@@ -32,9 +32,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 public class WebSocketServerManagerImpl extends ManagerBase implements WebSocketServerManager, WebSocketServerHelper, Configurable {
 
     private int serverPort;
-    private int serverSessionIdleTimeoutSeconds;
     private WebSocketServer webSocketServer;
     private Map<String, ChannelInboundHandlerAdapter> routeHandlers;
+    private Map<String, Integer> routeIdleTimeouts;
 
     @Override
     public void startWebSocketServer() {
@@ -42,7 +42,7 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
             logger.info("WebSocket Server is already running!");
             return;
         }
-        webSocketServer = new WebSocketServer(serverPort, serverSessionIdleTimeoutSeconds, this);
+        webSocketServer = new WebSocketServer(serverPort, this);
         try {
             webSocketServer.start();
         } catch (InterruptedException e) {
@@ -75,8 +75,9 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
     }
 
     @Override
-    public void registerRoute(String route, ChannelInboundHandlerAdapter handler) {
+    public void registerRoute(String route, ChannelInboundHandlerAdapter handler, int idleTimeoutSeconds) {
         routeHandlers.put(route, handler);
+        routeIdleTimeouts.put(route, idleTimeoutSeconds);
     }
 
     @Override
@@ -85,16 +86,21 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
     }
 
     @Override
-    public Map<String, ChannelInboundHandlerAdapter> getRouteHandlers() {
-        return routeHandlers;
+    public ChannelInboundHandlerAdapter getRouteHandler(String route) {
+        return routeHandlers.get(route);
+    }
+
+    @Override
+    public int getRouteIdleTimeout(String route) {
+        return routeIdleTimeouts.getOrDefault(route, SERVER_SESSION_IDLE_TIMEOUT_SECONDS);
     }
 
     @Override
     public boolean start() {
         super.start();
         serverPort = WebSocketServerPort.value();
-        serverSessionIdleTimeoutSeconds = WebSocketServerSessionIdleTimeout.value();
         routeHandlers = new HashMap<>();
+        routeIdleTimeouts = new HashMap<>();
         startWebSocketServer();
         return true;
     }
@@ -113,8 +119,7 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
     @Override
     public ConfigKey<?>[] getConfigKeys() {
         return new ConfigKey[] {
-                WebSocketServerPort,
-                WebSocketServerSessionIdleTimeout
+                WebSocketServerPort
         };
     }
 }

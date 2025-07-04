@@ -23,16 +23,11 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public interface WebSocketServerManager {
     int WS_PORT = 8822;
+    int SERVER_SESSION_IDLE_TIMEOUT_SECONDS = 60;
 
     ConfigKey<Integer> WebSocketServerPort = new ConfigKey<>("Advanced", Integer.class,
             "websocket.server.port", String.valueOf(WS_PORT),
             "The port to be used for WebSocket Server",
-            false,
-            ConfigKey.Scope.Global);
-
-    ConfigKey<Integer> WebSocketServerSessionIdleTimeout = new ConfigKey<>("Advanced", Integer.class,
-            "websocket.server.session.idle.timeout", "60",
-            "Time(in seconds) after which a WebSocket server session will be automatically disconnected if in idle state",
             false,
             ConfigKey.Scope.Global);
 
@@ -42,7 +37,7 @@ public interface WebSocketServerManager {
 
     int getServerPort();
 
-    void registerRoute(String route, ChannelInboundHandlerAdapter handler);
+    void registerRoute(String route, ChannelInboundHandlerAdapter handler, int idleTimeoutSeconds);
 
     void unregisterRoute(String route);
 }

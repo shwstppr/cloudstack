@@ -164,7 +164,7 @@ public class LogsWebSocketBroadcastHandler extends ChannelInboundHandlerAdapter 
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         // Discard any messages received from the client.
         ReferenceCountUtil.release(msg);
     }

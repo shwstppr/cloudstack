@@ -32,24 +32,20 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import io.netty.handler.timeout.IdleStateHandler;
 
 public class WebSocketServer {
 
     protected static Logger LOGGER = LogManager.getLogger(WebSocketServer.class);
 
     private final int port;
-    private final int idleTimeoutSeconds;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
     private boolean running;
     private final WebSocketServerHelper serverHelper;
 
-    public WebSocketServer(final int port, final int idleTimeoutSeconds, final WebSocketServerHelper serverHelper) {
+    public WebSocketServer(final int port, final WebSocketServerHelper serverHelper) {
         this.port = port;
-        this.idleTimeoutSeconds = idleTimeoutSeconds;
         this.serverHelper = serverHelper;
     }
 
@@ -66,8 +62,6 @@ public class WebSocketServer {
                         pipeline.addLast(new HttpServerCodec());
                         pipeline.addLast(new HttpObjectAggregator(65536));
                         pipeline.addLast(new WebSocketServerRoutingHandler(serverHelper));
-                        pipeline.addLast(new WebSocketServerProtocolHandler(null, null, true));
-                        pipeline.addLast("idleStateHandler", new IdleStateHandler(0, idleTimeoutSeconds, 0, TimeUnit.SECONDS));
                     }
                 });
 
