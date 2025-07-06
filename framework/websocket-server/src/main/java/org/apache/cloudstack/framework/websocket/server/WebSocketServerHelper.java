@@ -17,8 +17,6 @@
 
 package org.apache.cloudstack.framework.websocket.server;
 
-import java.util.Map;
-
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public interface WebSocketServerHelper {

@@ -107,6 +107,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
         long staleLogsWebSessionCleanupInterval = LogsWebServerSessionStaleCleanupInterval.value();
         staleLogsWebSessionCleanupExecutor.scheduleWithFixedDelay(new StaleLogsWebSessionCleanupWorker(),
                 staleLogsWebSessionCleanupInterval, staleLogsWebSessionCleanupInterval, TimeUnit.SECONDS);
+        registerLogsWebSocketServerRoute();
         return true;
     }
 
