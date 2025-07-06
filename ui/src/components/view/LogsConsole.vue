@@ -28,7 +28,7 @@
         @close="closeAction"
       >
       <template #extra>
-        <a-button type="primary" @click="onDownload" v-if="tabsValid">{{ $t('label.download') }}</a-button>
+        <a-button type="primary" @click="onDownload" v-if="webSocketsValid">{{ $t('label.download') }}</a-button>
       </template>
         <!-- Draggable handle at the top of the drawer content -->
         <div
@@ -37,16 +37,63 @@
         ></div>
         <!-- Container that holds both the scrollable content and the fixed footer -->
         <div class="drawer-container">
-          <div class="tabs-wrapper">
-            <a-tabs v-model:activeKey="activeTabKey">
-              <a-tab-pane
-                v-for="tab in tabs"
-                :key="tab.key"
-                :tab="tab.title"
-              >
-              <div class="content" v-html="tab.webSocketData"></div>
-              </a-tab-pane>
-            </a-tabs>
+          <div class="header">
+            <a-row :gutter="[16, 8]" style="width: 100%; margin-bottom: 16px">
+              <a-col :xs="24" :sm="16">
+                <tooltip-label :title="$t('label.source')" :tooltip="'Sources'" />
+                <a-select
+                  v-model:value="selectedWebSockets"
+                  mode="multiple"
+                  showSearch
+                  optionFilterProp="label"
+                  :filterOption="(input, option) => {
+                    return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                  }"
+                  :loading="webSocketsLoading"
+                  :placeholder="'Sources'"
+                  @change="handleSourceChange"
+                  style="width: 100%">
+                  <a-select-option
+                    v-for="opt in webSockets"
+                    :key="opt.id"
+                    :label="opt.name">
+                    {{ opt.name }}
+                  </a-select-option>
+                </a-select>
+              </a-col>
+
+              <a-col :xs="24" :sm="8">
+                <tooltip-label :title="'Log Type'" :tooltip="'Log severity level'" />
+                <a-select
+                  v-model:value="selectedLogType"
+                  :placeholder="'Log Type'"
+                  style="width: 100%">
+                  <a-select-option
+                    v-for="level in ['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']"
+                    :key="level"
+                    :value="level">
+                    {{ level }}
+                  </a-select-option>
+                </a-select>
+              </a-col>
+            </a-row>
+          </div>
+          <div class="content_wrapper">
+            <div
+              v-if="showRawLogs"
+              class="content"
+              v-html="webSocketData">
+            </div>
+            <a-table
+              v-else
+              :columns="logTableColumns"
+              :data-source="filteredLogs"
+              :rowKey="record => record.id"
+              :pagination="{ pageSize: 50 }"
+              size="small"
+              bordered
+              style="margin: 16px"
+            />
           </div>
           <div class="footer">
             <div class="footer-left" v-if="filtersAsString">{{ $t('message.showing.logs').replace('%x', filtersAsString) }}</div>
@@ -62,10 +109,15 @@
   </template>
 
 <script>
+import { h } from 'vue'
 import { api } from '@/api'
+import TooltipLabel from '@/components/widgets/TooltipLabel'
 
 export default {
   name: 'LogsConsole',
+  components: {
+    TooltipLabel
+  },
   props: {
     visible: {
       type: Boolean,
@@ -82,9 +134,56 @@ export default {
       dragging: false,
       startY: 0,
       startHeight: 0,
-      loading: false,
-      tabs: [],
-      activeTabKey: null
+      webSocketsLoading: false,
+      webSockets: null,
+      selectedWebSockets: undefined,
+      webSocketData: '',
+      selectedLogType: undefined,
+      dataSource: [],
+      logLeves: ['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'],
+      logTableColumns: [
+        {
+          title: 'Source',
+          dataIndex: 'sourceName',
+          key: 'sourceName',
+          width: 150
+        },
+        {
+          title: 'Timestamp',
+          dataIndex: 'timestamp',
+          key: 'timestamp',
+          width: 200
+        },
+        {
+          title: 'Level',
+          dataIndex: 'level',
+          key: 'level',
+          width: 100,
+          filters: (['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']).map(level => ({ text: level, value: level })),
+          onFilter: (value, record) => record.level === value,
+          customRender: ({ text }) => {
+            const levelColor = {
+              CRITICAL: 'red',
+              ERROR: 'red',
+              WARN: 'orange',
+              INFO: 'blue',
+              DEBUG: 'green',
+              TRACE: 'gray'
+            }
+            return h('span', {
+              style: {
+                color: levelColor[text] || 'black',
+                fontWeight: 'bold'
+              }
+            }, text || 'N/A')
+          }
+        },
+        {
+          title: 'Message',
+          dataIndex: 'message',
+          key: 'message'
+        }
+      ]
     }
   },
   watch: {
@@ -94,39 +193,37 @@ export default {
           this.openLogsWebSession(newItem)
           return
         }
-        this.disconnectWebSocketsAndClearTabs()
+        this.disconnectWebSocketsAndClearData()
       }
     }
   },
   computed: {
+    showRawLogs () {
+      return false
+    },
     filtersAsString () {
       if (!this.filters) {
         return null
       }
       return this.filters.join(', ')
     },
-    tabsValid () {
-      return this.tabs && this.tabs.length > 0
-    },
-    currentTab () {
-      if (!this.tabsValid || !this.activeTabKey) {
-        return null
-      }
-      return this.tabs.filter(x => x.key === this.activeTabKey)[0]
+    webSocketsValid () {
+      return this.webSockets && this.webSockets.length > 0
     },
     currentLogsErrorCount () {
-      var tab = this.currentTab
-      if (!tab) {
-        return 0
-      }
-      return tab.logsErrorCount
+      return 0
     },
     currentLogsWarningCount () {
-      const tab = this.currentTab
-      if (!tab) {
-        return 0
+      return 0
+    },
+    filteredLogs () {
+      if (!this.dataSource || this.dataSource.length === 0) {
+        return []
       }
-      return tab.logsWarningCount
+      return this.dataSource.filter(log => {
+        const sourceMatch = !this.selectedWebSockets || this.selectedWebSockets.length === 0 || this.selectedWebSockets.includes(log.sourceId)
+        return sourceMatch
+      })
     }
   },
   methods: {
@@ -157,90 +254,117 @@ export default {
       this.drawerHeight = Math.max(this.drawerHeight, window.innerHeight * 0.4)
     },
     closeAction () {
-      this.disconnectWebSocketsAndClearTabs()
+      this.disconnectWebSocketsAndClearData()
       this.$emit('close')
     },
-    disconnectWebSocketsAndClearTabs () {
+    disconnectWebSocketsAndClearData () {
       this.closeWebSockets()
-      if (!this.tabsValid) {
-        return
-      }
-      this.tabs = []
-      this.activeTabKey = null
+      this.webSockets = null
+      this.selectedWebSockets = undefined
+      this.dataSource = []
+      this.webSocketData = ''
+      this.webSocketsLoading = false
     },
     openLogsWebSession (filters) {
-      this.disconnectWebSocketsAndClearTabs()
+      this.webSocketsLoading = true
+      this.disconnectWebSocketsAndClearData()
       api('createLogsWebSession', { filters: filters.join() }).then(json => {
         var session = json?.createlogswebsessionresponse?.logswebsession
         if (session) {
-          this.prepareTabsAndOpenWebSockets(session.websocket)
+          this.prepareAndOpenWebSockets(session.websocket)
         }
       }).catch(error => {
         this.$notifyError(error)
       }).finally(() => {
-        this.loading = false
-        if (this.tabsValid) {
-          this.activeTabKey = this.tabs[0].key
-        }
+        this.webSocketsLoading = false
       })
     },
-    prepareTabsAndOpenWebSockets (webSocketsDetails) {
-      var wsTabs = []
+    handleSourceChange (value) {
+      console.log('Selected source:', value)
+    },
+    prepareAndOpenWebSockets (webSocketsDetails) {
+      var opts = []
       for (var webSocketDetails of webSocketsDetails) {
-        var tab = {
+        var opt = {
           key: webSocketDetails.managementserverid,
+          id: webSocketDetails.managementserverid,
+          name: webSocketDetails.managementservername,
           title: webSocketDetails.managementservername,
           webSocketUrl: 'ws://' + webSocketDetails.host + ':' + webSocketDetails.port + webSocketDetails.path,
           webSocket: null,
-          webSocketData: '',
           logsErrorCount: 0,
           logsWarningCount: 0
         }
-        wsTabs.push(tab)
+        opts.push(opt)
       }
-      this.tabs = wsTabs.sort((a, b) => a.title.localeCompare(b.title))
+      this.webSockets = opts.sort((a, b) => a.title.localeCompare(b.title))
+      this.selectedWebSockets = this.webSockets.map(opt => opt.id)
+      console.log('WebSockets prepared:', this.webSockets)
       this.openWebSockets()
     },
     openWebSockets () {
       this.closeWebSockets()
-      if (!this.tabsValid) {
+      if (!this.webSocketsValid) {
         return
       }
-      for (const tab of this.tabs) {
-        tab.webSocket = new WebSocket(tab.webSocketUrl)
+      for (const opt of this.webSockets) {
+        opt.webSocket = new WebSocket(opt.webSocketUrl)
 
-        tab.webSocket.addEventListener('message', (event) => {
-          this.appendWebSocketData(tab, this.formatLogAndUpdateData(tab, event.data))
+        opt.webSocket.addEventListener('message', (event) => {
+          this.appendWebSocketData(opt, event.data)
         })
 
-        tab.webSocket.addEventListener('open', () => {
-          this.appendWebSocketData(tab, '<span style="color: green; font-style: italic">Connection established.</span>')
+        opt.webSocket.addEventListener('open', () => {
+          this.appendWebSocketData(opt, '<span style="color: green; font-style: italic">Connection established.</span>')
         })
 
-        tab.webSocket.addEventListener('error', (error) => {
-          this.appendWebSocketData(tab, '<span style="color: red; font-style: italic">Error:' + error + '</span>')
+        opt.webSocket.addEventListener('error', (error) => {
+          this.appendWebSocketData(opt, '<span style="color: red; font-style: italic">Error:' + error + '</span>')
         })
       }
     },
     closeWebSockets () {
-      if (!this.tabsValid) {
+      if (!this.webSocketsValid) {
         return
       }
-      for (var tab of this.tabs) {
-        if (tab.webSocket) {
-          tab.webSocket.close()
-          tab.webSocket = null
+      for (var opt of this.webSockets) {
+        if (opt.webSocket) {
+          opt.webSocket.close()
+          opt.webSocket = null
         }
       }
     },
-    appendWebSocketData (tab, data) {
-      if (!tab.webSocketData) {
-        tab.webSocketData = data
+    parseLogLine (line, sourceId, sourceName) {
+      const logRegex = /^([\d-]+\s[\d:,]+)\s+([A-Z]+)\s+\[.*?\]\s+\(.*?\)\s+(?:\(logid:[^)]*\)\s+)?(.*)$/
+      const match = line.match(logRegex)
+
+      var level = null
+      var timestamp = new Date().toISOString()
+      var message = line
+      if (match) {
+        timestamp = match[1]
+        level = match[2]
+        message = match[3]
+      }
+
+      return {
+        id: sourceId + '-' + timestamp,
+        timestamp: timestamp,
+        level: level,
+        message: message,
+        sourceId,
+        sourceName
+      }
+    },
+    appendWebSocketData (opt, data) {
+      if (!this.webSocketData) {
+        this.webSocketData = data
         return
       }
-      tab.webSocketData += '<br>' + data
+      this.dataSource.push(this.parseLogLine(data, opt.id, opt.name))
+      this.webSocketData += '<br>' + data
     },
-    formatLogAndUpdateData (tab, data) {
+    formatLogAndUpdateData (opt, data) {
       if (data.startsWith('Connection idle')) {
         return '<span style="color: red; font-style: italic">' + data + '</span>'
       }
@@ -249,8 +373,8 @@ export default {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-      tab.logsErrorCount += escaped.split('ERROR').length - 1
-      tab.logsWarningCount += escaped.split('WARN').length - 1
+      opt.logsErrorCount += escaped.split('ERROR').length - 1
+      opt.logsWarningCount += escaped.split('WARN').length - 1
       // Highlight log levels
       escaped = escaped.replace(/(ERROR)/g, '<span style="color: red; font-weight: bold">$1</span>')
       escaped = escaped.replace(/(WARN)/g, '<span style="color: orange; font-weight: bold">$1</span>')
@@ -258,14 +382,14 @@ export default {
       return escaped
     },
     onDownload () {
-      let htmlString = this.currentTab.webSocketData.replace(/<br\s*\/?>/gi, '\n')
+      let htmlString = this.webSocketData.replace(/<br\s*\/?>/gi, '\n')
       // Optionally, handle closing </p> tags for paragraphs
       htmlString = htmlString.replace(/<\/p>/gi, '\n')
       const tempDiv = document.createElement('div')
       tempDiv.innerHTML = htmlString
       const plainTextData = tempDiv.textContent || tempDiv.innerText || ''
       var blob = new Blob([plainTextData], { type: 'text/plain' })
-      var filename = this.currentTab.title + '-' + this.filters.join('-') + '.log'
+      var filename = 'logs-' + this.filters.join('-') + '.log'
       if (window.navigator.msSaveOrOpenBlob) {
         window.navigator.msSaveBlob(blob, filename)
       } else {
@@ -308,7 +432,7 @@ export default {
   width: 100%;
 }
 
-/* The container below the drag handle uses flex to position tabs + footer */
+/* The container below the drag handle uses flex to position content + footer */
 .resizable-drawer .drawer-container {
   display: flex;
   flex-direction: column;
@@ -317,39 +441,28 @@ export default {
   overflow: hidden;
 }
 
-/* Tabs wrapper is also flex so it can grow/shrink properly */
-.resizable-drawer .tabs-wrapper {
+.resizable-drawer .header {
+  display: flex;
+  flex-direction: row;  /* <-- make fields align horizontally */
+  gap: 16px;            /* optional spacing between the fields */
+  margin: 8px 16px;     /* optional margin */
+}
+
+/* Content wrapper is also flex so it can grow/shrink properly */
+.resizable-drawer .content_wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-}
-
-/* Ensure the content holder fills available space */
-::v-deep .ant-tabs-content-holder {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* Force the ant-tabs-content container to fill its parent */
-::v-deep .ant-tabs-content {
-  display: flex !important;
-  flex: 1 !important;
-  height: 100% !important;
-  overflow: hidden;
-  min-height: 0;
-}
-
-/* Force each tab pane to match the container’s height */
-::v-deep .ant-tabs-tabpane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto; /* This pane’s content scrolls if needed */
+}
+
+.resizable-drawer .header .field {
+  display: flex;
+  flex-direction: row;  /* horizontal */
+  align-items: center;
+  gap: 8px;
+  flex: 1;
 }
 
 /* Finally, only the log content area should scroll */
