@@ -65,11 +65,12 @@
               <a-col :xs="24" :sm="8">
                 <tooltip-label :title="'Log Type'" :tooltip="'Log severity level'" />
                 <a-select
+                  mode="multiple"
                   v-model:value="selectedLogType"
                   :placeholder="'Log Type'"
                   style="width: 100%">
                   <a-select-option
-                    v-for="level in ['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']"
+                    v-for="level in logLevels"
                     :key="level"
                     :value="level">
                     {{ level }}
@@ -89,11 +90,20 @@
               :columns="logTableColumns"
               :data-source="filteredLogs"
               :rowKey="record => record.id"
-              :pagination="{ pageSize: 50 }"
+              :pagination="false"
+              :showHeader="false"
+              :bordered="false"
               size="small"
-              bordered
-              style="margin: 16px"
-            />
+              style="margin: 16px">
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'message'">
+                  <div
+                    style="font-family: monospace; white-space: pre-wrap; font-size: 13px;"
+                    v-html="highlightLogLevels(record.message)"
+                  ></div>
+                </template>
+              </template>
+            </a-table>
           </div>
           <div class="footer">
             <div class="footer-left" v-if="filtersAsString">{{ $t('message.showing.logs').replace('%x', filtersAsString) }}</div>
@@ -109,7 +119,6 @@
   </template>
 
 <script>
-import { h } from 'vue'
 import { api } from '@/api'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 
@@ -140,50 +149,7 @@ export default {
       webSocketData: '',
       selectedLogType: undefined,
       dataSource: [],
-      logLeves: ['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'],
-      logTableColumns: [
-        {
-          title: 'Source',
-          dataIndex: 'sourceName',
-          key: 'sourceName',
-          width: 150
-        },
-        {
-          title: 'Timestamp',
-          dataIndex: 'timestamp',
-          key: 'timestamp',
-          width: 200
-        },
-        {
-          title: 'Level',
-          dataIndex: 'level',
-          key: 'level',
-          width: 100,
-          filters: (['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']).map(level => ({ text: level, value: level })),
-          onFilter: (value, record) => record.level === value,
-          customRender: ({ text }) => {
-            const levelColor = {
-              CRITICAL: 'red',
-              ERROR: 'red',
-              WARN: 'orange',
-              INFO: 'blue',
-              DEBUG: 'green',
-              TRACE: 'gray'
-            }
-            return h('span', {
-              style: {
-                color: levelColor[text] || 'black',
-                fontWeight: 'bold'
-              }
-            }, text || 'N/A')
-          }
-        },
-        {
-          title: 'Message',
-          dataIndex: 'message',
-          key: 'message'
-        }
-      ]
+      logLevels: ['CRITICAL', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']
     }
   },
   watch: {
@@ -201,11 +167,34 @@ export default {
     showRawLogs () {
       return false
     },
+    showSourceOnlyWhenMultiple () {
+      return true
+    },
     filtersAsString () {
       if (!this.filters) {
         return null
       }
       return this.filters.join(', ')
+    },
+    logTableColumns () {
+      const columns = []
+
+      if (!this.showSourceOnlyWhenMultiple || (this.selectedWebSockets && this.selectedWebSockets.length > 1)) {
+        columns.push({
+          title: 'Source',
+          dataIndex: 'sourceName',
+          key: 'sourceName',
+          width: 150
+        })
+      }
+
+      columns.push({
+        title: 'Message',
+        dataIndex: 'message',
+        key: 'message'
+      })
+
+      return columns
     },
     webSocketsValid () {
       return this.webSockets && this.webSockets.length > 0
@@ -217,12 +206,12 @@ export default {
       return 0
     },
     filteredLogs () {
-      if (!this.dataSource || this.dataSource.length === 0) {
-        return []
-      }
+      if (!this.dataSource || this.dataSource.length === 0) return []
+
       return this.dataSource.filter(log => {
         const sourceMatch = !this.selectedWebSockets || this.selectedWebSockets.length === 0 || this.selectedWebSockets.includes(log.sourceId)
-        return sourceMatch
+        const levelMatch = !this.selectedLogType || this.selectedLogType.length === 0 || this.selectedLogType.includes(log.level)
+        return sourceMatch && levelMatch
       })
     }
   },
@@ -298,7 +287,6 @@ export default {
         opts.push(opt)
       }
       this.webSockets = opts.sort((a, b) => a.title.localeCompare(b.title))
-      this.selectedWebSockets = this.webSockets.map(opt => opt.id)
       console.log('WebSockets prepared:', this.webSockets)
       this.openWebSockets()
     },
@@ -340,18 +328,16 @@ export default {
 
       var level = null
       var timestamp = new Date().toISOString()
-      var message = line
       if (match) {
         timestamp = match[1]
         level = match[2]
-        message = match[3]
       }
 
       return {
         id: sourceId + '-' + timestamp,
         timestamp: timestamp,
         level: level,
-        message: message,
+        message: line,
         sourceId,
         sourceName
       }
@@ -380,6 +366,16 @@ export default {
       escaped = escaped.replace(/(WARN)/g, '<span style="color: orange; font-weight: bold">$1</span>')
       escaped = escaped.replace(/(INFO)/g, '<span style="color: blue">$1</span>')
       return escaped
+    },
+    highlightLogLevels (message) {
+      if (!message) return ''
+      return message
+        .replace(/CRITICAL/g, '<span style="color: red; font-weight: bold;">CRITICAL</span>')
+        .replace(/ERROR/g, '<span style="color: red; font-weight: bold;">ERROR</span>')
+        .replace(/WARN/g, '<span style="color: orange; font-weight: bold;">WARN</span>')
+        .replace(/INFO/g, '<span style="color: blue; font-weight: bold;">INFO</span>')
+        .replace(/DEBUG/g, '<span style="color: green; font-weight: bold;">DEBUG</span>')
+        .replace(/TRACE/g, '<span style="color: gray; font-weight: bold;">TRACE</span>')
     },
     onDownload () {
       let htmlString = this.webSocketData.replace(/<br\s*\/?>/gi, '\n')
