@@ -2116,7 +2116,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
             userId = user.getId();
         }
 
-        if (domainId == null && accountId == null && (accountMgr.isNormalUser(caller.getId()) || !listAll)) {
+        if (domainId == null && accountId == null && (accountMgr.isNormalUser(caller) || !listAll)) {
             accountId = caller.getId();
             userId = user.getId();
         } else if (accountMgr.isDomainAdmin(caller.getId()) || (isRecursive && !listAll)) {
@@ -3751,7 +3751,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
 
         // For non-root users, only return all offerings for the user's domain,
         // and everything above till root
-        if ((accountMgr.isNormalUser(account.getId()) || accountMgr.isDomainAdmin(account.getId())) || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN) {
+        if ((accountMgr.isNormalUser(account) || accountMgr.isDomainAdmin(account.getId())) || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN) {
             if (isRecursive) { // domain + all sub-domains
                 if (account.getType() == Account.Type.NORMAL) {
                     throw new InvalidParameterValueException("Only ROOT admins and Domain admins can list disk offerings with isrecursive=true");
@@ -4131,7 +4131,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
             }
         }
 
-        if ((accountMgr.isNormalUser(owner.getId()) || accountMgr.isDomainAdmin(owner.getId())) || owner.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN) {
+        if ((accountMgr.isNormalUser(owner) || accountMgr.isDomainAdmin(owner.getId())) || owner.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN) {
             // For non-root users.
             if (isSystem) {
                 throw new InvalidParameterValueException("Only root admins can access system's offering");
@@ -4389,7 +4389,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
             }
         }
 
-        if ((!accountMgr.isNormalUser(caller.getId()) && !accountMgr.isDomainAdmin(caller.getId())) && caller.getType() != Account.Type.RESOURCE_DOMAIN_ADMIN) {
+        if ((!accountMgr.isNormalUser(caller) && !accountMgr.isDomainAdmin(caller.getId())) && caller.getType() != Account.Type.RESOURCE_DOMAIN_ADMIN) {
             if (domainId != null && accountName == null) {
                 sc.setJoinParameters("domainDetailSearch", "domainId", domainId);
             }
@@ -4615,7 +4615,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
     private void buildSearchCriteriaForOwnedExplicitlyDedicatedResources(Long domainId, SearchCriteria<DataCenterJoinVO> sc, Account account) {
         if (domainId != null) {
             buildSearchCriteriaForZonesBelongingToDomain(domainId, sc, account);
-        } else if (accountMgr.isNormalUser(account.getId())) {
+        } else if (accountMgr.isNormalUser(account)) {
             buildSearchCriteriaForUserDomainAndAbove(sc, account);
         } else if (accountMgr.isDomainAdmin(account.getId()) || accountMgr.isResourceDomainAdmin(account.getId())) {
             buildSearchCriteriaForDomainAdmins(sc, account);
@@ -4716,7 +4716,7 @@ public class QueryManagerImpl extends MutualExclusiveIdsManagerBase implements Q
         // only list zones associated // with this domain, private zone
         sc.addAnd("domainId", Op.EQ, domainId);
 
-        if (accountMgr.isNormalUser(account.getId())) {
+        if (accountMgr.isNormalUser(account)) {
             // accountId == null (zones dedicated to a domain) or
             // accountId = caller
             SearchCriteria<DataCenterJoinVO> sdc = _dcJoinDao.createSearchCriteria();

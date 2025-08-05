@@ -1243,7 +1243,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         boolean result = true;
         List<Long> permittedAccountIds = new ArrayList<>();
 
-        if (_accountService.isNormalUser(caller.getId()) || caller.getType() == Account.Type.PROJECT) {
+        if (_accountService.isNormalUser(caller) || caller.getType() == Account.Type.PROJECT) {
             permittedAccountIds.add(caller.getId());
         } else {
             final DomainVO domain = _domainDao.findById(caller.getDomainId());
@@ -1269,7 +1269,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
         boolean result = true;
         List<Long> permittedAccountIds = new ArrayList<>();
 
-        if (_accountMgr.isNormalUser(caller.getId()) || caller.getType() == Account.Type.PROJECT) {
+        if (_accountMgr.isNormalUser(caller) || caller.getType() == Account.Type.PROJECT) {
             permittedAccountIds.add(caller.getId());
         } else {
             final DomainVO domain = _domainDao.findById(caller.getDomainId());
@@ -2297,7 +2297,7 @@ public class ManagementServerImpl extends ManagerBase implements ManagementServe
             if (accountId == null && domainId == null) {
                 domainId = caller.getDomainId();
             }
-        } else if (_accountMgr.isNormalUser(caller.getId())) {
+        } else if (_accountMgr.isNormalUser(caller)) {
             if (accountId == null) {
                 accountId = caller.getAccountId();
             }

@@ -91,7 +91,7 @@ public interface AccountService {
 
     boolean isResourceDomainAdmin(Long accountId);
 
-    boolean isNormalUser(long accountId);
+    boolean isNormalUser(Account account);
 
     User getActiveUserByRegistrationToken(String registrationToken);
 

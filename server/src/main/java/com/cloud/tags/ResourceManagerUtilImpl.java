@@ -175,7 +175,7 @@ public class ResourceManagerUtilImpl implements ResourceManagerUtil {
         }
         if (accountId != null) {
             accountMgr.checkAccess(caller, null, false, accountMgr.getAccount(accountId));
-        } else if (domainId != null && !accountMgr.isNormalUser(caller.getId())) {
+        } else if (domainId != null && !accountMgr.isNormalUser(caller)) {
             //check permissions;
             accountMgr.checkAccess(caller, domainMgr.getDomain(domainId));
         } else {

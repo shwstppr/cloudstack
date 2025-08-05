@@ -971,7 +971,7 @@ public class QuotaResponseBuilderImpl implements QuotaResponseBuilder {
         }
 
         Account caller = CallContext.current().getCallingAccount();
-        if (domainId != null && _accountMgr.isNormalUser(caller.getAccountId())) {
+        if (domainId != null && _accountMgr.isNormalUser(caller)) {
             throw new PermissionDeniedException("Regular users are not allowed to generate domain statements.");
         }
 

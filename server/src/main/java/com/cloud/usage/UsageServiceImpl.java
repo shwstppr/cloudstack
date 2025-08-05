@@ -186,7 +186,7 @@ public class UsageServiceImpl extends ManagerBase implements UsageService, Manag
 
         boolean ignoreAccountId = false;
         boolean isDomainAdmin = _accountService.isDomainAdmin(caller.getId());
-        boolean isNormalUser = _accountService.isNormalUser(caller.getId());
+        boolean isNormalUser = _accountService.isNormalUser(caller);
 
         //If accountId couldn't be found using project or accountName and domainId, get it from userContext
         if (accountId == null) {

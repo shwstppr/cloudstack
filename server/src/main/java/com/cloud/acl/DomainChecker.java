@@ -146,7 +146,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
 
         long domainId = domain.getId();
 
-        if (_accountService.isNormalUser(caller.getId())) {
+        if (_accountService.isNormalUser(caller)) {
             if (caller.getDomainId() != domainId) {
                 throw new PermissionDeniedException(String.format("Account %s does not have permission to operate within domain id=%s", caller, domain.getUuid()));
             }
@@ -335,7 +335,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
             }
             //if account is normal user or domain admin
             //check if account's domain is a child of offering's domain (Note: This is made consistent with the list command for disk offering)
-            else if (_accountService.isNormalUser(account.getId())
+            else if (_accountService.isNormalUser(account)
                     || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN
                     || _accountService.isDomainAdmin(account.getId())
                     || account.getType() == Account.Type.PROJECT) {
@@ -373,7 +373,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
             }
             //if account is normal user or domain admin
             //check if account's domain is a child of offering's domain (Note: This is made consistent with the list command for service offering)
-            else if (_accountService.isNormalUser(account.getId())
+            else if (_accountService.isNormalUser(account)
                     || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN
                     || _accountService.isDomainAdmin(account.getId())
                     || account.getType() == Account.Type.PROJECT) {
@@ -411,7 +411,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
             }
             //if account is normal user or domain admin
             //check if account's domain is a child of offering's domain (Note: This is made consistent with the list command for disk offering)
-            else if (_accountService.isNormalUser(account.getId())
+            else if (_accountService.isNormalUser(account)
                     || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN
                     || _accountService.isDomainAdmin(account.getId())
                     || account.getType() == Account.Type.PROJECT) {
@@ -449,7 +449,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
             }
             //if account is normal user or domain admin
             //check if account's domain is a child of offering's domain (Note: This is made consistent with the list command for disk offering)
-            else if (_accountService.isNormalUser(account.getId())
+            else if (_accountService.isNormalUser(account)
                     || account.getType() == Account.Type.RESOURCE_DOMAIN_ADMIN
                     || _accountService.isDomainAdmin(account.getId())
                     || account.getType() == Account.Type.PROJECT) {
@@ -485,7 +485,7 @@ public class DomainChecker extends AdapterBase implements SecurityChecker {
             }
             //if account is normal user
             //check if account's domain is a child of zone's domain
-            else if (_accountService.isNormalUser(account.getId()) || account.getType() == Account.Type.PROJECT) {
+            else if (_accountService.isNormalUser(account) || account.getType() == Account.Type.PROJECT) {
                 // if zone is dedicated to an account check that the accountId
                 // matches.
                 DedicatedResourceVO dedicatedZone = _dedicatedDao.findByZoneId(zone.getId());

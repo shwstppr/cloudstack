@@ -249,7 +249,7 @@ public class MockAccountManager extends ManagerBase implements AccountManager {
     }
 
     @Override
-    public boolean isNormalUser(long accountId) {
+    public boolean isNormalUser(Account account) {
         // TODO Auto-generated method stub
         return false;
     }

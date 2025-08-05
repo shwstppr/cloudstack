@@ -706,7 +706,7 @@ public class QuotaResponseBuilderImplTest extends TestCase {
     }
 
     private QuotaCreditsListCmd createQuotaCreditsListCmdForTests() {
-        Mockito.doReturn(false).when(accountManagerMock).isNormalUser(Mockito.anyLong());
+        Mockito.doReturn(false).when(accountManagerMock).isNormalUser(Mockito.any(Account.class));
         QuotaCreditsListCmd cmd = new QuotaCreditsListCmd();
         cmd.setAccountId(1L);
         cmd.setDomainId(2L);
@@ -732,7 +732,7 @@ public class QuotaResponseBuilderImplTest extends TestCase {
     @Test(expected = PermissionDeniedException.class)
     public void getCreditsForQuotaCreditsListTestThrowsPermissionDeniedExceptionWhenDomainIdIsProvidedAndCallerIsNormalUser() {
         QuotaCreditsListCmd cmd = createQuotaCreditsListCmdForTests();
-        Mockito.doReturn(true).when(accountManagerMock).isNormalUser(Mockito.anyLong());
+        Mockito.doReturn(true).when(accountManagerMock).isNormalUser(Mockito.any(Account.class));
 
         quotaResponseBuilderSpy.getCreditsForQuotaCreditsList(cmd);
     }

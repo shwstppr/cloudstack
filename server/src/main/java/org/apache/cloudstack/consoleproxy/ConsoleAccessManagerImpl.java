@@ -215,16 +215,16 @@ public class ConsoleAccessManagerImpl extends ManagerBase implements ConsoleAcce
     }
 
     protected Pair<List<ConsoleSessionVO>, Integer> listConsoleSessionsInternal(ListConsoleSessionsCmd cmd) {
-        CallContext caller = CallContext.current();
+        Account caller = CallContext.current().getCallingAccount();
         long domainId = getBaseDomainIdToListConsoleSessions(cmd.getDomainId());
         Long accountId = cmd.getAccountId();
         Long userId = cmd.getUserId();
         boolean isRecursive = cmd.isRecursive();
 
-        boolean isCallerNormalUser = accountManager.isNormalUser(caller.getCallingAccountId());
+        boolean isCallerNormalUser = accountManager.isNormalUser(caller);
         if (isCallerNormalUser) {
-            accountId = caller.getCallingAccountId();
-            userId = caller.getCallingUserId();
+            accountId = caller.getId();
+            userId = CallContext.current().getCallingUserId();
         }
 
         List<Long> domainIds = isRecursive ? domainDao.getDomainAndChildrenIds(domainId) : List.of(domainId);
@@ -352,7 +352,7 @@ public class ConsoleAccessManagerImpl extends ManagerBase implements ConsoleAcce
                 try {
                     accountManager.checkAccess(account, null, true, vm);
                 } catch (PermissionDeniedException ex) {
-                    if (accountManager.isNormalUser(account.getId())) {
+                    if (accountManager.isNormalUser(account)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("VM access is denied for VM {}. VM owner " +
                                     "account {} does not match the account id in session {} and " +

@@ -2322,7 +2322,7 @@ public class ApiResponseHelper implements ResponseGenerator {
         final Account jobOwner = _accountMgr.getAccount(userJobOwner.getAccountId());
 
         //check permissions
-        if (_accountMgr.isNormalUser(caller.getId())) {
+        if (_accountMgr.isNormalUser(caller)) {
             //regular users can see only jobs they own
             if (caller.getId() != jobOwner.getId()) {
                 throw new PermissionDeniedException("Account " + caller + " is not authorized to see job id=" + job.getId());

@@ -245,7 +245,7 @@ public class ProjectManagerImpl extends ManagerBase implements ProjectManager, C
         Account owner = caller;
 
         //check if the user authorized to create the project
-        if (_accountMgr.isNormalUser(caller.getId()) && !_allowUserToCreateProject) {
+        if (_accountMgr.isNormalUser(caller) && !_allowUserToCreateProject) {
             throw new PermissionDeniedException("Regular user is not permitted to create a project");
         }
 

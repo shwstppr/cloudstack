@@ -1987,7 +1987,7 @@ public class NetworkServiceImpl extends ManagerBase implements NetworkService, C
         } else if (ntwkOff.getGuestType() == GuestType.Shared) {
             if (_accountMgr.isRootAdmin(caller)) {
                 aclType = ACLType.Domain;
-            } else if (_accountMgr.isNormalUser(caller.getId())) {
+            } else if (_accountMgr.isNormalUser(caller)) {
                 aclType = ACLType.Account;
             } else {
                 throw new InvalidParameterValueException("AclType must be specified for shared network created by domain admin");

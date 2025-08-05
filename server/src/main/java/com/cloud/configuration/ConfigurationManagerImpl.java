@@ -1004,7 +1004,7 @@ public class ConfigurationManagerImpl extends ManagerBase implements Configurati
             if (accountId == null && domainId == null) {
                 domainId = caller.getDomainId();
             }
-        } else if (_accountMgr.isNormalUser(caller.getId())) {
+        } else if (_accountMgr.isNormalUser(caller)) {
             if (accountId == null) {
                 accountId = caller.getAccountId();
             }

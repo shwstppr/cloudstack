@@ -346,7 +346,7 @@ public class AccountManagerImplTest extends AccountManagetImplTestBase {
         Mockito.lenient().when(callingUser.getAccountId()).thenReturn(1L);
         Mockito.lenient().when(_accountDao.findById(1L)).thenReturn(callingAccount);
 
-        Mockito.lenient().when(accountService.isNormalUser(Mockito.anyLong())).thenReturn(Boolean.TRUE);
+        Mockito.lenient().when(accountService.isNormalUser(Mockito.any(Account.class))).thenReturn(Boolean.TRUE);
         Mockito.lenient().when(accountMock.getAccountId()).thenReturn(2L);
 
         accountManagerImpl.getKeys(_listkeyscmd);

@@ -647,9 +647,8 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     }
 
     @Override
-    public boolean isNormalUser(long accountId) {
-        AccountVO acct = _accountDao.findById(accountId);
-        if (acct != null && acct.getType() == Account.Type.NORMAL) {
+    public boolean isNormalUser(Account account) {
+        if (account != null && account.getType() == Account.Type.NORMAL) {
             return true;
         }
         return false;

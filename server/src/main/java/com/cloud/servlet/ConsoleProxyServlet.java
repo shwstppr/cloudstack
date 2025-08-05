@@ -432,7 +432,7 @@ public class ConsoleProxyServlet extends HttpServlet {
             try {
                 _accountMgr.checkAccess(accountObj, null, true, vm);
             } catch (PermissionDeniedException ex) {
-                if (_accountMgr.isNormalUser(accountObj.getId())) {
+                if (_accountMgr.isNormalUser(accountObj)) {
                     if (LOGGER.isDebugEnabled()) {
                         LOGGER.debug("VM access is denied. VM owner account {} does not " +
                                 "match the account id in session {} and caller is a normal user",
