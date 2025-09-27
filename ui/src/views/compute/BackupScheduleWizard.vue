@@ -21,13 +21,11 @@
       <a-tab-pane :tab="$t('label.schedule')" key="1">
         <FormSchedule
           :loading="loading"
-          :resource="resource"
-          :dataSource="dataSource"/>
+          :resource="resource"/>
       </a-tab-pane>
       <a-tab-pane :tab="$t('label.scheduled.backups')" key="2">
         <BackupSchedule
           :loading="loading"
-          :resource="resource"
           :dataSource="dataSource" />
       </a-tab-pane>
     </a-tabs>
@@ -35,7 +33,7 @@
 </template>
 
 <script>
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import FormSchedule from '@views/compute/backup/FormSchedule'
 import BackupSchedule from '@views/compute/backup/BackupSchedule'
 
@@ -72,7 +70,7 @@ export default {
       this.dataSource = {}
       this.loading = true
       params.virtualmachineid = this.resource.id
-      api('listBackupSchedule', params).then(json => {
+      getAPI('listBackupSchedule', params).then(json => {
         this.dataSource = json.listbackupscheduleresponse.backupschedule || {}
       }).finally(() => {
         this.loading = false

@@ -49,6 +49,7 @@ import org.apache.cloudstack.framework.config.ConfigDepot;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.dao.ConfigurationDao;
 import org.apache.cloudstack.framework.config.impl.ConfigurationVO;
+import org.apache.cloudstack.framework.extensions.manager.ExtensionsManager;
 import org.apache.cloudstack.userdata.UserDataManager;
 import org.junit.After;
 import org.junit.Assert;
@@ -97,10 +98,11 @@ import com.cloud.utils.db.Filter;
 import com.cloud.utils.db.SearchBuilder;
 import com.cloud.utils.db.SearchCriteria;
 import com.cloud.utils.exception.CloudRuntimeException;
-import com.cloud.vm.UserVmDetailVO;
 import com.cloud.vm.UserVmVO;
+import com.cloud.vm.VMInstanceDetailVO;
+import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.dao.UserVmDao;
-import com.cloud.vm.dao.UserVmDetailsDao;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ManagementServerImplTest {
@@ -145,7 +147,7 @@ public class ManagementServerImplTest {
     UserDataManager userDataManager;
 
     @Mock
-    UserVmDetailsDao userVmDetailsDao;
+    VMInstanceDetailsDao vmInstanceDetailsDao;
 
     @Mock
     HostDetailsDao hostDetailsDao;
@@ -164,6 +166,9 @@ public class ManagementServerImplTest {
 
     @Mock
     GuestOSDao _guestOSDao;
+
+    @Mock
+    ExtensionsManager extensionManager;
 
     @Spy
     @InjectMocks
@@ -585,10 +590,10 @@ public class ManagementServerImplTest {
         UserVmVO vm = Mockito.mock(UserVmVO.class);
         Mockito.when(vm.getId()).thenReturn(1L);
         if (uefiValue == null) {
-            Mockito.when(userVmDetailsDao.findDetail(vm.getId(), ApiConstants.BootType.UEFI.toString())).thenReturn(null);
+            Mockito.when(vmInstanceDetailsDao.findDetail(vm.getId(), ApiConstants.BootType.UEFI.toString())).thenReturn(null);
         } else {
-            UserVmDetailVO detail = new UserVmDetailVO(vm.getId(), ApiConstants.BootType.UEFI.toString(), uefiValue, true);
-            Mockito.when(userVmDetailsDao.findDetail(vm.getId(), ApiConstants.BootType.UEFI.toString())).thenReturn(detail);
+            VMInstanceDetailVO detail = new VMInstanceDetailVO(vm.getId(), ApiConstants.BootType.UEFI.toString(), uefiValue, true);
+            Mockito.when(vmInstanceDetailsDao.findDetail(vm.getId(), ApiConstants.BootType.UEFI.toString())).thenReturn(detail);
             Mockito.when(hostDetailsDao.findByName(Host.HOST_UEFI_ENABLE)).thenReturn(new ArrayList<>(List.of(new DetailVO(1l, Host.HOST_UEFI_ENABLE, "true"), new DetailVO(2l, Host.HOST_UEFI_ENABLE, "false"))));
         }
         return vm;
@@ -1013,5 +1018,14 @@ public class ManagementServerImplTest {
         Mockito.verify(searchCriteria, Mockito.times(1)).setParameters("id", id);
         Mockito.verify(_guestOSCategoryDao, Mockito.times(1)).searchAndCount(Mockito.eq(searchCriteria), Mockito.any());
 
+    }
+
+    @Test
+    public void testGetExternalVmConsole() {
+        VirtualMachine virtualMachine = Mockito.mock(VirtualMachine.class);
+        Host host = Mockito.mock(Host.class);
+        Mockito.when(extensionManager.getInstanceConsole(virtualMachine, host)).thenReturn(Mockito.mock(com.cloud.agent.api.Answer.class));
+        Assert.assertNotNull(spy.getExternalVmConsole(virtualMachine, host));
+        Mockito.verify(extensionManager).getInstanceConsole(virtualMachine, host);
     }
 }

@@ -17,6 +17,7 @@
 
 <template>
   <div>
+    <announcement-banner />
     <a-affix v-if="this.$store.getters.maintenanceInitiated" >
       <a-alert :message="$t('message.maintenance.initiated')" type="error" banner :showIcon="false" class="maintenanceHeader" />
     </a-affix>
@@ -133,9 +134,10 @@ import { triggerWindowResizeEvent } from '@/utils/util'
 import { mapState, mapActions } from 'vuex'
 import { mixin, mixinDevice } from '@/utils/mixin.js'
 import { isAdmin } from '@/role'
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import Drawer from '@/components/widgets/Drawer'
 import Setting from '@/components/view/Setting.vue'
+import AnnouncementBanner from '@/components/header/AnnouncementBanner.vue'
 import LogsConsole from '@/components/view/LogsConsole.vue'
 import eventBus from '@/config/eventBus'
 
@@ -147,6 +149,7 @@ export default {
     GlobalFooter,
     Drawer,
     Setting,
+    AnnouncementBanner,
     LogsConsole
   },
   mixins: [mixin, mixinDevice],
@@ -273,7 +276,7 @@ export default {
       this.$store.commit('SET_COUNT_NOTIFY', 0)
     },
     checkShutdown () {
-      api('readyForShutdown', { managementserverid: this.$store.getters.msId }).then(json => {
+      getAPI('readyForShutdown', { managementserverid: this.$store.getters.msId }).then(json => {
         this.$store.dispatch('SetShutdownTriggered', json.readyforshutdownresponse.readyforshutdown.shutdowntriggered || false)
         this.$store.dispatch('SetMaintenanceInitiated', json.readyforshutdownresponse.readyforshutdown.maintenanceinitiated || false)
       })
@@ -348,6 +351,10 @@ export default {
   margin: 0px;
   width: 100vw;
   position: absolute;
+}
+
+.layout.ant-layout .sidemenu .ant-header-fixedHeader {
+  top: auto !important
 }
 
 </style>

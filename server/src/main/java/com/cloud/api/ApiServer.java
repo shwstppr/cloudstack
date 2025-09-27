@@ -81,6 +81,7 @@ import org.apache.cloudstack.api.command.admin.user.ListUsersCmd;
 import org.apache.cloudstack.api.command.user.account.ListAccountsCmd;
 import org.apache.cloudstack.api.command.user.account.ListProjectAccountsCmd;
 import org.apache.cloudstack.api.command.user.event.ListEventsCmd;
+import org.apache.cloudstack.api.command.user.gui.theme.ListGuiThemesCmd;
 import org.apache.cloudstack.api.command.user.offering.ListDiskOfferingsCmd;
 import org.apache.cloudstack.api.command.user.offering.ListServiceOfferingsCmd;
 import org.apache.cloudstack.api.command.user.project.ListProjectInvitationsCmd;
@@ -203,6 +204,7 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
     private static final String SANITIZATION_REGEX = "[\n\r]";
 
     private static boolean encodeApiResponse = false;
+    private boolean isPostRequestsAndTimestampsEnforced = false;
 
     /**
      * Non-printable ASCII characters - numbers 0 to 31 and 127 decimal
@@ -286,6 +288,13 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
             , "Session cookie is marked as secure if this is enabled. Secure cookies only work when HTTPS is used."
             , false
             , ConfigKey.Scope.Global);
+    static final ConfigKey<Boolean> EnforcePostRequestsAndTimestamps = new ConfigKey<>(ConfigKey.CATEGORY_ADVANCED
+            , Boolean.class
+            , "enforce.post.requests.and.timestamps"
+            , "false"
+            , "Enable/Disable whether the ApiServer should only accept POST requests for state-changing APIs and requests with timestamps."
+            , false
+            , ConfigKey.Scope.Global);
     private static final ConfigKey<String> JSONDefaultContentType = new ConfigKey<> (ConfigKey.CATEGORY_ADVANCED
             , String.class
             , "json.content.type"
@@ -308,14 +317,14 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
             , "enables/disables checking of ipaddresses from a proxy set header. See \"proxy.header.names\" for the headers to allow."
             , true
             , ConfigKey.Scope.Global);
-    static final ConfigKey<String> listOfForwardHeaders = new ConfigKey<>(ConfigKey.CATEGORY_NETWORK
+    public static final ConfigKey<String> listOfForwardHeaders = new ConfigKey<>(ConfigKey.CATEGORY_NETWORK
             , String.class
             , "proxy.header.names"
             , "X-Forwarded-For,HTTP_CLIENT_IP,HTTP_X_FORWARDED_FOR"
             , "a list of names to check for allowed ipaddresses from a proxy set header. See \"proxy.cidr\" for the proxies allowed to set these headers."
             , true
             , ConfigKey.Scope.Global);
-    static final ConfigKey<String> proxyForwardList = new ConfigKey<>(ConfigKey.CATEGORY_NETWORK
+    public static final ConfigKey<String> proxyForwardList = new ConfigKey<>(ConfigKey.CATEGORY_NETWORK
             , String.class
             , "proxy.cidr"
             , ""
@@ -340,6 +349,10 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
             , true
             , ConfigKey.Scope.Global, null, null, null, null, null, ConfigKey.Kind.Select,
             EnumSet.allOf(ApiSessionKeyCheckOption.class).stream().map(Enum::toString).collect(Collectors.joining(", ")));
+
+    private String getCurrentLogContextId() {
+        return UuidUtils.first(LogContext.current().getLogContextId());
+    }
 
     @Override
     public boolean configure(final String name, final Map<String, Object> params) throws ConfigurationException {
@@ -443,6 +456,7 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
     public boolean start() {
         Security.addProvider(new BouncyCastleProvider());
         Integer apiPort = IntegrationAPIPort.value(); // api port, null by default
+        isPostRequestsAndTimestampsEnforced = EnforcePostRequestsAndTimestamps.value();
 
         final Long snapshotLimit = ConcurrentSnapshotsThresholdPerHost.value();
         if (snapshotLimit == null || snapshotLimit <= 0) {
@@ -722,8 +736,9 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
         return response;
     }
 
-    private String getCurrentLogContextId() {
-        return UuidUtils.first(LogContext.current().getLogContextId());
+    @Override
+    public boolean isPostRequestsAndTimestampsEnforced() {
+        return isPostRequestsAndTimestampsEnforced;
     }
 
     private String getBaseAsyncResponse(final long jobId, final BaseAsyncCmd cmd) {
@@ -964,6 +979,9 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
                 final User user = ApiDBUtils.findUserById(userId);
                 return commandAvailable(remoteAddress, commandName, user);
             } else {
+                if (commandName.equalsIgnoreCase(ListGuiThemesCmd.class.getAnnotation(APICommand.class).name())) {
+                    return true;
+                }
                 // check against every available command to see if the command exists or not
                 if (!s_apiNameCmdClassMap.containsKey(commandName) && !commandName.equals("login") && !commandName.equals("logout")) {
                     final String errorMessage = "The given command " + commandName + " either does not exist, is not available" +
@@ -978,7 +996,6 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
 
             // put the name in a list that we'll sort later
             final List<String> parameterNames = new ArrayList<>(requestParameters.keySet());
-
             Collections.sort(parameterNames);
 
             String signatureVersion = null;
@@ -1030,12 +1047,22 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
                 }
 
                 final Date now = new Date(System.currentTimeMillis());
+                final Date thresholdTime = new Date(now.getTime() + 15 * 60 * 1000);
                 if (expiresTS.before(now)) {
                     signature = signature.replaceAll(SANITIZATION_REGEX, "_");
                     apiKey = apiKey.replaceAll(SANITIZATION_REGEX, "_");
                     logger.debug("Request expired -- ignoring ...sig [{}], apiKey [{}].", signature, apiKey);
                     return false;
+                } else if (isPostRequestsAndTimestampsEnforced && expiresTS.after(thresholdTime)) {
+                    signature = signature.replaceAll(SANITIZATION_REGEX, "_");
+                    apiKey = apiKey.replaceAll(SANITIZATION_REGEX, "_");
+                    logger.debug(String.format("Expiration parameter is set for too long -- ignoring ...sig [%s], apiKey [%s].", signature, apiKey));
+                    return false;
                 }
+            } else if (isPostRequestsAndTimestampsEnforced) {
+                // Force expiration parameter
+                logger.debug("Signature Version must be 3, and should be along with the Expires parameter -- ignoring request.");
+                return false;
             }
 
             final TransactionLegacy txn = TransactionLegacy.open(TransactionLegacy.CLOUD_DB);
@@ -1659,6 +1686,7 @@ public class ApiServer extends ManagerBase implements HttpRequestHandler, ApiSer
     @Override
     public ConfigKey<?>[] getConfigKeys() {
         return new ConfigKey<?>[] {
+                EnforcePostRequestsAndTimestamps,
                 IntegrationAPIPort,
                 ConcurrentSnapshotsThresholdPerHost,
                 EncodeApiResponse,

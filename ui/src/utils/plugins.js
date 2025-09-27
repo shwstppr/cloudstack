@@ -17,7 +17,7 @@
 
 import _ from 'lodash'
 import { i18n } from '@/locales'
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import { h } from 'vue'
 import { message, notification, Modal, Button } from 'ant-design-vue'
 import eventBus from '@/config/eventBus'
@@ -54,6 +54,7 @@ export const pollJobPlugin = {
        * @param {String} [name='']
        * @param {String} [title='']
        * @param {String} [description='']
+       * @param {Boolean} [showSuccessMessage=true]
        * @param {String} [successMessage=Success]
        * @param {Function} [successMethod=() => {}]
        * @param {String} [errorMessage=Error]
@@ -72,6 +73,7 @@ export const pollJobPlugin = {
         name = '',
         title = '',
         description = '',
+        showSuccessMessage = true,
         successMessage = i18n.global.t('label.success'),
         successMethod = () => {},
         errorMessage = i18n.global.t('label.error'),
@@ -117,7 +119,7 @@ export const pollJobPlugin = {
       }
 
       options.originalPage = options.originalPage || this.$router.currentRoute.value.path
-      api('queryAsyncJobResult', { jobId }).then(json => {
+      getAPI('queryAsyncJobResult', { jobId }).then(json => {
         const result = json.queryasyncjobresultresponse
         eventBus.emit('update-job-details', { jobId, resourceId })
         if (result.logids) {
@@ -125,18 +127,22 @@ export const pollJobPlugin = {
         }
         console.log('pollJobPlugin', result.logids, allLogIds)
         if (result.jobstatus === 1) {
-          var content = successMessage
-          if (successMessage === 'Success' && action && action.label) {
-            content = i18n.global.t(action.label)
+          if (showSuccessMessage) {
+            var content = successMessage
+            if (successMessage === 'Success' && action && action.label) {
+              content = i18n.global.t(action.label)
+            }
+            if (name) {
+              content = content + ' - ' + name
+            }
+            message.success({
+              content: getMessageContent(content, allLogIds),
+              key: jobId,
+              duration: 2
+            })
+          } else {
+            message.destroy(jobId)
           }
-          if (name) {
-            content = content + ' - ' + name
-          }
-          message.success({
-            content: getMessageContent(content, allLogIds),
-            key: jobId,
-            duration: 2
-          })
           store.dispatch('AddHeaderNotice', {
             key: jobId,
             title,
@@ -429,6 +435,8 @@ export const resourceTypePlugin = {
           return 'kubernetes'
         case 'KubernetesSupportedVersion':
           return 'kubernetesiso'
+        case 'ExtensionCustomAction':
+          return 'customaction'
         case 'SystemVm':
         case 'PhysicalNetwork':
         case 'Backup':
@@ -458,6 +466,7 @@ export const resourceTypePlugin = {
         case 'AutoScaleVmGroup':
         case 'QuotaTariff':
         case 'GuestOsCategory':
+        case 'Extension':
           return resourceType.toLowerCase()
       }
       return ''
@@ -602,14 +611,45 @@ export const cpuArchitectureUtilPlugin = {
 
 export const imagesUtilPlugin = {
   install (app) {
-    app.config.globalProperties.$fetchTemplateTypes = function () {
-      const baseTypes = ['USER', 'VNF']
+    app.config.globalProperties.$fetchTemplateTypes = function (hypervisor) {
+      const baseTypes = ['USER']
+      if (hypervisor === 'External') {
+        return baseTypes.map(type => ({ id: type, name: type, description: type }))
+      }
+      baseTypes.push('VNF')
       const adminTypes = ['SYSTEM', 'BUILTIN', 'ROUTING']
       const types = [...baseTypes]
       if (store.getters.userInfo?.roletype === 'Admin') {
         types.push(...adminTypes)
       }
       return types.map(type => ({ id: type, name: type, description: type }))
+    }
+  }
+}
+
+export const extensionsUtilPlugin = {
+  install (app) {
+    app.config.globalProperties.$fetchCustomActionRoleTypes = function () {
+      const roleTypes = []
+      const roleTypesList = ['Admin', 'Resource Admin', 'Domain Admin', 'User']
+      roleTypesList.forEach((item) => {
+        roleTypes.push({
+          id: item.replace(' ', ''),
+          description: item
+        })
+      })
+      return roleTypes
+    }
+  }
+}
+
+export const backupUtilPlugin = {
+  install (app) {
+    app.config.globalProperties.$isBackupProviderSupportsQuiesceVm = function (provider) {
+      if (!provider && typeof provider !== 'string') {
+        return false
+      }
+      return ['nas'].includes(provider.toLowerCase())
     }
   }
 }

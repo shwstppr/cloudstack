@@ -75,7 +75,7 @@
 </template>
 
 <script>
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import CreateMenu from './CreateMenu'
 import ExternalLink from './ExternalLink'
 import HeaderNotice from './HeaderNotice'
@@ -84,6 +84,8 @@ import { mapActions, mapGetters } from 'vuex'
 import ResourceIcon from '@/components/view/ResourceIcon'
 import eventBus from '@/config/eventBus'
 import { SERVER_MANAGER } from '@/store/mutation-types'
+import { sourceToken } from '@/utils/request'
+import { applyCustomGuiTheme } from '@/utils/guiTheme'
 
 export default {
   name: 'UserMenu',
@@ -147,7 +149,7 @@ export default {
           this.image = this.$store.getters.avatar
           resolve(this.image)
         }
-        api('listUsers', {
+        getAPI('listUsers', {
           id: id,
           showicon: true
         }).then(json => {
@@ -185,7 +187,9 @@ export default {
       }
     },
     handleLogout () {
-      return this.Logout({}).then(() => {
+      this.Logout({}).finally(async () => {
+        sourceToken.init()
+        await applyCustomGuiTheme(null, null)
         this.$router.push('/user/login')
       }).catch(err => {
         this.$message.error({

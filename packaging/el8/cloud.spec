@@ -17,7 +17,7 @@
 
 %define __os_install_post %{nil}
 %global debug_package %{nil}
-%global __requires_exclude libc\\.so\\..*
+%global __requires_exclude libc\\.so\\..*|libc\\.so\\.6\\(GLIBC_.*\\)
 %define _binaries_in_noarch_packages_terminate_build   0
 
 # DISABLE the post-percentinstall java repacking and line number stripping
@@ -39,7 +39,7 @@ Source0:   %{name}-%{_maventag}.tgz
 BuildRoot: %{_tmppath}/%{name}-%{_maventag}-%{release}-build
 BuildArch: noarch
 
-BuildRequires: (java-11-openjdk-devel or java-17-openjdk-devel)
+BuildRequires: (java-11-openjdk-devel or java-17-openjdk-devel or java-21-openjdk-devel)
 #BuildRequires: ws-commons-util
 BuildRequires: jpackage-utils
 BuildRequires: gcc
@@ -55,7 +55,7 @@ intelligent IaaS cloud implementation.
 
 %package management
 Summary:   CloudStack management server UI
-Requires: java-17-openjdk
+Requires: (java-17-openjdk or java-21-openjdk)
 Requires: (tzdata-java or timezone-java)
 Requires: python3
 Requires: bash
@@ -66,12 +66,12 @@ Requires: tar
 Requires: bzip2
 Requires: gzip
 Requires: unzip
-Requires: /sbin/mount.nfs
+Requires: (/sbin/mount.nfs or /usr/sbin/mount.nfs)
 Requires: (openssh-clients or openssh)
 Requires: (nfs-utils or nfs-client)
 Requires: iproute
 Requires: wget
-Requires: (mysql or mariadb)
+Requires: (mysql or mariadb or mysql8.4)
 Requires: sudo
 Requires: /sbin/service
 Requires: /sbin/chkconfig
@@ -96,13 +96,13 @@ Requires: python3
 Group:   System Environment/Libraries
 %description common
 The Apache CloudStack files shared between agent and management server
-%global __requires_exclude ^(libuuid\\.so\\.1|/usr/bin/python)$
+%global __requires_exclude libc\\.so\\..*|libc\\.so\\.6\\(GLIBC_.*\\)|^(libuuid\\.so\\.1|/usr/bin/python)$
 
 %package agent
 Summary: CloudStack Agent for KVM hypervisors
 Requires: (openssh-clients or openssh)
-Requires: java-17-openjdk
-Requires: tzdata-java
+Requires: (java-17-openjdk or java-21-openjdk)
+Requires: (tzdata-java or timezone-java)
 Requires: %{name}-common = %{_ver}
 Requires: libvirt
 Requires: libvirt-daemon-driver-storage-rbd
@@ -142,8 +142,8 @@ The CloudStack baremetal agent
 
 %package usage
 Summary: CloudStack Usage calculation server
-Requires: java-17-openjdk
-Requires: tzdata-java
+Requires: (java-17-openjdk or java-21-openjdk)
+Requires: (tzdata-java or timezone-java)
 Group: System Environment/Libraries
 %description usage
 The CloudStack usage calculation service
@@ -317,7 +317,12 @@ install -D plugins/integrations/kubernetes-service/src/main/resources/conf/k8s-n
 # SystemVM template
 mkdir -p ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/templates/systemvm
 cp -r engine/schema/dist/systemvm-templates/* ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/templates/systemvm
-rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/templates/systemvm/md5sum.txt
+rm -rf ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/templates/systemvm/sha512sum.txt
+
+# Sample Extensions
+mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/%{name}/extensions
+cp -r extensions/* ${RPM_BUILD_ROOT}%{_sysconfdir}/%{name}/extensions
+ln -sf %{_sysconfdir}/%{name}/extensions ${RPM_BUILD_ROOT}%{_datadir}/%{name}-management/extensions
 
 # UI
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/%{name}/ui
@@ -607,6 +612,7 @@ pip3 install --upgrade /usr/share/cloudstack-marvin/Marvin-*.tar.gz
 %{_datadir}/%{name}-management/lib/*.jar
 %{_datadir}/%{name}-management/logs
 %{_datadir}/%{name}-management/templates
+%{_datadir}/%{name}-management/extensions
 %attr(0755,root,root) %{_bindir}/%{name}-setup-databases
 %attr(0755,root,root) %{_bindir}/%{name}-migrate-databases
 %attr(0755,root,root) %{_bindir}/%{name}-set-guest-password
@@ -628,6 +634,8 @@ pip3 install --upgrade /usr/share/cloudstack-marvin/Marvin-*.tar.gz
 %{_defaultdocdir}/%{name}-management-%{version}/LICENSE
 %{_defaultdocdir}/%{name}-management-%{version}/NOTICE
 %{_datadir}/%{name}-management/setup/wheel/*.whl
+%dir %attr(0755,cloud,cloud) %{_sysconfdir}/%{name}/extensions
+%attr(0755,cloud,cloud) %{_sysconfdir}/%{name}/extensions/*
 
 %files agent
 %attr(0755,root,root) %{_bindir}/%{name}-setup-agent

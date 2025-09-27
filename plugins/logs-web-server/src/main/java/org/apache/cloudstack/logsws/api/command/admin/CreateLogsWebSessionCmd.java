@@ -45,7 +45,7 @@ import com.cloud.utils.exception.CloudRuntimeException;
         requestHasSensitiveInfo = false,
         responseHasSensitiveInfo = true,
         authorized = {RoleType.Admin},
-        since = "4.21.0")
+        since = "4.22.0")
 public class CreateLogsWebSessionCmd extends BaseCmd {
 
     @Inject
