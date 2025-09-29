@@ -17,6 +17,7 @@
 
 package org.apache.cloudstack.logsws;
 
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -43,6 +44,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.cluster.ManagementServerHostVO;
 import com.cloud.cluster.dao.ManagementServerHostDao;
+import com.cloud.exception.InternalErrorException;
 import com.cloud.utils.DateUtil;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
@@ -60,18 +62,23 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     private String serverPath;
     private int idleTimeoutSeconds;
     private ScheduledExecutorService staleLogsWebSessionCleanupExecutor;
-    private Long managementServerId = null;
+    private ManagementServerHost managementServer = null;
     private LogsWebSocketRouteManager logsWebSocketRouteManager;
 
-    protected Long getManagementServerId() {
-        if (managementServerId != null) {
-            ManagementServerHostVO managementServerHostVO =
+    protected ManagementServerHost getCurrentManagementServer() {
+        if (managementServer == null) {
+            managementServer =
                     managementServerHostDao.findByMsid(ManagementServerNode.getManagementServerId());
-            if (managementServerHostVO != null) {
-                managementServerId = managementServerHostVO.getId();
-            }
         }
-        return managementServerId;
+        return managementServer;
+    }
+
+    protected Long getManagementServerId() {
+        return getCurrentManagementServer().getId();
+    }
+
+    protected Long getManagementServerRunId() {
+        return getCurrentManagementServer().getId();
     }
 
     protected void registerLogsWebSocketServerRoute() {
@@ -118,18 +125,30 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
         return true;
     }
 
-    private String getLogsWebSessionWebSocketPathUsingVO(long msId, LogsWebSession session) {
+    protected LogsWebSessionTokenPayload getLogsWebSessionWebSocketTokenPayloadUsingVO(LogsWebSession session) {
         LogsWebSessionVO sessionVO = null;
         if (session instanceof LogsWebSessionVO) {
-            sessionVO = (LogsWebSessionVO)session;
+            sessionVO = (LogsWebSessionVO) session;
         } else {
             sessionVO = logsWebSessionDao.findById(session.getId());
         }
+        LogsWebSessionTokenPayload tokenPayload = new LogsWebSessionTokenPayload(sessionVO.getUuid(),
+                sessionVO.getCreatorAddress());
+        return tokenPayload;
+    }
+
+    protected String getLogsWebSessionWebSocketPathForManagementServer(ManagementServerHostVO managementServerHostVO,
+                   LogsWebSessionTokenPayload payload) throws InternalErrorException {
         String path = serverPath;
-        if (!Objects.equals(msId, getManagementServerId())) {
-            serverPath = LogsWebServerPath.valueIn(msId);
+        if (!Objects.equals(managementServerHostVO.getId(), getManagementServerId())) {
+            path = LogsWebServerPath.valueIn(managementServerHostVO.getId());
         }
-        return String.format("%s/%s", path, sessionVO.getUuid());
+        try {
+            return String.format("%s/%s", path, LogsWebSessionTokenCryptoUtil.encrypt(payload,
+                    String.valueOf(managementServerHostVO.getRunid())));
+        } catch (GeneralSecurityException e) {
+            throw new InternalErrorException("Failed to encrypt token payload: " + payload, e);
+        }
     }
 
     @Override
@@ -166,6 +185,16 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     }
 
     @Override
+    public LogsWebSessionTokenPayload parseToken(String token) {
+        try {
+            return LogsWebSessionTokenCryptoUtil.decrypt(token, String.valueOf(getManagementServerRunId()));
+        } catch (GeneralSecurityException e) {
+            logger.error("Failed to decrypt route token: {}", token, e);
+        }
+        return null;
+    }
+
+    @Override
     public LogsWebSession getSession(String route) {
         if (StringUtils.isBlank(route)) {
             return null;
@@ -198,14 +227,15 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     }
 
     @Override
-    public List<LogsWebSessionWebSocket> getLogsWebSessionWebSockets(final LogsWebSession logsWebSession) {
+    public List<LogsWebSessionWebSocket> getLogsWebSessionWebSockets(final LogsWebSession logsWebSession) throws InternalErrorException {
         List<LogsWebSessionWebSocket> webSockets = new ArrayList<>();
         final List<ManagementServerHostVO> activeMsList =
                 managementServerHostDao.listBy(ManagementServerHost.State.Up);
+        LogsWebSessionTokenPayload payload = getLogsWebSessionWebSocketTokenPayloadUsingVO(logsWebSession);
         for (ManagementServerHostVO managementServerHostVO : activeMsList) {
             LogsWebSessionWebSocket logsWebSessionWebSocket = new LogsWebSessionWebSocket(managementServerHostVO,
                     webSocketServerManager.getServerPort(),
-                    getLogsWebSessionWebSocketPathUsingVO(managementServerHostVO.getId(), logsWebSession));
+                    getLogsWebSessionWebSocketPathForManagementServer(managementServerHostVO, payload));
             webSockets.add(logsWebSessionWebSocket);
         }
         return webSockets;

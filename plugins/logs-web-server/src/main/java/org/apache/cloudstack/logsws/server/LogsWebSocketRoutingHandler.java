@@ -20,6 +20,8 @@ package org.apache.cloudstack.logsws.server;
 import java.nio.charset.StandardCharsets;
 
 import org.apache.cloudstack.logsws.LogsWebSession;
+import org.apache.cloudstack.logsws.LogsWebSessionTokenPayload;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -58,8 +60,33 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
+    protected LogsWebSession getValidSession(String route, ChannelHandlerContext ctx) {
+        LogsWebSessionTokenPayload tokenPayload = serverHelper.parseToken(route);
+        if (tokenPayload == null) {
+            LOGGER.error("Decrypted token payload is null for route: {}", route);
+            return null;
+        }
+        String sessionUuid = tokenPayload.getSessionUuid();
+        if (StringUtils.isBlank(sessionUuid)) {
+            LOGGER.error("Session UUID is blank in token payload for route: {}", route);
+            return null;
+        }
+        String creatorAddress = tokenPayload.getCreatorAddress();
+        if (StringUtils.isBlank(creatorAddress)) {
+            LOGGER.error("Creator address is blank in token payload for route: {}", route);
+            return null;
+        }
+        String requestAddress = ctx.channel().remoteAddress().toString();
+        if (!requestAddress.contains(creatorAddress)) {
+            LOGGER.error("Request address: {} does not match creator address: {} for session: {}",
+                    requestAddress, creatorAddress, sessionUuid);
+            return null;
+        }
+        return serverHelper.getSession(sessionUuid);
+    }
+
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (!(msg instanceof FullHttpRequest)) {
             ctx.fireChannelRead(msg);
             return;
@@ -80,7 +107,7 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
             closeChannelWithErrorResponse(ctx, req, String.format("Empty route in request URI: %s", uri));
             return;
         }
-        LogsWebSession session = serverHelper.getSession(route);
+        LogsWebSession session = getValidSession(route, ctx);
         if (session == null) {
             closeChannelWithErrorResponse(ctx, req,
                     String.format("Unauthorized connection attempt for route: %s", route));
@@ -105,7 +132,7 @@ public class LogsWebSocketRoutingHandler extends ChannelInboundHandlerAdapter {
 
         // Rewrite the URI so that the handshake matches the expected sever path
         if (req instanceof DefaultFullHttpRequest) {
-            ((DefaultFullHttpRequest) req).setUri(serverPath);
+            req.setUri(serverPath);
         } else {
             DefaultFullHttpRequest newReq = new DefaultFullHttpRequest(
                     req.protocolVersion(), req.method(), serverPath, req.content().retain());

@@ -22,10 +22,12 @@ import java.util.List;
 import org.apache.cloudstack.framework.config.ConfigKey;
 import org.apache.cloudstack.framework.config.Configurable;
 
+import com.cloud.exception.InternalErrorException;
 import com.cloud.utils.component.PluggableService;
 
 public interface LogsWebSessionManager extends PluggableService, Configurable {
     String WS_PATH = "/logger";
+    String ENCRYPTION_PASSPHRASE = "LogsWebSessionEncryptionPassphrase";
 
     ConfigKey<Boolean> LogsWebServerEnabled = new ConfigKey<>("Advanced", Boolean.class,
             "logs.web.server.enabled", "false",
@@ -65,6 +67,6 @@ public interface LogsWebSessionManager extends PluggableService, Configurable {
             true,
             ConfigKey.Scope.ManagementServer);
 
-    List<LogsWebSessionWebSocket> getLogsWebSessionWebSockets(final LogsWebSession logsWebSession);
+    List<LogsWebSessionWebSocket> getLogsWebSessionWebSockets(final LogsWebSession logsWebSession) throws InternalErrorException;
     boolean canCreateNewLogsWebSession();
 }
