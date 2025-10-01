@@ -119,7 +119,7 @@
   </template>
 
 <script>
-import { api } from '@/api'
+import { postAPI } from '@/api'
 import TooltipLabel from '@/components/widgets/TooltipLabel'
 
 export default {
@@ -257,7 +257,7 @@ export default {
     openLogsWebSession (filters) {
       this.webSocketsLoading = true
       this.disconnectWebSocketsAndClearData()
-      api('createLogsWebSession', { filters: filters.join() }).then(json => {
+      postAPI('createLogsWebSession', { filters: filters.join() }).then(json => {
         var session = json?.createlogswebsessionresponse?.logswebsession
         if (session) {
           this.prepareAndOpenWebSockets(session.websocket)
