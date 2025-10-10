@@ -11,7 +11,6 @@
     - Subnet of 255.255.255.0
     - DHCP server disabled
 
-
 ### Start the vagrant boxes
 
 ```bash
@@ -22,7 +21,6 @@ vagrant up
 
 - 'Cannot forward the specified ports on this VM': There could be MySQL or some other
   service running on the host OS causing vagrant to fail setting up local port forwarding.
-
 
 ### Start Cloudstack
 
@@ -44,7 +42,7 @@ vagrant up
 
 	```bash
 	cd /path/to/cloudstack/repo
-	wget http://download.cloudstack.org/tools/vhd-util -P scripts/vm/hypervisor/xenserver/
+	wget https://download.cloudstack.org/tools/vhd-util -P scripts/vm/hypervisor/xenserver/
 	chmod +x scripts/vm/hypervisor/xenserver/vhd-util
 	```
 

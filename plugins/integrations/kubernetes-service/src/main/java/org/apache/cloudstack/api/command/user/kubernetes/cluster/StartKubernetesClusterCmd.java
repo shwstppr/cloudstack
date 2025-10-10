@@ -18,6 +18,9 @@ package org.apache.cloudstack.api.command.user.kubernetes.cluster;
 
 import javax.inject.Inject;
 
+import com.cloud.exception.InsufficientCapacityException;
+import com.cloud.exception.ManagementServerException;
+import com.cloud.exception.ResourceUnavailableException;
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.api.APICommand;
 <<<<<<< HEAD
@@ -134,7 +137,8 @@ public class StartKubernetesClusterCmd extends BaseAsyncCmd {
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
             response.setResponseName(getCommandName());
             setResponseObject(response);
-        } catch (CloudRuntimeException ex) {
+        } catch (CloudRuntimeException | ManagementServerException | ResourceUnavailableException |
+                 InsufficientCapacityException ex) {
             throw new ServerApiException(ApiErrorCode.INTERNAL_ERROR, ex.getMessage());
         }
     }

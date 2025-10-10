@@ -65,6 +65,7 @@ public enum ApiCommandResourceType {
     AffinityGroup(org.apache.cloudstack.affinity.AffinityGroup.class),
     InternalLbVm(com.cloud.network.router.VirtualRouter.class),
     DedicatedGuestVlanRange(com.cloud.network.GuestVlan.class),
+    GuestOsCategory(com.cloud.storage.GuestOsCategory.class),
     GuestOs(com.cloud.storage.GuestOS.class),
     GuestOsMapping(com.cloud.storage.GuestOSHypervisor.class),
     Network(com.cloud.network.Network.class),
@@ -94,8 +95,11 @@ public enum ApiCommandResourceType {
 
 =======
     QuotaTariff(org.apache.cloudstack.quota.QuotaTariff.class),
-    KubernetesCluster(null),
-    KubernetesSupportedVersion(null);
+    KubernetesCluster(com.cloud.kubernetes.cluster.KubernetesCluster.class),
+    KubernetesSupportedVersion(null),
+    SharedFS(org.apache.cloudstack.storage.sharedfs.SharedFS.class),
+    Extension(org.apache.cloudstack.extension.Extension.class),
+    ExtensionCustomAction(org.apache.cloudstack.extension.ExtensionCustomAction.class);
 
     private final Class<?> clazz;
 

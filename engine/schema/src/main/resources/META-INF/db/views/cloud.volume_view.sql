@@ -42,7 +42,7 @@ SELECT
 <<<<<<< HEAD
 =======
     `volumes`.`encrypt_format` AS `encrypt_format`,
->>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
+    `volumes`.`delete_protection` AS `delete_protection`,
     `account`.`id` AS `account_id`,
     `account`.`uuid` AS `account_uuid`,
     `account`.`account_name` AS `account_name`,

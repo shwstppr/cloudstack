@@ -138,6 +138,12 @@ public class VolumeJoinDaoImpl extends GenericDaoBaseWithTagInformation<VolumeJo
         volResponse.setMinIops(volume.getMinIops());
         volResponse.setMaxIops(volume.getMaxIops());
 
+        if (volume.getDeleteProtection() == null) {
+            volResponse.setDeleteProtection(false);
+        } else {
+            volResponse.setDeleteProtection(volume.getDeleteProtection());
+        }
+
         volResponse.setCreated(volume.getCreated());
         if (volume.getState() != null) {
             volResponse.setState(volume.getState().toString());
@@ -189,8 +195,8 @@ public class VolumeJoinDaoImpl extends GenericDaoBaseWithTagInformation<VolumeJo
 
         if (volume.getDiskOfferingId() > 0) {
             DiskOffering computeOnlyDiskOffering  = ApiDBUtils.findComputeOnlyDiskOfferingById(volume.getDiskOfferingId());
-            if (computeOnlyDiskOffering != null) {
-                ServiceOffering serviceOffering = ApiDBUtils.findServiceOfferingByComputeOnlyDiskOffering(volume.getDiskOfferingId());
+            ServiceOffering serviceOffering = getServiceOfferingForDiskOffering(volume, computeOnlyDiskOffering);
+            if (serviceOffering != null) {
                 volResponse.setServiceOfferingId(String.valueOf(serviceOffering.getId()));
                 volResponse.setServiceOfferingName(serviceOffering.getName());
                 volResponse.setServiceOfferingDisplayText(serviceOffering.getDisplayText());
@@ -285,6 +291,27 @@ public class VolumeJoinDaoImpl extends GenericDaoBaseWithTagInformation<VolumeJo
         volResponse.setEncryptionFormat(volume.getEncryptionFormat());
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
         return volResponse;
+    }
+
+    /**
+     * gets the {@see ServiceOffering} for the {@see Volume} with {@see DiskOffering}
+     * It will first try existing ones
+     * If not found it will try to get a removed one
+     *
+     * @param volume
+     * @param computeOnlyDiskOffering
+     * @return the resulting offering or null
+     */
+    private static ServiceOffering getServiceOfferingForDiskOffering(VolumeJoinVO volume, DiskOffering computeOnlyDiskOffering) {
+        ServiceOffering serviceOffering = null;
+        if (computeOnlyDiskOffering != null) {
+            serviceOffering = ApiDBUtils.findServiceOfferingByComputeOnlyDiskOffering(volume.getDiskOfferingId(), false);
+            if (serviceOffering == null) {
+                // Check again for removed ones
+                serviceOffering = ApiDBUtils.findServiceOfferingByComputeOnlyDiskOffering(volume.getDiskOfferingId(), true);
+            }
+        }
+        return serviceOffering;
     }
 
     @Override

@@ -32,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 
 import javax.naming.ConfigurationException;
 
+import com.cloud.utils.UuidUtils;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.rabbitmq.client.BlockedListener;
 
@@ -264,7 +265,7 @@ public class RabbitMQEventBus extends ManagerBase implements EventBus {
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
         try {
             String classname = subscriber.getClass().getName();
-            String queueName = UUID.nameUUIDFromBytes(classname.getBytes()).toString();
+            String queueName = UuidUtils.nameUUIDFromBytes(classname.getBytes()).toString();
             Ternary<String, Channel, EventSubscriber> queueDetails = s_subscribers.get(queueName);
             Channel channel = queueDetails.second();
             channel.basicCancel(queueName);

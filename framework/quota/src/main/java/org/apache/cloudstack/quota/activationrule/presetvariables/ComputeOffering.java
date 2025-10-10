@@ -17,12 +17,17 @@
 
 package org.apache.cloudstack.quota.activationrule.presetvariables;
 
+import org.apache.cloudstack.quota.constant.QuotaTypes;
+
 public class ComputeOffering extends GenericPresetVariable {
 <<<<<<< HEAD
 =======
     @PresetVariableDefinition(description = "A boolean informing if the compute offering is customized or not.")
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
     private boolean customized;
+
+    @PresetVariableDefinition(description = "A boolean informing if the compute offering offers HA or not.", supportedTypes = {QuotaTypes.RUNNING_VM})
+    private boolean offerHa;
 
     public boolean isCustomized() {
         return customized;
@@ -31,6 +36,15 @@ public class ComputeOffering extends GenericPresetVariable {
     public void setCustomized(boolean customized) {
         this.customized = customized;
         fieldNamesToIncludeInToString.add("customized");
+    }
+
+    public boolean offerHa() {
+        return offerHa;
+    }
+
+    public void setOfferHa(boolean offerHa) {
+        this.offerHa = offerHa;
+        fieldNamesToIncludeInToString.add("offerHa");
     }
 
 }

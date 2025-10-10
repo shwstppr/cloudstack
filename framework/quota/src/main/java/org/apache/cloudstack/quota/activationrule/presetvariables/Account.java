@@ -17,14 +17,19 @@
 
 package org.apache.cloudstack.quota.activationrule.presetvariables;
 
-<<<<<<< HEAD
-public class Account extends GenericPresetVariable{
-=======
+import com.cloud.utils.DateUtil;
+
+import java.util.Date;
+import java.util.TimeZone;
+
 public class Account extends GenericPresetVariable {
     @PresetVariableDefinition(description = "Role of the account. This field will not exist if the account is a project.")
 
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
     private Role role;
+
+    @PresetVariableDefinition(description = "The date the account was created in GMT. This field will not exist for the first root admin account.")
+    private String created;
 
     public Role getRole() {
         return role;
@@ -35,4 +40,12 @@ public class Account extends GenericPresetVariable {
         fieldNamesToIncludeInToString.add("role");
     }
 
+    public String getCreated() {
+        return created;
+    }
+
+    public void setCreated(Date created) {
+        this.created = DateUtil.displayDateInTimezone(TimeZone.getTimeZone("GMT"), created);
+        fieldNamesToIncludeInToString.add("created");
+    }
 }

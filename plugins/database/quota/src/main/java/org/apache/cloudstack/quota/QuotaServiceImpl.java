@@ -29,6 +29,7 @@ import javax.naming.ConfigurationException;
 import org.apache.cloudstack.api.command.QuotaBalanceCmd;
 import org.apache.cloudstack.api.command.QuotaConfigureEmailCmd;
 import org.apache.cloudstack.api.command.QuotaCreditsCmd;
+import org.apache.cloudstack.api.command.QuotaCreditsListCmd;
 import org.apache.cloudstack.api.command.QuotaEmailTemplateListCmd;
 import org.apache.cloudstack.api.command.QuotaEmailTemplateUpdateCmd;
 import org.apache.cloudstack.api.command.QuotaEnabledCmd;
@@ -44,6 +45,7 @@ import org.apache.cloudstack.api.command.QuotaTariffDeleteCmd;
 import org.apache.cloudstack.api.command.QuotaTariffListCmd;
 import org.apache.cloudstack.api.command.QuotaTariffUpdateCmd;
 import org.apache.cloudstack.api.command.QuotaUpdateCmd;
+import org.apache.cloudstack.api.command.QuotaValidateActivationRuleCmd;
 import org.apache.cloudstack.api.response.QuotaResponseBuilder;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.framework.config.ConfigKey;
@@ -117,6 +119,7 @@ public class QuotaServiceImpl extends ManagerBase implements QuotaService, Confi
         cmdList.add(QuotaTariffListCmd.class);
         cmdList.add(QuotaTariffUpdateCmd.class);
         cmdList.add(QuotaCreditsCmd.class);
+        cmdList.add(QuotaCreditsListCmd.class);
         cmdList.add(QuotaEmailTemplateListCmd.class);
         cmdList.add(QuotaEmailTemplateUpdateCmd.class);
         cmdList.add(QuotaTariffCreateCmd.class);
@@ -126,7 +129,7 @@ public class QuotaServiceImpl extends ManagerBase implements QuotaService, Confi
 <<<<<<< HEAD
 =======
         cmdList.add(QuotaPresetVariablesListCmd.class);
->>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
+        cmdList.add(QuotaValidateActivationRuleCmd.class);
         return cmdList;
     }
 

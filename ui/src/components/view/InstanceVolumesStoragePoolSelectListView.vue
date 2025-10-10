@@ -63,7 +63,7 @@
 </template>
 
 <script>
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import VolumeStoragePoolSelectForm from '@/components/view/VolumeStoragePoolSelectForm'
 
 export default {
@@ -173,7 +173,7 @@ export default {
     fetchVolumes () {
       this.volumesLoading = true
       this.volumes = []
-      api('listVolumes', {
+      getAPI('listVolumes', {
         listAll: true,
         virtualmachineid: this.resource.id
       }).then(response => {

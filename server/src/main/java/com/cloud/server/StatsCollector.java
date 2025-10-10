@@ -16,6 +16,7 @@
 // under the License.
 package com.cloud.server;
 
+import static com.cloud.configuration.ConfigurationManagerImpl.DELETE_QUERY_BATCH_SIZE;
 import static com.cloud.utils.NumbersUtil.toHumanReadableSize;
 
 import java.lang.management.ManagementFactory;
@@ -41,9 +42,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import com.cloud.utils.DateUtil;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager;
 import org.apache.cloudstack.engine.subsystem.api.storage.DataStoreProvider;
@@ -63,10 +66,10 @@ import org.apache.cloudstack.utils.identity.ManagementServerNode;
 import org.apache.cloudstack.utils.usage.UsageUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateUtils;
+import org.apache.logging.log4j.Level;
 import org.influxdb.BatchOptions;
 import org.influxdb.InfluxDB;
 import org.influxdb.InfluxDBFactory;
@@ -94,6 +97,7 @@ import com.cloud.cluster.ClusterServicePdu;
 import com.cloud.cluster.ManagementServerHostVO;
 import com.cloud.cluster.ManagementServerStatusVO;
 import com.cloud.cluster.dao.ManagementServerHostDao;
+import com.cloud.cluster.dao.ManagementServerHostPeerDao;
 import com.cloud.cluster.dao.ManagementServerStatusDao;
 import com.cloud.dc.Vlan.VlanType;
 import com.cloud.dc.VlanVO;
@@ -113,9 +117,6 @@ import com.cloud.org.Cluster;
 import com.cloud.resource.ResourceManager;
 import com.cloud.resource.ResourceState;
 import com.cloud.serializer.GsonHelper;
-import com.cloud.server.StatsCollector.AbstractStatsCollector;
-import com.cloud.server.StatsCollector.AutoScaleMonitor;
-import com.cloud.server.StatsCollector.StorageCollector;
 import com.cloud.storage.ImageStoreDetailsUtil;
 import com.cloud.storage.ScopeType;
 import com.cloud.storage.Storage;
@@ -133,6 +134,7 @@ import com.cloud.user.dao.UserStatisticsDao;
 import com.cloud.user.dao.VmDiskStatisticsDao;
 import com.cloud.utils.LogUtils;
 import com.cloud.utils.NumbersUtil;
+import com.cloud.utils.Pair;
 import com.cloud.utils.component.ComponentMethodInterceptable;
 import com.cloud.utils.component.ManagerBase;
 import com.cloud.utils.concurrency.NamedThreadFactory;
@@ -149,7 +151,6 @@ import com.cloud.utils.net.MacAddress;
 import com.cloud.utils.script.Script;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmManager;
-import com.cloud.vm.UserVmVO;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineManager;
@@ -170,10 +171,10 @@ import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.codahale.metrics.jvm.ThreadStatesGaugeSet;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import com.google.gson.reflect.TypeToken;
 import com.sun.management.OperatingSystemMXBean;
 
 /**
@@ -303,6 +304,9 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     private static StatsCollector s_instance = null;
 
     private static Gson gson = new Gson();
+    private static Gson msStatsGson = new GsonBuilder()
+            .setDateFormat(DateUtil.ZONED_DATETIME_FORMAT)
+            .create();
 
     private ScheduledExecutorService _executor = null;
     @Inject
@@ -356,6 +360,8 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
     private ClusterManager clusterManager;
     @Inject
     private ManagementServerStatusDao managementServerStatusDao;
+    @Inject
+    private ManagementServerHostPeerDao managementServerHostPeerDao;
     @Inject
     VirtualMachineManager virtualMachineManager;
 
@@ -634,17 +640,21 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 externalStatsPrefix, externalStatsHost, externalStatsPort));
     }
 
-    protected Map<Long, VMInstanceVO> getVmMapForStatsForHost(Host host) {
+    protected Pair<Map<Long, VMInstanceVO>, Map<String, Long>> getVmMapForStatsForHost(Host host) {
         List<VMInstanceVO> vms = _vmInstance.listByHostAndState(host.getId(), VirtualMachine.State.Running);
         boolean collectUserVMStatsOnly = Boolean.TRUE.equals(vmStatsCollectUserVMOnly.value());
-        Map<Long, VMInstanceVO> vmMap = new HashMap<>();
-        for (VMInstanceVO vm : vms) {
-            if (collectUserVMStatsOnly && !VirtualMachine.Type.User.equals(vm.getType())) {
-                continue;
-            }
-            vmMap.put(vm.getId(), vm);
+        if (collectUserVMStatsOnly) {
+            vms = vms.stream().filter(vm -> VirtualMachine.Type.User.equals(vm.getType())).collect(Collectors.toList());
         }
-        return vmMap;
+        Map<Long, VMInstanceVO> idInstanceMap = new HashMap<>();
+        Map<String, Long> instanceNameIdMap = new HashMap<>();
+        vms.forEach(vm -> {
+            if (!collectUserVMStatsOnly || VirtualMachine.Type.User.equals(vm.getType())) {
+                idInstanceMap.put(vm.getId(), vm);
+                instanceNameIdMap.put(vm.getInstanceName(), vm.getId());
+            }
+        });
+        return new Pair<>(idInstanceMap, instanceNameIdMap);
     }
 
     class HostCollector extends AbstractStatsCollector {
@@ -658,13 +668,13 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
 
                 Map<Object, Object> metrics = new HashMap<>();
                 for (HostVO host : hosts) {
-                    HostStatsEntry hostStatsEntry = (HostStatsEntry) _resourceMgr.getHostStatistics(host.getId());
+                    HostStatsEntry hostStatsEntry = (HostStatsEntry) _resourceMgr.getHostStatistics(host);
                     if (hostStatsEntry != null) {
                         hostStatsEntry.setHostVo(host);
                         metrics.put(hostStatsEntry.getHostId(), hostStatsEntry);
                         _hostStats.put(host.getId(), hostStatsEntry);
                     } else {
-                        logger.warn("The Host stats is null for host: " + host.getId());
+                        logger.warn("The Host stats is null for host: {}", host);
                     }
                 }
 
@@ -721,10 +731,10 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                  getDynamicDataFromDB();
                  long interval = (Long) dbStats.get(uptime) - lastUptime;
                  long activity = (Long) dbStats.get(queries) - lastQueries;
-                 loadHistory.add(0, Double.valueOf(activity / interval));
+                 loadHistory.add(0, interval == 0 ? -1 : Double.valueOf(activity / interval));
                  int maxsize = DATABASE_SERVER_LOAD_HISTORY_RETENTION_NUMBER.value();
                  while (loadHistory.size() > maxsize) {
-                     loadHistory.remove(maxsize - 1);
+                     loadHistory.remove(maxsize);
                  }
              } catch (Throwable e) {
                  // pokemon catch to make sure the thread stays running
@@ -742,7 +752,6 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
              dbStats.put(uptime, (Long.valueOf(stats.get(uptime))));
          }
 
-
          @Override
          protected Point createInfluxDbPoint(Object metricsObject) {
              return null;
@@ -755,21 +764,21 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
             logger.debug(String.format("%s is running...", this.getClass().getSimpleName()));
             long msid = ManagementServerNode.getManagementServerId();
             ManagementServerHostVO mshost = null;
-            ManagementServerHostStatsEntry hostStatsEntry = null;
+            ManagementServerHostStatsEntry msHostStatsEntry = null;
             try {
                 mshost = managementServerHostDao.findByMsid(msid);
                 // get local data
-                hostStatsEntry = getDataFrom(mshost);
-                managementServerHostStats.put(mshost.getUuid(), hostStatsEntry);
+                msHostStatsEntry = getDataFrom(mshost);
+                managementServerHostStats.put(mshost.getUuid(), msHostStatsEntry);
                 // send to other hosts
-                clusterManager.publishStatus(gson.toJson(hostStatsEntry));
+                clusterManager.publishStatus(msStatsGson.toJson(msHostStatsEntry));
             } catch (Throwable t) {
                 // pokemon catch to make sure the thread stays running
                 logger.error("Error trying to retrieve management server host statistics", t);
             }
             try {
                 // send to DB
-                storeStatus(hostStatsEntry, mshost);
+                storeStatus(msHostStatsEntry, mshost);
             } catch (Throwable t) {
                 // pokemon catch to make sure the thread stays running
                 logger.error("Error trying to store  management server host statistics", t);
@@ -807,6 +816,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
             logger.trace("Metrics collection start...");
             newEntry.setManagementServerHostId(mshost.getId());
             newEntry.setManagementServerHostUuid(mshost.getUuid());
+            newEntry.setManagementServerRunId(mshost.getRunid());
             newEntry.setDbLocal(isDbLocal());
             newEntry.setUsageLocal(isUsageLocal());
             retrieveSession(newEntry);
@@ -836,8 +846,11 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         }
 
         private void getDataBaseStatistics(ManagementServerHostStatsEntry newEntry, long msid) {
-            int count = _hostDao.countByMs(msid);
-            newEntry.setAgentCount(count);
+            List<String> lastAgents = _hostDao.listByLastMs(msid);
+            newEntry.setLastAgents(lastAgents);
+            List<String> agents = _hostDao.listByMs(msid);
+            newEntry.setAgents(agents);
+            newEntry.setAgentCount(agents.size());
         }
 
         private void getMemoryData(@NotNull ManagementServerHostStatsEntry newEntry) {
@@ -939,12 +952,12 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 logger.info(String.format("used memory from /proc: %d", newEntry.getSystemMemoryUsed()));
             }
             try {
-                String bootTime = Script.runSimpleBashScript("uptime -s");
-                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss", Locale.ENGLISH);
+                String bootTime = Script.runSimpleBashScript("date -d @$(grep btime /proc/stat | awk '{print $2}') '+%Y-%m-%d %H:%M:%S'");
+                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH);
                 Date date = formatter.parse(bootTime);
                 newEntry.setSystemBootTime(date);
             } catch (ParseException e) {
-                logger.error("can not retrieve system uptime");
+                logger.error("can not retrieve system uptime", e);
             }
             String maxuse = Script.runSimpleBashScript(String.format("ps -o vsz= %d", newEntry.getPid()));
             newEntry.setSystemMemoryVirtualSize(Long.parseLong(maxuse) * 1024);
@@ -1160,10 +1173,13 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 logger.debug(String.format("StatusUpdate from %s, json: %s", pdu.getSourcePeer(), pdu.getJsonPackage()));
             }
 
-            ManagementServerHostStatsEntry hostStatsEntry = null;
+            ManagementServerHostStatsEntry hostStatsEntry;
             try {
-                hostStatsEntry = gson.fromJson(pdu.getJsonPackage(),new TypeToken<ManagementServerHostStatsEntry>(){}.getType());
+                hostStatsEntry = msStatsGson.fromJson(pdu.getJsonPackage(), ManagementServerHostStatsEntry.class);
                 managementServerHostStats.put(hostStatsEntry.getManagementServerHostUuid(), hostStatsEntry);
+
+                // Update peer state to Up in mshost_peer
+                updatePeerInfo(hostStatsEntry);
             } catch (JsonParseException e) {
                 logger.error("Exception in decoding of other MS hosts status from : " + pdu.getSourcePeer());
                 if (logger.isDebugEnabled()) {
@@ -1171,6 +1187,23 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 }
             }
             return null;
+        }
+
+        private void updatePeerInfo(ManagementServerHostStatsEntry hostStatsEntry) {
+            // Update msId to id of the management server if msId is same as managementServerNodeId
+            if (msId == managementServerNodeId) {
+                ManagementServerHostVO mgmtServerVo = managementServerHostDao.findByMsid(managementServerNodeId);
+                if (mgmtServerVo != null) {
+                    msId = mgmtServerVo.getId();
+                } else {
+                    logger.warn(String.format("Cannot find management server with msid [%s]. Therefore, do not update peer info.", managementServerNodeId));
+                    return;
+                }
+            }
+            // Update peer state to Up in mshost_peer
+            if (msId != hostStatsEntry.getManagementServerHostId()) {
+                managementServerHostPeerDao.updatePeerInfo(msId, hostStatsEntry.getManagementServerHostId(), hostStatsEntry.getManagementServerRunId(), ManagementServerHost.State.Up);
+            }
         }
 
         @Override
@@ -1206,40 +1239,41 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 Map<Object, Object> metrics = new HashMap<>();
                 for (HostVO host : hosts) {
                     Date timestamp = new Date();
-                    Map<Long, VMInstanceVO> vmMap = getVmMapForStatsForHost(host);
+                    Pair<Map<Long, VMInstanceVO>, Map<String, Long>> vmsAndMap = getVmMapForStatsForHost(host);
+                    Map<Long, VMInstanceVO> vmMap = vmsAndMap.first();
                     try {
-                        Map<Long, ? extends VmStats> vmStatsById = virtualMachineManager.getVirtualMachineStatistics(host.getId(), host.getName(), vmMap);
-
-                        if (vmStatsById != null) {
-                            Set<Long> vmIdSet = vmStatsById.keySet();
-                            for (Long vmId : vmIdSet) {
-                                VmStatsEntry statsForCurrentIteration = (VmStatsEntry)vmStatsById.get(vmId);
-                                statsForCurrentIteration.setVmId(vmId);
-                                VMInstanceVO vm = vmMap.get(vmId);
-                                statsForCurrentIteration.setVmUuid(vm.getUuid());
-
-                                persistVirtualMachineStats(statsForCurrentIteration, timestamp);
-
-                                if (externalStatsType == ExternalStatsProtocol.GRAPHITE) {
-                                    prepareVmMetricsForGraphite(metrics, statsForCurrentIteration);
-                                } else {
-                                    metrics.put(statsForCurrentIteration.getVmId(), statsForCurrentIteration);
-                                }
-                            }
-
-                            if (!metrics.isEmpty()) {
-                                if (externalStatsType == ExternalStatsProtocol.GRAPHITE) {
-                                    sendVmMetricsToGraphiteHost(metrics, host);
-                                } else if (externalStatsType == ExternalStatsProtocol.INFLUXDB) {
-                                    sendMetricsToInfluxdb(metrics);
-                                }
-                            }
-
-                            metrics.clear();
+                        Map<Long, ? extends VmStats> vmStatsById = virtualMachineManager.getVirtualMachineStatistics(
+                                host, vmsAndMap.second());
+                        if (MapUtils.isEmpty(vmStatsById)) {
+                            continue;
                         }
+                        Set<Long> vmIdSet = vmStatsById.keySet();
+                        for (Long vmId : vmIdSet) {
+                            VmStatsEntry statsForCurrentIteration = (VmStatsEntry)vmStatsById.get(vmId);
+                            statsForCurrentIteration.setVmId(vmId);
+                            VMInstanceVO vm = vmMap.get(vmId);
+                            statsForCurrentIteration.setVmUuid(vm.getUuid());
+
+                            persistVirtualMachineStats(statsForCurrentIteration, timestamp);
+
+                            if (externalStatsType == ExternalStatsProtocol.GRAPHITE) {
+                                prepareVmMetricsForGraphite(metrics, statsForCurrentIteration);
+                            } else {
+                                metrics.put(statsForCurrentIteration.getVmId(), statsForCurrentIteration);
+                            }
+                        }
+
+                        if (!metrics.isEmpty()) {
+                            if (externalStatsType == ExternalStatsProtocol.GRAPHITE) {
+                                sendVmMetricsToGraphiteHost(metrics, host);
+                            } else if (externalStatsType == ExternalStatsProtocol.INFLUXDB) {
+                                sendMetricsToInfluxdb(metrics);
+                            }
+                        }
+
+                        metrics.clear();
                     } catch (Exception e) {
-                        logger.debug("Failed to get VM stats for host with ID: " + host.getId());
-                        continue;
+                        logger.debug("Failed to get VM stats for : {}", host);
                     }
                 }
 
@@ -1424,8 +1458,10 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                     Transaction.execute(new TransactionCallbackNoReturn() {
                         @Override
                         public void doInTransactionWithoutResult(TransactionStatus status) {
-                            Map<Long, VMInstanceVO> vmMap = getVmMapForStatsForHost(host);
-                            HashMap<Long, List<? extends VmDiskStats>> vmDiskStatsById = virtualMachineManager.getVmDiskStatistics(host.getId(), host.getName(), vmMap);
+                            Pair<Map<Long, VMInstanceVO>, Map<String, Long>> vmsAndMap = getVmMapForStatsForHost(host);
+                            Map<Long, VMInstanceVO> vmMap = vmsAndMap.first();
+                            HashMap<Long, List<? extends VmDiskStats>> vmDiskStatsById =
+                                    virtualMachineManager.getVmDiskStatistics(host, vmsAndMap.second());
                             if (vmDiskStatsById == null)
                                 return;
 
@@ -1438,7 +1474,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                 for (VmDiskStats vmDiskStat : vmDiskStats) {
                                     VmDiskStatsEntry vmDiskStatEntry = (VmDiskStatsEntry)vmDiskStat;
                                     SearchCriteria<VolumeVO> sc_volume = _volsDao.createSearchCriteria();
-                                    sc_volume.addAnd("path", SearchCriteria.Op.EQ, vmDiskStatEntry.getPath());
+                                    sc_volume.addAnd("path", SearchCriteria.Op.LIKE, vmDiskStatEntry.getPath() + "%");
                                     List<VolumeVO> volumes = _volsDao.search(sc_volume, null);
 
                                     if (CollectionUtils.isEmpty(volumes))
@@ -1458,8 +1494,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                     }
 
                                     if (vmDiskStat_lock == null) {
-                                        logger.warn("unable to find vm disk stats from host for account: " + vm.getAccountId() + " with vmId: " + vm.getId()
-                                                + " and volumeId:" + volume.getId());
+                                        logger.warn("unable to find vm disk stats from host for account: {} with vm: {} and volume: {}", vm.getAccountId(), vm, volume);
                                         continue;
                                     }
 
@@ -1505,7 +1540,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                         }
                     });
                 } catch (Exception e) {
-                    logger.warn(String.format("Error while collecting vm disk stats from host %s : ", host.getName()), e);
+                    logger.warn("Error while collecting vm disk stats from host {} : ", host, e);
                 }
             }
         }
@@ -1532,8 +1567,10 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                     Transaction.execute(new TransactionCallbackNoReturn() {
                         @Override
                         public void doInTransactionWithoutResult(TransactionStatus status) {
-                            Map<Long, VMInstanceVO> vmMap = getVmMapForStatsForHost(host);
-                            HashMap<Long, List<? extends VmNetworkStats>> vmNetworkStatsById = virtualMachineManager.getVmNetworkStatistics(host.getId(), host.getName(), vmMap);
+                            Pair<Map<Long, VMInstanceVO>, Map<String, Long>> vmsAndMap = getVmMapForStatsForHost(host);
+                            Map<Long, VMInstanceVO> vmMap = vmsAndMap.first();
+                            HashMap<Long, List<? extends VmNetworkStats>> vmNetworkStatsById =
+                                    virtualMachineManager.getVmNetworkStatistics(host, vmsAndMap.second());
                             if (vmNetworkStatsById == null)
                                 return;
 
@@ -1542,13 +1579,12 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                 List<? extends VmNetworkStats> vmNetworkStats = vmNetworkStatsById.get(vmId);
                                 if (CollectionUtils.isEmpty(vmNetworkStats))
                                     continue;
-                                UserVmVO userVm = _userVmDao.findById(vmId);
-                                if (userVm == null) {
-                                    logger.debug("Cannot find uservm with id: " + vmId + " , continue");
+                                VMInstanceVO userVm = vmMap.get(vmId);
+                                if (!VirtualMachine.Type.User.equals(userVm.getType())) {
+                                    logger.debug("Cannot find uservm with id: {} , continue", vmId);
                                     continue;
                                 }
-                                logger.debug("Now we are updating the user_statistics table for VM: " + userVm.getInstanceName()
-                                        + " after collecting vm network statistics from host: " + host.getName());
+                                logger.debug("Now we are updating the user_statistics table for VM: {} after collecting vm network statistics from host: {}", userVm, host);
                                 for (VmNetworkStats vmNetworkStat : vmNetworkStats) {
                                     VmNetworkStatsEntry vmNetworkStatEntry = (VmNetworkStatsEntry)vmNetworkStat;
                                     SearchCriteria<NicVO> sc_nic = _nicDao.createSearchCriteria();
@@ -1573,8 +1609,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                     }
 
                                     if (vmNetworkStat_lock == null) {
-                                        logger.warn("unable to find vm network stats from host for account: " + userVm.getAccountId() + " with vmId: " + userVm.getId()
-                                                + " and nicId:" + nic.getId());
+                                        logger.warn("unable to find vm network stats from host for account: {} with vm: {} and nic: {}", userVm.getAccountId(), userVm, nic);
                                         continue;
                                     }
 
@@ -1610,7 +1645,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                         }
                     });
                 } catch (Exception e) {
-                    logger.warn(String.format("Error while collecting vm network stats from host %s : ", host.getName()), e);
+                    logger.warn("Error while collecting vm network stats from host {} : ", host, e);
                 }
             }
         }
@@ -1679,7 +1714,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 }
 
                 List<DataStore> stores = _dataStoreMgr.listImageStores();
-                ConcurrentHashMap<Long, StorageStats> storageStats = new ConcurrentHashMap<Long, StorageStats>();
+                ConcurrentHashMap<Long, StorageStats> storageStats = new ConcurrentHashMap<>();
                 for (DataStore store : stores) {
                     if (store.getUri() == null) {
                         continue;
@@ -1696,10 +1731,10 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                     Answer answer = ssAhost.sendMessage(command);
                     if (answer != null && answer.getResult()) {
                         storageStats.put(storeId, (StorageStats)answer);
-                        logger.trace("HostId: " + storeId + " Used: " + toHumanReadableSize(((StorageStats)answer).getByteUsed()) + " Total Available: " + toHumanReadableSize(((StorageStats)answer).getCapacityBytes()));
+                        logger.trace("Store: {} Used: {} Total Available: {}", store, toHumanReadableSize(((StorageStats) answer).getByteUsed()), toHumanReadableSize(((StorageStats) answer).getCapacityBytes()));
                     }
                 }
-                _storageStats = storageStats;
+                updateStorageStats(storageStats);
                 ConcurrentHashMap<Long, StorageStats> storagePoolStats = new ConcurrentHashMap<Long, StorageStats>();
 
                 List<StoragePoolVO> storagePools = _storagePoolDao.listAll();
@@ -1713,11 +1748,14 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                     try {
                         Answer answer = _storageManager.sendToPool(pool, command);
                         if (answer != null && answer.getResult()) {
-                            storagePoolStats.put(pool.getId(), (StorageStats)answer);
+                            StorageStats stats = (StorageStats)answer;
+                            storagePoolStats.put(pool.getId(), stats);
 
                             boolean poolNeedsUpdating = false;
-                            long capacityBytes = ((StorageStats)answer).getCapacityBytes();
-                            long usedBytes = ((StorageStats)answer).getByteUsed();
+                            long capacityBytes = stats.getCapacityBytes();
+                            long usedBytes = stats.getByteUsed();
+                            Long capacityIops = stats.getCapacityIops();
+                            Long usedIops = stats.getUsedIops();
                             // Seems like we have dynamically updated the pool size since the prev. size and the current do not match
                             if ((_storagePoolStats.get(poolId) != null && _storagePoolStats.get(poolId).getCapacityBytes() != capacityBytes)
                                     || pool.getCapacityBytes() != capacityBytes) {
@@ -1725,7 +1763,8 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                     pool.setCapacityBytes(capacityBytes);
                                     poolNeedsUpdating = true;
                                 } else {
-                                    logger.warn("Not setting capacity bytes, received " + ((StorageStats)answer).getCapacityBytes()  + " capacity for pool ID " + poolId);
+                                    logger.warn("Not setting capacity bytes, received {} capacity for pool {}",
+                                            NumbersUtil.toReadableSize(((StorageStats)answer).getCapacityBytes()), pool);
                                 }
                             }
                             if (((_storagePoolStats.get(poolId) != null && _storagePoolStats.get(poolId).getByteUsed() != usedBytes)
@@ -1733,6 +1772,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                                 pool.setUsedBytes(usedBytes);
                                 poolNeedsUpdating = true;
                             }
+                            poolNeedsUpdating = isPoolNeedsIopsStatsUpdate(pool, capacityIops, usedIops) || poolNeedsUpdating;
                             if (poolNeedsUpdating) {
                                 pool.setUpdateTime(new Date());
                                 _storagePoolDao.update(pool.getId(), pool);
@@ -1749,6 +1789,37 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
                 logger.error("Error trying to retrieve storage stats", t);
             }
         }
+
+        private void updateStorageStats(ConcurrentHashMap<Long, StorageStats> storageStats) {
+            for (Long storeId : storageStats.keySet()) {
+                if (_storageStats.containsKey(storeId)
+                        && (_storageStats.get(storeId).getCapacityBytes() == 0l
+                        || _storageStats.get(storeId).getCapacityBytes() != storageStats.get(storeId).getCapacityBytes())) {
+                        // get add to DB rigorously
+                        _storageManager.updateImageStoreStatus(storeId, null, null, storageStats.get(storeId).getCapacityBytes());
+                }
+            }
+            // if in _storageStats and not in storageStats it gets discarded
+            _storageStats = storageStats;
+        }
+    }
+
+    protected boolean isPoolNeedsIopsStatsUpdate(StoragePoolVO pool, Long capacityIops, Long usedIops) {
+        boolean poolNeedsUpdating = false;
+        long poolId = pool.getId();
+        if (capacityIops != null && ((_storagePoolStats.get(poolId) != null &&
+                !capacityIops.equals(_storagePoolStats.get(poolId).getCapacityIops())) ||
+                !capacityIops.equals(pool.getCapacityIops()))) {
+            pool.setCapacityIops(capacityIops);
+            poolNeedsUpdating = true;
+        }
+        if (usedIops != null && ((_storagePoolStats.get(poolId) != null &&
+                !usedIops.equals(_storagePoolStats.get(poolId).getUsedIops())) ||
+                !usedIops.equals(pool.getUsedIops()))) {
+            pool.setUsedIops(usedIops);
+            poolNeedsUpdating = true;
+        }
+        return poolNeedsUpdating;
     }
 
     class AutoScaleMonitor extends ManagedContextRunnable {
@@ -1829,16 +1900,15 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         double totalCapacity = imageStoreStats.getCapacityBytes();
         double usedCapacity = imageStoreStats.getByteUsed();
         double threshold = getImageStoreCapacityThreshold();
-        String readableTotalCapacity = FileUtils.byteCountToDisplaySize((long) totalCapacity);
-        String readableUsedCapacity = FileUtils.byteCountToDisplaySize((long) usedCapacity);
+        String readableTotalCapacity = NumbersUtil.toReadableSize((long) totalCapacity);
+        String readableUsedCapacity = NumbersUtil.toReadableSize((long) usedCapacity);
 
-        logger.debug(String.format("Verifying image storage [%s]. Capacity: total=[%s], used=[%s], threshold=[%s%%].", imageStoreId, readableTotalCapacity, readableUsedCapacity, threshold * 100));
-
+        logger.printf(Level.DEBUG, "Verifying image storage [%s]. Capacity: total=[%s], used=[%s], threshold=[%.2f%%].", imageStore, readableTotalCapacity, readableUsedCapacity, threshold * 100);
         if (usedCapacity / totalCapacity <= threshold) {
             return true;
         }
 
-        logger.warn(String.format("Image storage [%s] has not enough capacity. Capacity: total=[%s], used=[%s], threshold=[%s%%].", imageStoreId, readableTotalCapacity, readableUsedCapacity, threshold * 100));
+        logger.printf(Level.WARN, "Image storage [%s] has not enough capacity. Capacity: total=[%s], used=[%s], threshold=[%.2f%%].", imageStore, readableTotalCapacity, readableUsedCapacity, threshold * 100);
         return false;
     }
 
@@ -1865,7 +1935,7 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
      * Sends VMs metrics to the configured graphite host.
      */
     protected void sendVmMetricsToGraphiteHost(Map<Object, Object> metrics, HostVO host) {
-        logger.debug(String.format("Sending VmStats of host %s to %s host %s:%s", host.getId(), externalStatsType, externalStatsHost, externalStatsPort));
+        logger.debug("Sending VmStats of host {} to {} host {}:{}", host, externalStatsType, externalStatsHost, externalStatsPort);
         try {
             GraphiteClient g = new GraphiteClient(externalStatsHost, externalStatsPort);
             g.sendMetrics(metrics);
@@ -1953,13 +2023,13 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         Integer maxRetentionTime = vmStatsMaxRetentionTime.value();
         if (maxRetentionTime <= 0) {
             logger.debug(String.format("Skipping VM stats cleanup. The [%s] parameter [%s] is set to 0 or less than 0.",
-                    vmStatsMaxRetentionTime.scope(), vmStatsMaxRetentionTime.toString()));
+                    ConfigKey.Scope.decodeAsCsv(vmStatsMaxRetentionTime.getScopeBitmask()), vmStatsMaxRetentionTime.toString()));
             return;
         }
         logger.trace("Removing older VM stats records.");
         Date now = new Date();
         Date limit = DateUtils.addMinutes(now, -maxRetentionTime);
-        vmStatsDao.removeAllByTimestampLessThan(limit);
+        vmStatsDao.removeAllByTimestampLessThan(limit, DELETE_QUERY_BATCH_SIZE.value());
     }
 
     /**
@@ -1971,14 +2041,14 @@ public class StatsCollector extends ManagerBase implements ComponentMethodInterc
         if (maxRetentionTime <= 0) {
             if (logger.isDebugEnabled()) {
                 logger.debug(String.format("Skipping Volume stats cleanup. The [%s] parameter [%s] is set to 0 or less than 0.",
-                        vmDiskStatsMaxRetentionTime.scope(), vmDiskStatsMaxRetentionTime.toString()));
+                        ConfigKey.Scope.decodeAsCsv(vmDiskStatsMaxRetentionTime.getScopeBitmask()), vmDiskStatsMaxRetentionTime.toString()));
             }
             return;
         }
         logger.trace("Removing older Volume stats records.");
         Date now = new Date();
         Date limit = DateUtils.addMinutes(now, -maxRetentionTime);
-        volumeStatsDao.removeAllByTimestampLessThan(limit);
+        volumeStatsDao.removeAllByTimestampLessThan(limit, DELETE_QUERY_BATCH_SIZE.value());
     }
 
     /**

@@ -73,6 +73,10 @@ public class EventUtils {
     private static EventDistributor eventDistributor;
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
 
+    private static final String MODULE_TOP_LEVEL_PACKAGE =
+            EventUtils.class.getPackage().getName().substring(0,
+                    EventUtils.class.getPackage().getName().lastIndexOf('.'));
+
     public EventUtils() {
     }
 
@@ -193,6 +197,13 @@ public class EventUtils {
         @Override
         public void interceptComplete(Method method, Object target, Object event) {
             ActionEvent actionEvent = method.getAnnotation(ActionEvent.class);
+            boolean sameModule = false;
+            if (target != null && target.getClass().getPackage() != null) {
+                sameModule = target.getClass().getPackage().getName().startsWith(MODULE_TOP_LEVEL_PACKAGE);
+            }
+            if (!sameModule) {
+                return;
+            }
             if (actionEvent != null) {
                 CallContext ctx = CallContext.current();
                 if (!actionEvent.create()) {

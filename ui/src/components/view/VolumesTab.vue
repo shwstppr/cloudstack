@@ -56,7 +56,7 @@
 </template>
 
 <script>
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import Status from '@/components/widgets/Status'
 
 export default {
@@ -149,7 +149,7 @@ export default {
       }
     },
     getVolumes () {
-      api('listVolumes', { listall: true, listsystemvms: true, virtualmachineid: this.vm.id }).then(json => {
+      getAPI('listVolumes', { listall: true, listsystemvms: true, virtualmachineid: this.vm.id }).then(json => {
         this.volumes = json.listvolumesresponse.volume
         if (this.volumes) {
           this.volumes.sort((a, b) => { return a.deviceid - b.deviceid })

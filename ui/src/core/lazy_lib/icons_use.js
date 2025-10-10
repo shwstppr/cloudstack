@@ -19,8 +19,10 @@ import {
   AimOutlined,
   ApartmentOutlined,
   ApiOutlined,
+  AppstoreAddOutlined,
   AppstoreOutlined,
   ArrowDownOutlined,
+  ArrowRightOutlined,
   ArrowUpOutlined,
   ArrowsAltOutlined,
   AuditOutlined,
@@ -55,6 +57,7 @@ import {
   ClusterOutlined,
   CodeOutlined,
   CompassOutlined,
+  ContainerOutlined,
   ControlOutlined,
   CopyOutlined,
   CreditCardOutlined,
@@ -80,6 +83,9 @@ import {
   FieldTimeOutlined,
   FileDoneOutlined,
   FileProtectOutlined,
+  FileSyncOutlined,
+  FileTextOutlined,
+  FileZipOutlined,
   FilterOutlined,
   FilterTwoTone,
   FireOutlined,
@@ -96,6 +102,7 @@ import {
   GlobalOutlined,
   GoldOutlined,
   GoogleOutlined,
+  GroupOutlined,
   HddOutlined,
   HomeOutlined,
   IdcardOutlined,
@@ -129,10 +136,13 @@ import {
   LaptopOutlined,
   OrderedListOutlined,
   PaperClipOutlined,
+  PartitionOutlined,
   PauseCircleOutlined,
+  PicCenterOutlined,
   PictureOutlined,
   PieChartOutlined,
   PlayCircleOutlined,
+  PlaySquareOutlined,
   PlusCircleOutlined,
   PlusOutlined,
   PlusSquareOutlined,
@@ -161,6 +171,7 @@ import {
   SettingOutlined,
   ShareAltOutlined,
   ShoppingOutlined,
+  SplitCellsOutlined,
   StopOutlined,
   SwapOutlined,
   SyncOutlined,
@@ -190,8 +201,10 @@ export default {
     app.component('AimOutlined', AimOutlined)
     app.component('ApartmentOutlined', ApartmentOutlined)
     app.component('ApiOutlined', ApiOutlined)
+    app.component('AppstoreAddOutlined', AppstoreAddOutlined)
     app.component('AppstoreOutlined', AppstoreOutlined)
     app.component('ArrowDownOutlined', ArrowDownOutlined)
+    app.component('ArrowRightOutlined', ArrowRightOutlined)
     app.component('ArrowUpOutlined', ArrowUpOutlined)
     app.component('ArrowsAltOutlined', ArrowsAltOutlined)
     app.component('AuditOutlined', AuditOutlined)
@@ -225,6 +238,7 @@ export default {
     app.component('CloudUploadOutlined', CloudUploadOutlined)
     app.component('ClusterOutlined', ClusterOutlined)
     app.component('CodeOutlined', CodeOutlined)
+    app.component('ContainerOutlined', ContainerOutlined)
     app.component('ControlOutlined', ControlOutlined)
     app.component('CompassOutlined', CompassOutlined)
     app.component('CopyOutlined', CopyOutlined)
@@ -251,6 +265,9 @@ export default {
     app.component('FieldTimeOutlined', FieldTimeOutlined)
     app.component('FileDoneOutlined', FileDoneOutlined)
     app.component('FileProtectOutlined', FileProtectOutlined)
+    app.component('FileSyncOutlined', FileSyncOutlined)
+    app.component('FileTextOutlined', FileTextOutlined)
+    app.component('FileZipOutlined', FileZipOutlined)
     app.component('FilterOutlined', FilterOutlined)
     app.component('FilterTwoTone', FilterTwoTone)
     app.component('FireOutlined', FireOutlined)
@@ -267,6 +284,7 @@ export default {
     app.component('GlobalOutlined', GlobalOutlined)
     app.component('GoldOutlined', GoldOutlined)
     app.component('GoogleOutlined', GoogleOutlined)
+    app.component('GroupOutlined', GroupOutlined)
     app.component('HddOutlined', HddOutlined)
     app.component('HomeOutlined', HomeOutlined)
     app.component('IdcardOutlined', IdcardOutlined)
@@ -300,10 +318,13 @@ export default {
     app.component('LaptopOutlined', LaptopOutlined)
     app.component('OrderedListOutlined', OrderedListOutlined)
     app.component('PaperClipOutlined', PaperClipOutlined)
+    app.component('PartitionOutlined', PartitionOutlined)
     app.component('PauseCircleOutlined', PauseCircleOutlined)
+    app.component('PicCenterOutlined', PicCenterOutlined)
     app.component('PictureOutlined', PictureOutlined)
     app.component('PieChartOutlined', PieChartOutlined)
     app.component('PlayCircleOutlined', PlayCircleOutlined)
+    app.component('PlaySquareOutlined', PlaySquareOutlined)
     app.component('PlusCircleOutlined', PlusCircleOutlined)
     app.component('PlusOutlined', PlusOutlined)
     app.component('PlusSquareOutlined', PlusSquareOutlined)
@@ -332,6 +353,7 @@ export default {
     app.component('SettingOutlined', SettingOutlined)
     app.component('ShareAltOutlined', ShareAltOutlined)
     app.component('ShoppingOutlined', ShoppingOutlined)
+    app.component('SplitCellsOutlined', SplitCellsOutlined)
     app.component('StopOutlined', StopOutlined)
     app.component('SwapOutlined', SwapOutlined)
     app.component('SyncOutlined', SyncOutlined)

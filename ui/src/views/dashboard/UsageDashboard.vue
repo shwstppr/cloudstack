@@ -67,9 +67,18 @@
               </a-statistic>
             </router-link>
           </a-col>
-<<<<<<< HEAD
-          <a-col :span="12">
-=======
+          <a-col :span="12" v-if="'listVirtualMachines' in $store.getters.apis && isLeaseFeatureEnabled">
+            <router-link :to="{ path: '/vm', query: { leased: true } }">
+              <a-statistic
+                :title="$t('label.leasedinstances')"
+                :value="data.leasedinstances"
+                :value-style="{ color: $config.theme['@primary-color'] }">
+                <template #prefix>
+                  <field-time-outlined/>&nbsp;
+                </template>
+              </a-statistic>
+            </router-link>
+          </a-col>
           <a-col :span="12" v-if="'listKubernetesClusters' in $store.getters.apis">
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
             <router-link :to="{ path: '/kubernetes' }">
@@ -186,8 +195,7 @@
     <a-col :xs="{ span: 24 }" :lg="{ span: 12 }" :xl="{ span: 8 }" :xxl="{ span: 8 }">
 =======
     <a-col :xs="{ span: 24 }" :lg="{ span: 12 }" :xl="{ span: 8 }" :xxl="{ span: 8 }" v-if="'listVirtualMachines' in $store.getters.apis">
->>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
-      <chart-card :loading="loading" class="dashboard-card">
+      <chart-card :loading="loading" class="dashboard-compute">
         <template #title>
           <div class="center">
             <h3>
@@ -224,7 +232,7 @@
         </a-row>
         <a-divider style="margin: 1px 0px; border-width: 0px;"/>
         <div
-          v-for="usageType in ['vm', 'cpu', 'memory', 'project']"
+          v-for="usageType in ['vm', 'cpu', 'memory', 'gpu', 'project']"
           :key="usageType">
           <div v-if="usageType + 'total' in entity">
             <div>
@@ -239,7 +247,7 @@
             status="active"
             :percent="parseFloat(getPercentUsed(entity[usageType + 'total'], entity[usageType + 'limit']))"
             :format="p => entity[usageType + 'limit'] !== '-1' && entity[usageType + 'limit'] !== 'Unlimited' ? p.toFixed(0) + '%' : ''"
-            stroke-color="#52c41a"
+            :stroke-color="getStrokeColor(entity[usageType + 'available'])"
             size="small"
             />
             <br/>
@@ -252,7 +260,7 @@
       </chart-card>
     </a-col>
     <a-col :xs="{ span: 24 }" :lg="{ span: 12 }" :xl="{ span: 8 }" :xxl="{ span: 8 }">
-      <chart-card :loading="loading" class="dashboard-card">
+      <chart-card :loading="loading" class="dashboard-storage">
         <template #title>
           <div class="center">
             <h3><hdd-outlined /> {{ $t('label.storage') }}</h3>
@@ -260,7 +268,7 @@
         </template>
         <a-divider style="margin: 6px 0px; border-width: 0px"/>
         <div
-          v-for="usageType in ['volume', 'snapshot', 'template', 'primarystorage', 'secondarystorage']"
+          v-for="usageType in ['volume', 'snapshot', 'template', 'primarystorage', 'secondarystorage', 'backup', 'backupstorage', 'bucket', 'objectstorage']"
           :key="usageType">
           <div>
             <div>
@@ -275,7 +283,7 @@
             status="active"
             :percent="parseFloat(getPercentUsed(entity[usageType + 'total'], entity[usageType + 'limit']))"
             :format="p => entity[usageType + 'limit'] !== '-1' && entity[usageType + 'limit'] !== 'Unlimited' ? p.toFixed(0) + '%' : ''"
-            stroke-color="#52c41a"
+            :stroke-color="getStrokeColor(entity[usageType + 'available'])"
             size="small"
             />
             <br/>
@@ -311,7 +319,7 @@
             status="active"
             :percent="parseFloat(getPercentUsed(entity[usageType + 'total'], entity[usageType + 'limit']))"
             :format="p => entity[usageType + 'limit'] !== '-1' && entity[usageType + 'limit'] !== 'Unlimited' ? p.toFixed(0) + '%' : ''"
-            stroke-color="#52c41a"
+            :stroke-color="getStrokeColor(entity[usageType + 'available'])"
             size="small"
             />
             <br/>
@@ -323,7 +331,14 @@
         </div>
       </chart-card>
     </a-col>
-    <a-col :xs="{ span: 24 }" :lg="{ span: 12 }" :xl="{ span: 8 }" :xxl="{ span: 8 }" class="dashboard-card">
+    <a-col
+      v-if="$config.userCard.enabled ?? true"
+      :xs="{ span: 24 }"
+      :lg="{ span: 12 }"
+      :xl="{ span: 8 }"
+      :xxl="{ span: 8 }"
+      class="dashboard-card"
+    >
       <chart-card :loading="loading" class="dashboard-card">
         <template #title>
           <div class="center">
@@ -387,7 +402,7 @@
 </template>
 
 <script>
-import { api } from '@/api'
+import { getAPI } from '@/api'
 import store from '@/store'
 
 import ChartCard from '@/components/widgets/ChartCard'
@@ -433,8 +448,10 @@ export default {
         networks: 0,
         vpcs: 0,
         ips: 0,
-        templates: 0
-      }
+        templates: 0,
+        leasedinstances: 0
+      },
+      isLeaseFeatureEnabled: this.$store.getters.features.instanceleaseenabled
     }
   },
   computed: {
@@ -481,6 +498,9 @@ export default {
     }
   },
   methods: {
+    getStrokeColor (available) {
+      return available <= 0 ? '#ff4d4f' : '#52c41a'
+    },
     fetchData () {
       if (store.getters.project.id) {
         this.listProject()
@@ -491,7 +511,7 @@ export default {
     },
     listAccount () {
       this.loading = true
-      api('listAccounts', { id: this.$store.getters.userInfo.accountid }).then(json => {
+      getAPI('listAccounts', { id: this.$store.getters.userInfo.accountid }).then(json => {
         this.loading = false
         if (json && json.listaccountsresponse && json.listaccountsresponse.account) {
           this.account = json.listaccountsresponse.account[0]
@@ -500,9 +520,13 @@ export default {
     },
     listProject () {
       this.loading = true
-      api('listProjects', { id: store.getters.project.id }).then(json => {
+      const params = {
+        id: store.getters.project.id,
+        listall: true
+      }
+      getAPI('listProjects', params).then(json => {
         this.loading = false
-        if (json && json.listprojectsresponse && json.listprojectsresponse.project) {
+        if (json?.listprojectsresponse?.project) {
           this.project = json.listprojectsresponse.project[0]
         }
       })
@@ -557,49 +581,49 @@ export default {
 =======
       if ('listKubernetesClusters' in this.$store.getters.apis) {
         this.loading = true
-        api('listKubernetesClusters', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listKubernetesClusters', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.kubernetes = json?.listkubernetesclustersresponse?.count
         })
       }
       if ('listVolumes' in this.$store.getters.apis) {
         this.loading = true
-        api('listVolumes', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listVolumes', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.volumes = json?.listvolumesresponse?.count
         })
       }
       if ('listSnapshots' in this.$store.getters.apis) {
         this.loading = true
-        api('listSnapshots', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listSnapshots', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.snapshots = json?.listsnapshotsresponse?.count
         })
       }
       if ('listNetworks' in this.$store.getters.apis) {
         this.loading = true
-        api('listNetworks', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listNetworks', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.networks = json?.listnetworksresponse?.count
         })
       }
       if ('listVPCs' in this.$store.getters.apis) {
         this.loading = true
-        api('listVPCs', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listVPCs', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.vpcs = json?.listvpcsresponse?.count
         })
       }
       if ('listPublicIpAddresses' in this.$store.getters.apis) {
         this.loading = true
-        api('listPublicIpAddresses', { listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listPublicIpAddresses', { listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.ips = json?.listpublicipaddressesresponse?.count
         })
       }
       if ('listTemplates' in this.$store.getters.apis) {
         this.loading = true
-        api('listTemplates', { templatefilter: 'self', listall: true, page: 1, pagesize: 1 }).then(json => {
+        getAPI('listTemplates', { templatefilter: 'self', listall: true, page: 1, pagesize: 1 }).then(json => {
           this.loading = false
           this.data.templates = json?.listtemplatesresponse?.count
         })
@@ -611,18 +635,27 @@ export default {
       }
 >>>>>>> 9e53596ba92eaec1289e97bfc9f441cc3c507002
       this.loading = true
-      api('listVirtualMachines', { listall: true, details: 'min', page: 1, pagesize: 1 }).then(json => {
+      getAPI('listVirtualMachines', { listall: true, details: 'min', page: 1, pagesize: 1 }).then(json => {
         this.loading = false
         this.data.instances = json?.listvirtualmachinesresponse?.count
       })
-      api('listVirtualMachines', { listall: true, details: 'min', state: 'running', page: 1, pagesize: 1 }).then(json => {
+      getAPI('listVirtualMachines', { listall: true, details: 'min', state: 'running', page: 1, pagesize: 1 }).then(json => {
         this.loading = false
         this.data.running = json?.listvirtualmachinesresponse?.count
       })
-      api('listVirtualMachines', { listall: true, details: 'min', state: 'stopped', page: 1, pagesize: 1 }).then(json => {
+      getAPI('listVirtualMachines', { listall: true, details: 'min', state: 'stopped', page: 1, pagesize: 1 }).then(json => {
         this.loading = false
         this.data.stopped = json?.listvirtualmachinesresponse?.count
       })
+      if (this.isLeaseFeatureEnabled) {
+        getAPI('listVirtualMachines', { leased: true, listall: true, details: 'min', page: 1, pagesize: 1 }).then(json => {
+          this.loading = false
+          this.data.leasedinstances = json?.listvirtualmachinesresponse?.count
+          if (!this.data.leasedinstances) {
+            this.data.leasedinstances = 0
+          }
+        })
+      }
     },
     listEvents () {
 <<<<<<< HEAD
@@ -637,7 +670,7 @@ export default {
         listall: true
       }
       this.loading = true
-      api('listEvents', params).then(json => {
+      getAPI('listEvents', params).then(json => {
         this.events = []
         this.loading = false
         if (json && json.listeventsresponse && json.listeventsresponse.event) {
@@ -653,10 +686,20 @@ export default {
           return 'label.cpunumber'
         case 'memory':
           return 'label.memory'
+        case 'gpu':
+          return 'label.gpu'
         case 'primarystorage':
           return 'label.primary.storage'
         case 'secondarystorage':
           return 'label.secondary.storage'
+        case 'backup':
+          return 'label.backup'
+        case 'backupstorage':
+          return 'label.backup.storage'
+        case 'bucket':
+          return 'label.buckets'
+        case 'objectstorage':
+          return 'label.object.storage'
         case 'ip':
           return 'label.public.ips'
       }
@@ -669,6 +712,10 @@ export default {
         case 'primarystorage':
           return parseFloat(value).toFixed(2) + ' GiB'
         case 'secondarystorage':
+          return parseFloat(value).toFixed(2) + ' GiB'
+        case 'backupstorage':
+          return parseFloat(value).toFixed(2) + ' GiB'
+        case 'objectstorage':
           return parseFloat(value).toFixed(2) + ' GiB'
       }
       return value
@@ -714,6 +761,20 @@ export default {
   .dashboard-card {
     width: 100%;
     min-height: 420px;
+  }
+
+  .dashboard-compute {
+    width: 100%;
+    overflow-x:hidden;
+    overflow-y: scroll;
+    max-height: 420px;
+  }
+
+  .dashboard-storage {
+    width: 100%;
+    overflow-x:hidden;
+    overflow-y: scroll;
+    max-height: 420px;
   }
 
   .dashboard-event {

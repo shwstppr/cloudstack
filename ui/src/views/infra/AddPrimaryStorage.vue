@@ -182,6 +182,17 @@
             <a-input v-model:value="form.path" :placeholder="$t('message.path.description')"/>
           </a-form-item>
         </div>
+        <div
+          v-if="form.protocol === 'nfs' &&
+            ((form.scope === 'zone' && (form.hypervisor === 'KVM' || form.hypervisor === 'Simulator')) ||
+             (form.scope === 'cluster' && (hypervisorType === 'KVM' || hypervisorType === 'Simulator')))">
+          <a-form-item name="nfsMountOpts" ref="nfsMountOpts">
+            <template #label>
+              <tooltip-label :title="$t('label.nfsmountopts')" :tooltip="$t('message.nfs.mount.options.description')"/>
+            </template>
+            <a-input v-model:value="form.nfsMountOpts" :placeholder="$t('message.nfs.mount.options.description')" />
+          </a-form-item>
+        </div>
         <div v-if="form.protocol === 'SMB'">
           <a-form-item :label="$t('label.smbusername')" name="smbUsername" ref="smbUsername">
             <a-input v-model:value="form.smbUsername"/>
@@ -363,6 +374,12 @@
           <a-form-item name="radospool" ref="radospool" :label="$t('label.rados.pool')">
             <a-input v-model:value="form.radospool" :placeholder="$t('label.rados.pool')"/>
           </a-form-item>
+          <a-form-item name="datapool" ref="datapool">
+            <template #label>
+              <tooltip-label :title="$t('label.data.pool')" :tooltip="$t('label.data.pool.description')"/>
+            </template>
+            <a-input v-model:value="form.datapool" :placeholder="$t('label.data.pool')"/>
+          </a-form-item>
           <a-form-item name="radosuser" ref="radosuser" :label="$t('label.rados.user')">
             <a-input v-model:value="form.radosuser" :placeholder="$t('label.rados.user')" />
           </a-form-item>
@@ -421,7 +438,7 @@
 
 <script>
 import { ref, reactive, toRaw } from 'vue'
-import { api } from '@/api'
+import { getAPI, postAPI } from '@/api'
 import _ from 'lodash'
 import { mixinForm } from '@/utils/mixin'
 import ResourceIcon from '@/components/view/ResourceIcon'
@@ -496,6 +513,10 @@ export default {
         powerflexGatewayUsername: [{ required: true, message: this.$t('label.required') }],
         powerflexGatewayPassword: [{ required: true, message: this.$t('label.required') }],
         powerflexStoragePool: [{ required: true, message: this.$t('label.required') }],
+        radosmonitor: [{ required: true, message: this.$t('label.required') }],
+        radospool: [{ required: true, message: this.$t('label.required') }],
+        radosuser: [{ required: true, message: this.$t('label.required') }],
+        radossecret: [{ required: true, message: this.$t('label.required') }],
         username: [{ required: true, message: this.$t('label.required') }],
         password: [{ required: true, message: this.$t('label.required') }],
         primeraURL: [{ required: true, message: this.$t('label.url') }],
@@ -513,7 +534,7 @@ export default {
     },
     getInfraData () {
       this.loading = true
-      api('listZones', { showicon: true }).then(json => {
+      getAPI('listZones', { showicon: true }).then(json => {
         this.zones = json.listzonesresponse.zone || []
         this.changeZone(this.zones[0] ? this.zones[0].id : '')
       }).finally(() => {
@@ -535,7 +556,7 @@ export default {
         this.form.pod = ''
         return
       }
-      api('listPods', {
+      getAPI('listPods', {
         zoneid: this.form.zone
       }).then(json => {
         this.pods = json.listpodsresponse.pod || []
@@ -548,7 +569,7 @@ export default {
         this.form.cluster = ''
         return
       }
-      api('listClusters', {
+      getAPI('listClusters', {
         podid: this.form.pod
       }).then(json => {
         this.clusters = json.listclustersresponse.cluster || []
@@ -557,7 +578,7 @@ export default {
           this.fetchHypervisor()
         }
       }).then(() => {
-        api('listHosts', {
+        getAPI('listHosts', {
           clusterid: this.form.cluster
         }).then(json => {
           this.hosts = json.listhostsresponse.host || []
@@ -570,7 +591,7 @@ export default {
     listStorageProviders () {
       this.providers = []
       this.loading = true
-      api('listStorageProviders', { type: 'primary' }).then(json => {
+      getAPI('listStorageProviders', { type: 'primary' }).then(json => {
         var providers = json.liststorageprovidersresponse.dataStoreProvider || []
         for (const provider of providers) {
           this.providers.push(provider.name)
@@ -581,7 +602,7 @@ export default {
     },
     listStorageTags () {
       this.loading = true
-      api('listStorageTags').then(json => {
+      getAPI('listStorageTags').then(json => {
         this.storageTags = json.liststoragetagsresponse.storagetag || []
         if (this.storageTags) {
           this.storageTags = _.uniqBy(this.storageTags, 'name')
@@ -802,6 +823,9 @@ export default {
         var url = ''
         if (values.protocol === 'nfs') {
           url = this.nfsURL(server, path)
+          if (values.nfsMountOpts) {
+            params['details[0].nfsmountopts'] = values.nfsMountOpts
+          }
         } else if (values.protocol === 'SMB') {
           url = this.smbURL(server, path)
           const smbParams = {
@@ -839,6 +863,9 @@ export default {
           url = this.clvmURL(vg)
         } else if (values.protocol === 'RBD') {
           url = this.rbdURL(values.radosmonitor, values.radospool, values.radosuser, values.radossecret)
+          if (values.datapool) {
+            params['details[0].rbd_default_data_pool'] = values.datapool
+          }
         } else if (values.protocol === 'vmfs') {
           path = values.vCenterDataCenter
           if (path.substring(0, 1) !== '/') {
@@ -885,7 +912,7 @@ export default {
 <<<<<<< HEAD
 =======
 
-        if (values.provider === 'Linstor') {
+        if (values.provider === 'Linstor' || values.protocol === 'Linstor') {
           url = this.linstorURL(server)
           values.managed = false
           params['details[0].resourceGroup'] = values.resourcegroup
@@ -922,7 +949,7 @@ export default {
           params.tags = this.selectedTags.join()
         }
         this.loading = true
-        api('createStoragePool', {}, 'POST', params).then(json => {
+        postAPI('createStoragePool', params).then(json => {
           this.$notification.success({
             message: this.$t('label.add.primary.storage'),
             description: this.$t('label.add.primary.storage')
