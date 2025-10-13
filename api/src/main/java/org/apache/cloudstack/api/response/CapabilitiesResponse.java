@@ -149,6 +149,10 @@ public class CapabilitiesResponse extends BaseResponse {
     @Param(description = "true if dynamically scaling for instances is enabled", since = "4.21.0")
     private Boolean dynamicScalingEnabled;
 
+    @SerializedName(ApiConstants.ADDITONAL_CONFIG_ENABLED)
+    @Param(description = "true if additional configurations or extraconfig can be passed to Instances", since = "4.20.2")
+    private Boolean additionalConfigEnabled;
+
     @SerializedName(ApiConstants.LOGS_WEB_SERVER_ENABLED)
     @Param(description = "true if Logs Web Server plugin is enabled, false otherwise", since = "4.22.0")
     private boolean logsWebServerEnabled;
@@ -275,6 +279,10 @@ public class CapabilitiesResponse extends BaseResponse {
 
     public void setDynamicScalingEnabled(Boolean dynamicScalingEnabled) {
         this.dynamicScalingEnabled = dynamicScalingEnabled;
+    }
+
+    public void setAdditionalConfigEnabled(Boolean additionalConfigEnabled) {
+        this.additionalConfigEnabled = additionalConfigEnabled;
     }
 
     public void setLogsWebServerEnabled(boolean logsWebServerEnabled) {
