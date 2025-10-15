@@ -19,12 +19,15 @@ package org.apache.cloudstack.framework.websocket.server;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketRouter;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -32,49 +35,65 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolConfig;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 
-public class WebSocketServer {
+/**
+ * Netty WebSocket server that delegates routing to WebSocketRouter.
+ * Replaces the previous helper-based WebSocketServer.
+ */
+public final class WebSocketServer {
+    private static final Logger LOG = LogManager.getLogger(WebSocketServer.class);
 
-    protected static Logger LOGGER = LogManager.getLogger(WebSocketServer.class);
-
+    private final String host;
     private final int port;
+    private final WebSocketRouter router;
+    private final String websocketBasePath;
+
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
-    private boolean running;
-    private final WebSocketServerHelper serverHelper;
+    private volatile boolean running;
 
-    public WebSocketServer(final int port, final WebSocketServerHelper serverHelper) {
+    public WebSocketServer(int port, WebSocketRouter router) {
+        this(null, port, router, null);
+    }
+
+    public WebSocketServer(String host, int port, WebSocketRouter router, String websocketBasePath) {
+        this.host = StringUtils.isBlank(host) ? "0.0.0.0" : host;
         this.port = port;
-        this.serverHelper = serverHelper;
+        this.router = router;
+        this.websocketBasePath = StringUtils.isBlank(websocketBasePath) ?
+                WebSocketRouter.WEBSOCKET_PATH_PREFIX : websocketBasePath;
     }
 
     public void start() throws InterruptedException {
         bossGroup = new NioEventLoopGroup(1);
         workerGroup = new NioEventLoopGroup();
-        ServerBootstrap b = new ServerBootstrap();
-        b.group(bossGroup, workerGroup)
+
+        final WebSocketServerProtocolConfig wsCfg = WebSocketServerProtocolConfig.newBuilder()
+                .websocketPath(websocketBasePath)
+                .checkStartsWith(true)
+                .allowExtensions(false).handshakeTimeoutMillis(10_000).build();
+
+        ServerBootstrap b = new ServerBootstrap().group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
+                .childOption(ChannelOption.TCP_NODELAY, true)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    protected void initChannel(SocketChannel ch) {
-                        ChannelPipeline pipeline = ch.pipeline();
-                        pipeline.addLast(new HttpServerCodec());
-                        pipeline.addLast(new HttpObjectAggregator(65536));
-                        pipeline.addLast(new WebSocketServerRoutingHandler(serverHelper));
-                    }
-                });
+            @Override
+            protected void initChannel(SocketChannel ch) {
+                ChannelPipeline p = ch.pipeline();
+                p.addLast(new HttpServerCodec());
+                p.addLast(new HttpObjectAggregator(65536));
+                p.addLast(new WebSocketServerProtocolHandler(wsCfg));
+                p.addLast(new WebSocketServerRoutingHandler(router));
+            }
+        });
 
-        // Bind and store the server channel.
-        serverChannel = b.bind(port).sync().channel();
-        LOGGER.debug("WebSocket server started on port {}", port);
-        // Note: We do not block here with serverChannel.closeFuture().sync()
+        serverChannel = b.bind(host, port).sync().channel();
         running = true;
-    }
-
-    // Stop the server gracefully.
-    public void stop() {
-        stop(5);
+        LOG.info("WebSocketServer listening on {}:{} (base path: {}, router={})", host, port,
+                websocketBasePath, router);
     }
 
     public void stop(long maxWaitSeconds) {
@@ -89,23 +108,20 @@ public class WebSocketServer {
                 workerGroup.shutdownGracefully(0, maxWaitSeconds, TimeUnit.SECONDS).sync();
             }
         } catch (InterruptedException e) {
-            LOGGER.error("Failed to stop WebSocket server properly with timeout {}s, forcefully stopping",
-                    maxWaitSeconds, e);
-            if (serverChannel != null && serverChannel.isOpen()) {
-                serverChannel.close();
-            }
-            if (bossGroup != null && !bossGroup.isTerminated()) {
-                bossGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
-            }
-            if (workerGroup != null && !workerGroup.isTerminated()) {
-                workerGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
-            }
+            LOG.warn("Graceful stop interrupted; forcing shutdown", e);
+            if (bossGroup != null) bossGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
+            if (workerGroup != null) workerGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS);
+        } finally {
+            running = false;
+            LOG.info("WebSocketServer stopped");
         }
-        LOGGER.debug("WebSocket server stopped");
-        running = false;
     }
 
     public boolean isRunning() {
         return running;
+    }
+
+    public int getPort() {
+        return port;
     }
 }

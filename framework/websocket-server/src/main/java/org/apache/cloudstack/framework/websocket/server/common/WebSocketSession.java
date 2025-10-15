@@ -15,11 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.cloudstack.framework.websocket.server;
+package org.apache.cloudstack.framework.websocket.server.common;
 
-import io.netty.channel.ChannelInboundHandlerAdapter;
+import java.nio.ByteBuffer;
+import java.util.Map;
 
-public interface WebSocketServerHelper {
-    ChannelInboundHandlerAdapter getRouteHandler(String route);
-    int getRouteIdleTimeout(String route);
+public interface WebSocketSession {
+    String id();
+
+    String path();
+
+    Map<String, String> query();
+
+    void sendText(String text);
+
+    void sendBinary(ByteBuffer buf);
+
+    void close(int code, String reason);
+
+    <T> void setAttr(String key, T val);
+
+    <T> T getAttr(String key);
 }

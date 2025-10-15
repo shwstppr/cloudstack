@@ -22,6 +22,8 @@
                       http://www.springframework.org/schema/beans/spring-beans.xsd"
 >
 
+    <bean id="websocketRouter"
+          class="org.apache.cloudstack.framework.websocket.server.common.WebSocketRouter" />
     <bean id="websocketServerManager"
         class="org.apache.cloudstack.framework.websocket.server.manager.WebSocketServerManagerImpl" />
 </beans>

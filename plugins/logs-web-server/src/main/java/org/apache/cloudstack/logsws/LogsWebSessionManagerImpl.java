@@ -62,10 +62,10 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     private String serverPath;
     private int idleTimeoutSeconds;
     private ScheduledExecutorService staleLogsWebSessionCleanupExecutor;
-    private ManagementServerHost managementServer = null;
+    private ManagementServerHostVO managementServer = null;
     private LogsWebSocketRouteManager logsWebSocketRouteManager;
 
-    protected ManagementServerHost getCurrentManagementServer() {
+    protected ManagementServerHostVO getCurrentManagementServer() {
         if (managementServer == null) {
             managementServer =
                     managementServerHostDao.findByMsid(ManagementServerNode.getManagementServerId());
@@ -78,13 +78,13 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     }
 
     protected Long getManagementServerRunId() {
-        return getCurrentManagementServer().getId();
+        return getCurrentManagementServer().getRunid();
     }
 
     protected void registerLogsWebSocketServerRoute() {
         logsWebSocketRouteManager = new LogsWebSocketRouteManager();
         logger.info("Registering Logs WebSocket server at path: {}", serverPath);
-        webSocketServerManager.registerRoute(serverPath, new LogsWebSocketRoutingHandler(logsWebSocketRouteManager,
+        webSocketServerManager.registerRoute(serverPath + "/", new LogsWebSocketRoutingHandler(logsWebSocketRouteManager,
                 this), idleTimeoutSeconds);
     }
 
@@ -121,7 +121,7 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     @Override
     public boolean stop() {
         logsWebSessionDao.markAllActiveAsDisconnected();
-        webSocketServerManager.unregisterRoute(serverPath);
+        webSocketServerManager.unregisterRoute(serverPath + "/");
         return true;
     }
 
@@ -138,15 +138,18 @@ public class LogsWebSessionManagerImpl extends ManagerBase implements LogsWebSes
     }
 
     protected String getLogsWebSessionWebSocketPathForManagementServer(ManagementServerHostVO managementServerHostVO,
-                   LogsWebSessionTokenPayload payload) throws InternalErrorException {
+                                                                       LogsWebSessionTokenPayload payload) throws InternalErrorException {
         String path = serverPath;
         if (!Objects.equals(managementServerHostVO.getId(), getManagementServerId())) {
             path = LogsWebServerPath.valueIn(managementServerHostVO.getId());
         }
         try {
-            return String.format("%s/%s", path, LogsWebSessionTokenCryptoUtil.encrypt(payload,
-                    String.valueOf(managementServerHostVO.getRunid())));
+            return String.format("%s%s/%s",
+                    webSocketServerManager.getWebSocketBasePath(),
+                    path,
+                    LogsWebSessionTokenCryptoUtil.encrypt(payload, String.valueOf(managementServerHostVO.getRunid())));
         } catch (GeneralSecurityException e) {
+            logger.error("Failed to encrypt token payload: {}", payload, e);
             throw new InternalErrorException("Failed to encrypt token payload: " + payload, e);
         }
     }

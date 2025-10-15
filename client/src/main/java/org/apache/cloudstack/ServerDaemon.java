@@ -27,10 +27,13 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.Properties;
 
-import com.cloud.api.ApiServer;
+import org.apache.cloudstack.utils.server.ServerPropertiesUtil;
+import org.apache.cloudstack.websocket.JettyWebSocketServlet;
 import org.apache.commons.daemon.Daemon;
 import org.apache.commons.daemon.DaemonContext;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.jmx.MBeanContainer;
 import org.eclipse.jetty.server.ForwardedRequestCustomizer;
 import org.eclipse.jetty.server.HttpConfiguration;
@@ -46,14 +49,14 @@ import org.eclipse.jetty.server.handler.MovedContextHandler;
 import org.eclipse.jetty.server.handler.RequestLogHandler;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.server.session.SessionHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.ssl.KeyStoreScanner;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import org.eclipse.jetty.util.thread.ScheduledExecutorScheduler;
 import org.eclipse.jetty.webapp.WebAppContext;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
 
+import com.cloud.api.ApiServer;
 import com.cloud.utils.Pair;
 import com.cloud.utils.PropertiesUtil;
 import com.cloud.utils.server.ServerProperties;
@@ -199,7 +202,7 @@ public class ServerDaemon implements Daemon {
         createHttpConnector(httpConfig);
 
         // Setup handlers
-        Pair<SessionHandler,HandlerCollection> pair = createHandlers();
+        Pair<SessionHandler, HandlerCollection> pair = createHandlers();
         server.setHandler(pair.second());
 
         // Extra config options
@@ -288,12 +291,30 @@ public class ServerDaemon implements Daemon {
         }
     }
 
-    private Pair<SessionHandler,HandlerCollection> createHandlers() {
+    protected void addWebSocketHandler(final WebAppContext webApp) {
+        try {
+            final String wsPortStr = ServerPropertiesUtil.getProperty("websocket.server.port");
+            if (StringUtils.isNotBlank(wsPortStr) && !wsPortStr.equals(String.valueOf(httpPort))) {
+                logger.info("Standalone WS server port={}, skipping Jetty-native /ws/* on this port.", wsPortStr);
+                return;
+            }
+            final ServletHolder ws = new ServletHolder(new JettyWebSocketServlet());
+            webApp.addServlet(ws, "/ws/*");
+            logger.info("Registered Jetty-native WebSocket servlet at /ws/* (same-port mode).");
+        } catch (Exception e) {
+            logger.warn("Failed to initialize native WebSocket handler", e);
+        }
+    }
+
+    private Pair<SessionHandler, HandlerCollection> createHandlers() {
         final WebAppContext webApp = new WebAppContext();
         webApp.setContextPath(contextPath);
         webApp.setInitParameter("org.eclipse.jetty.servlet.Default.dirAllowed", "false");
         webApp.setMaxFormContentSize(maxFormContentSize);
         webApp.setMaxFormKeys(maxFormKeys);
+
+        // Enable WebSockets
+        addWebSocketHandler(webApp);
 
         // GZIP handler
         final GzipHandler gzipHandler = new GzipHandler();

@@ -17,32 +17,39 @@
 
 package org.apache.cloudstack.framework.websocket.server.manager;
 
-import java.util.HashMap;
-import java.util.Map;
+import javax.inject.Inject;
 
-import org.apache.cloudstack.framework.config.ConfigKey;
-import org.apache.cloudstack.framework.config.Configurable;
 import org.apache.cloudstack.framework.websocket.server.WebSocketServer;
-import org.apache.cloudstack.framework.websocket.server.WebSocketServerHelper;
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketHandler;
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketRouter;
+import org.apache.cloudstack.utils.server.ServerPropertiesUtil;
+import org.apache.commons.lang3.StringUtils;
 
 import com.cloud.utils.component.ManagerBase;
 
-import io.netty.channel.ChannelInboundHandlerAdapter;
+public class WebSocketServerManagerImpl extends ManagerBase implements WebSocketServerManager {
 
-public class WebSocketServerManagerImpl extends ManagerBase implements WebSocketServerManager, WebSocketServerHelper, Configurable {
+    @Inject
+    WebSocketRouter webSocketRouter;
 
     private int serverPort;
+    private boolean standaloneWebSocketServerEnabled = true;
     private WebSocketServer webSocketServer;
-    private Map<String, ChannelInboundHandlerAdapter> routeHandlers;
-    private Map<String, Integer> routeIdleTimeouts;
 
-    @Override
-    public void startWebSocketServer() {
+    protected boolean isServerRunning() {
+        return webSocketServer != null && webSocketServer.isRunning();
+    }
+
+    protected void startWebSocketServer() {
         if (isServerRunning()) {
-            logger.info("WebSocket Server is already running!");
+            logger.info("WebSocket Server is already running on port {}!", webSocketServer.getPort());
             return;
         }
-        webSocketServer = new WebSocketServer(serverPort, this);
+        if (!standaloneWebSocketServerEnabled) {
+            logger.info("Standalone WebSocket Server not started as it is not configured!");
+            return;
+        }
+        webSocketServer = new WebSocketServer(serverPort, webSocketRouter);
         try {
             webSocketServer.start();
         } catch (InterruptedException e) {
@@ -59,14 +66,40 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
         webSocketServer = null;
     }
 
-    @Override
-    public void stopWebSocketServer() {
-        stopWebSocketServer(null);
+    protected void initializeServerPort() {
+        final String webSocketServerPort = ServerPropertiesUtil.getProperty("websocket.server.port");
+        final int httpPort = ServerPropertiesUtil.getHttpPort();
+        if (StringUtils.isBlank(webSocketServerPort)) {
+            logger.info("WebSocket Server port is not configured, WebSocket Server will not be started!");
+            serverPort = httpPort;
+            standaloneWebSocketServerEnabled = false;
+            return;
+        }
+        try {
+            serverPort = Integer.parseInt(webSocketServerPort);
+            if (serverPort == httpPort) {
+                logger.info("WebSocket Server port {} is same as http.port {}, standalone WebSocket Server will not be started!", serverPort, httpPort);
+                standaloneWebSocketServerEnabled = false;
+            }
+        } catch (NumberFormatException nfe) {
+            logger.error(
+                    "WebSocket Server port is not a valid number: {}, WebSocket Server will not be started!",
+                    webSocketServerPort, nfe);
+            standaloneWebSocketServerEnabled = false;
+        }
     }
 
-    @Override
-    public boolean isServerRunning() {
-        return webSocketServer != null && webSocketServer.isRunning();
+    protected static boolean looksRegex(String s) {
+        // starts with ^ or ends with $ is a strong hint
+        if (s.startsWith("^") || s.endsWith("$")) return true;
+        // common meta characters
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '.' || c == '*' || c == '[' || c == ']' || c == '(' || c == ')' || c == '|' || c == '\\') {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -75,32 +108,46 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
     }
 
     @Override
-    public void registerRoute(String route, ChannelInboundHandlerAdapter handler, int idleTimeoutSeconds) {
-        routeHandlers.put(route, handler);
-        routeIdleTimeouts.put(route, idleTimeoutSeconds);
+    public String getWebSocketBasePath() {
+        StringBuilder sb = new StringBuilder(WebSocketRouter.WEBSOCKET_PATH_PREFIX);
+        if (!standaloneWebSocketServerEnabled) {
+            String contextPath = ServerPropertiesUtil.getProperty("context.path", "/client").trim();
+            sb.insert(0, contextPath);
+        }
+        return sb.toString();
     }
 
     @Override
-    public void unregisterRoute(String route) {
-        routeHandlers.remove(route);
+    public void registerRoute(String pathSpec, WebSocketHandler handler, long idleTimeoutSeconds) {
+        if (pathSpec == null || pathSpec.isEmpty()) {
+            throw new IllegalArgumentException("pathSpec must not be empty");
+        }
+        final String norm = WebSocketRouter.ensureLeadingSlash(pathSpec);
+
+        if (looksRegex(norm)) {
+            webSocketRouter.registerRegex(norm, handler, idleTimeoutSeconds);
+            logger.info("Registered REGEX route: {} (idle={}s)", norm, idleTimeoutSeconds);
+        } else if (norm.endsWith("/")) {
+            webSocketRouter.registerPrefix(norm, handler, idleTimeoutSeconds);
+            logger.info("Registered PREFIX route: {} (idle={}s)", norm, idleTimeoutSeconds);
+        } else {
+            webSocketRouter.registerExact(norm, handler, idleTimeoutSeconds);
+            logger.info("Registered EXACT route: {} (idle={}s)", norm, idleTimeoutSeconds);
+        }
     }
 
     @Override
-    public ChannelInboundHandlerAdapter getRouteHandler(String route) {
-        return routeHandlers.get(route);
-    }
-
-    @Override
-    public int getRouteIdleTimeout(String route) {
-        return routeIdleTimeouts.getOrDefault(route, SERVER_SESSION_IDLE_TIMEOUT_SECONDS);
+    public void unregisterRoute(String pathSpec) {
+        if (pathSpec == null || pathSpec.isEmpty()) return;
+        final String key = WebSocketRouter.ensureLeadingSlash(pathSpec);
+        webSocketRouter.unregister(key);
+        logger.info("Unregistered route: {}", key);
     }
 
     @Override
     public boolean start() {
         super.start();
-        serverPort = WebSocketServerPort.value();
-        routeHandlers = new HashMap<>();
-        routeIdleTimeouts = new HashMap<>();
+        initializeServerPort();
         startWebSocketServer();
         return true;
     }
@@ -109,17 +156,5 @@ public class WebSocketServerManagerImpl extends ManagerBase implements WebSocket
     public boolean stop() {
         stopWebSocketServer(1);
         return true;
-    }
-
-    @Override
-    public String getConfigComponentName() {
-        return WebSocketServerManager.class.getSimpleName();
-    }
-
-    @Override
-    public ConfigKey<?>[] getConfigKeys() {
-        return new ConfigKey[] {
-                WebSocketServerPort
-        };
     }
 }

@@ -15,26 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.cloudstack.framework.websocket.server.manager;
+package org.apache.cloudstack.framework.websocket.server.common;
 
-import org.apache.cloudstack.framework.websocket.server.common.WebSocketHandler;
+import java.nio.ByteBuffer;
 
-public interface WebSocketServerManager {
+public interface WebSocketHandler {
+    void onOpen(WebSocketSession s);
 
-    int getServerPort();
+    void onText(WebSocketSession s, String text);
 
-    String getWebSocketBasePath();
+    void onBinary(WebSocketSession s, ByteBuffer bin);
 
-    /**
-     * Register a route:
-     * - If pathSpec ends with "/", it's treated as a PREFIX (e.g., "/logger/..." matches).
-     * - If pathSpec looks like a regex (e.g., starts with '^' or contains ".*", "[", "(", "|"), it's REGEX.
-     * - Otherwise it's an EXACT path (e.g., "/echo").
-     */
-    void registerRoute(String pathSpec, WebSocketHandler handler, long idleTimeoutSeconds);
+    void onClose(WebSocketSession s, int code, String reason);
 
-    /**
-     * Unregister the same key you used to register (exact path, normalized prefix with '/', or regex string).
-     */
-    void unregisterRoute(String pathSpec);
+    void onError(WebSocketSession s, Throwable t);
 }

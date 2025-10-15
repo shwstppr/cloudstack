@@ -17,81 +17,158 @@
 
 package org.apache.cloudstack.framework.websocket.server;
 
+import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang3.StringUtils;
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketHandler;
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketRouter;
+import org.apache.cloudstack.framework.websocket.server.common.WebSocketSession;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpHeaderNames;
-import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 
-public class WebSocketServerRoutingHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+public class WebSocketServerRoutingHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
     protected static Logger LOGGER = LogManager.getLogger(WebSocketServerRoutingHandler.class);
 
-    private final WebSocketServerHelper serverHelper;
 
-    public WebSocketServerRoutingHandler(WebSocketServerHelper serverHelper) {
-        this.serverHelper = serverHelper;
-    }
+    private final WebSocketRouter router;
+    private WebSocketHandler handler;
+    private WebSocketSession session;
 
-    protected void closeChannelWithErrorResponse(ChannelHandlerContext ctx, FullHttpRequest req, String message) {
-        LOGGER.warn("Error with request: {}, closing connection", message);
-        FullHttpResponse response = new DefaultFullHttpResponse(req.protocolVersion(), HttpResponseStatus.BAD_REQUEST,
-                Unpooled.copiedBuffer(message, StandardCharsets.UTF_8));
-        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
-        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+    public WebSocketServerRoutingHandler(WebSocketRouter router) {
+        this.router = router;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest req) {
-        // Check for WebSocket upgrade headers
-        String upgrade = req.headers().get(HttpHeaderNames.UPGRADE);
-        String connection = req.headers().get(HttpHeaderNames.CONNECTION);
-        if (upgrade == null || !upgrade.equalsIgnoreCase("websocket") ||
-                connection == null || !connection.toLowerCase().contains("upgrade")) {
-            closeChannelWithErrorResponse(ctx, req, "Only WebSocket upgrade requests are supported");
-            return;
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+            WebSocketServerProtocolHandler.HandshakeComplete hc =
+                    (WebSocketServerProtocolHandler.HandshakeComplete) evt;
+
+            final String requestUri = hc.requestUri();
+            final URI uri = URI.create(requestUri);
+            final String rawQuery = uri.getQuery();
+            String path = uri.getPath();
+            LOGGER.debug("WebSocket connection for path: {}, query: {}", path, rawQuery);
+
+            path = WebSocketRouter.stripWebSocketPathPrefix(uri.getPath());
+
+            WebSocketRouter.ResolvedRoute rr = router.resolve(path);
+            if (rr == null || rr.getHandler() == null) {
+                ctx.close();
+                return;
+            }
+            handler = rr.getHandler();
+
+            long idleMs = (rr.getConfig() != null) ? rr.getConfig().getIdleTimeoutMillis() : 0L;
+            if (idleMs > 0) {
+                ctx.pipeline().addBefore(ctx.name(), "ws-idle",
+                        new IdleStateHandler(0, 0, (int) TimeUnit.MILLISECONDS.toSeconds(idleMs)));
+            }
+
+            session = new NettyWebSocketSession(ctx.channel(), path, QueryUtils.parse(rawQuery));
+            session.setAttr("remoteAddress", String.valueOf(ctx.channel().remoteAddress()));
+
+            try {
+                handler.onOpen(session);
+            } catch (Throwable t) {
+                try {
+                    session.close(1011, "Open failed");
+                } catch (Throwable ignore) {
+                }
+                ctx.close();
+            }
         }
 
-        String uri = new QueryStringDecoder(req.uri()).path();
-        if (StringUtils.isBlank(uri)) {
-            closeChannelWithErrorResponse(ctx, req, "Empty URI");
+        super.userEventTriggered(ctx, evt);
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) {
+        if (handler == null || session == null) {
+            frame.release();
             return;
         }
-        String[] uriParts = uri.split("/");
-        String route = uriParts.length > 1 ? "/" + uriParts[1] : uri;
-        ChannelInboundHandlerAdapter handler = serverHelper.getRouteHandler(route);
-        if (handler == null) {
-            closeChannelWithErrorResponse(ctx, req, "Unknown URI: " + uri);
-            return;
+        try {
+            if (frame instanceof TextWebSocketFrame) {
+                handler.onText(session, ((TextWebSocketFrame) frame).text());
+            } else if (frame instanceof BinaryWebSocketFrame) {
+                ByteBuffer buf = frame.content().nioBuffer();
+                handler.onBinary(session, buf);
+            } else if (frame instanceof CloseWebSocketFrame) {
+                CloseWebSocketFrame c = (CloseWebSocketFrame) frame.retain();
+                handler.onClose(session, c.statusCode(), c.reasonText());
+                ctx.close();
+            } else if (frame instanceof PingWebSocketFrame) {
+                ctx.writeAndFlush(new PongWebSocketFrame(frame.content().retain()));
+            }
+        } catch (Throwable t) {
+            try {
+                handler.onError(session, t);
+            } catch (Throwable ignore) {
+            }
+            ctx.close();
+        } finally {
+            frame.release();
         }
-        if (ctx.pipeline().get(handler.getClass()) == null) {
-            LOGGER.debug("Adding handler [{}] for URI [{}]", handler.getClass().getSimpleName(), uri);
-            ctx.pipeline().addLast(handler);
-            ctx.pipeline().addLast(new WebSocketServerProtocolHandler(route, null, true));
-            ctx.pipeline().addLast("idleStateHandler",
-                    new IdleStateHandler(0, serverHelper.getRouteIdleTimeout(route), 0, TimeUnit.SECONDS));
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        LOGGER.debug("Channel inactive, closing session");
+        if (handler != null && session != null) {
+            try {
+                handler.onClose(session, 1006, "Channel inactive");
+            } catch (Throwable ignore) {
+            }
         }
-        ctx.pipeline().remove(this);
-        ctx.fireChannelRead(req.retain());
+        super.channelInactive(ctx);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        LOGGER.error("Exception in WebSocketServerRoutingHandler", cause);
+        if (handler != null && session != null) {
+            try {
+                handler.onError(session, cause);
+            } catch (Throwable ignore) {
+            }
+        }
         ctx.close();
+    }
+
+    // tiny query parser
+    static final class QueryUtils {
+        static Map<String, String> parse(String q) {
+            if (q == null || q.isEmpty()) return java.util.Collections.emptyMap();
+            java.util.Map<String, String> m = new java.util.HashMap<>();
+            for (String kv : q.split("&")) {
+                int i = kv.indexOf('=');
+                String k = i >= 0 ? kv.substring(0, i) : kv;
+                String v = i >= 0 ? kv.substring(i + 1) : "";
+                m.put(urlDecode(k), urlDecode(v));
+            }
+            return m;
+        }
+
+        static String urlDecode(String s) {
+            try {
+                return java.net.URLDecoder.decode(s, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                return s;
+            }
+        }
     }
 }
