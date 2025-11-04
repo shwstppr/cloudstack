@@ -24,6 +24,7 @@ import org.apache.cloudstack.api.APICommand;
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.BaseListCmd;
 import org.apache.cloudstack.api.Parameter;
+import org.apache.cloudstack.api.response.DomainResponse;
 import org.apache.cloudstack.api.response.ListResponse;
 import org.apache.cloudstack.api.response.PodResponse;
 import org.apache.cloudstack.api.response.ZoneResponse;
@@ -60,6 +61,10 @@ public class ListPodsByCmd extends BaseListCmd {
             since = "4.21.0")
     private String storageAccessGroup;
 
+    @Parameter(name = ApiConstants.DOMAIN_ID, type = CommandType.UUID, entityType = DomainResponse.class,
+            description = "the ID of the domain associated with the pod", since = "4.23.0")
+    private Long domainId;
+
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -86,6 +91,10 @@ public class ListPodsByCmd extends BaseListCmd {
 
     public String getStorageAccessGroup() {
         return storageAccessGroup;
+    }
+
+    public Long getDomainId() {
+        return domainId;
     }
 
     public ListPodsByCmd() {
