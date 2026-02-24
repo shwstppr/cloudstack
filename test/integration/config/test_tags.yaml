@@ -1,0 +1,1210 @@
+root: /home/shwstppr/lab/shapeblue/cloudstack/test/integration/smoke
+generated_by: tag_marvin_tests.py
+categories:
+  business:
+  - test/integration/smoke/test_2fa.py
+  - test/integration/smoke/test_account_access.py
+  - test/integration/smoke/test_bucket.py
+  - test/integration/smoke/test_create_list_domain_account_project.py
+  - test/integration/smoke/test_disk_offerings.py
+  - test/integration/smoke/test_dynamicroles.py
+  - test/integration/smoke/test_enable_account_settings_for_domain.py
+  - test/integration/smoke/test_enable_role_based_users_in_projects.py
+  - test/integration/smoke/test_extension_custom_action_lifecycle.py
+  - test/integration/smoke/test_guest_os.py
+  - test/integration/smoke/test_guest_vlan_range.py
+  - test/integration/smoke/test_human_readable_logs.py
+  - test/integration/smoke/test_image_store_object_migration.py
+  - test/integration/smoke/test_ipv6_infra.py
+  - test/integration/smoke/test_kubernetes_supported_versions.py
+  - test/integration/smoke/test_list_accounts.py
+  - test/integration/smoke/test_list_disk_offerings.py
+  - test/integration/smoke/test_list_domains.py
+  - test/integration/smoke/test_list_hosts.py
+  - test/integration/smoke/test_list_service_offerings.py
+  - test/integration/smoke/test_list_storage_pools.py
+  - test/integration/smoke/test_login.py
+  - test/integration/smoke/test_network_traffic_type_api.py
+  - test/integration/smoke/test_non_contigiousvlan.py
+  - test/integration/smoke/test_object_stores.py
+  - test/integration/smoke/test_private_roles.py
+  - test/integration/smoke/test_regions.py
+  - test/integration/smoke/test_reset_configuration_settings.py
+  - test/integration/smoke/test_staticroles.py
+  - test/integration/smoke/test_update_security_group.py
+  - test/integration/smoke/test_webhook_delivery.py
+  - test/integration/smoke/test_webhook_lifecycle.py
+  lowres:
+  - test/integration/smoke/test_annotations.py
+  - test/integration/smoke/test_async_job.py
+  - test/integration/smoke/test_backup_recovery_dummy.py
+  - test/integration/smoke/test_console_endpoint.py
+  - test/integration/smoke/test_diagnostics.py
+  - test/integration/smoke/test_multipleips_per_nic.py
+  - test/integration/smoke/test_portable_publicip.py
+  - test/integration/smoke/test_reset_vm_on_reboot.py
+  - test/integration/smoke/test_resource_detail.py
+  - test/integration/smoke/test_routers.py
+  - test/integration/smoke/test_systemvm_userdata.py
+  - test/integration/smoke/test_usage_events.py
+  - test/integration/smoke/test_vm_schedule.py
+  - test/integration/smoke/test_vm_snapshot_kvm.py
+  midres:
+  - test/integration/smoke/test_accounts.py
+  - test/integration/smoke/test_affinity_groups.py
+  - test/integration/smoke/test_affinity_groups_projects.py
+  - test/integration/smoke/test_backup_recovery_nas.py
+  - test/integration/smoke/test_backup_recovery_veeam.py
+  - test/integration/smoke/test_deploy_vgpu_enabled_vm.py
+  - test/integration/smoke/test_deploy_virtio_scsi_vm.py
+  - test/integration/smoke/test_deploy_vm_extra_config_data.py
+  - test/integration/smoke/test_deploy_vm_iso.py
+  - test/integration/smoke/test_deploy_vm_iso_uefi.py
+  - test/integration/smoke/test_deploy_vm_with_userdata.py
+  - test/integration/smoke/test_deploy_vms_in_parallel.py
+  - test/integration/smoke/test_deploy_vms_with_varied_deploymentplanners.py
+  - test/integration/smoke/test_direct_download.py
+  - test/integration/smoke/test_disk_provisioning_types.py
+  - test/integration/smoke/test_domain_disk_offerings.py
+  - test/integration/smoke/test_domain_network_offerings.py
+  - test/integration/smoke/test_domain_service_offerings.py
+  - test/integration/smoke/test_domain_vpc_offerings.py
+  - test/integration/smoke/test_global_acls.py
+  - test/integration/smoke/test_import_unmanage_volumes.py
+  - test/integration/smoke/test_internal_lb.py
+  - test/integration/smoke/test_ipv4_routing.py
+  - test/integration/smoke/test_iso.py
+  - test/integration/smoke/test_kubernetes_clusters.py
+  - test/integration/smoke/test_list_ids_parameter.py
+  - test/integration/smoke/test_list_volumes.py
+  - test/integration/smoke/test_loadbalance.py
+  - test/integration/smoke/test_metrics_api.py
+  - test/integration/smoke/test_nested_virtualization.py
+  - test/integration/smoke/test_network.py
+  - test/integration/smoke/test_network_permissions.py
+  - test/integration/smoke/test_nic_adapter_type.py
+  - test/integration/smoke/test_password_server.py
+  - test/integration/smoke/test_persistent_network.py
+  - test/integration/smoke/test_primary_storage.py
+  - test/integration/smoke/test_projects.py
+  - test/integration/smoke/test_purge_expunged_vms.py
+  - test/integration/smoke/test_register_userdata.py
+  - test/integration/smoke/test_resource_accounting.py
+  - test/integration/smoke/test_resource_names.py
+  - test/integration/smoke/test_restore_vm.py
+  - test/integration/smoke/test_router_dhcphosts.py
+  - test/integration/smoke/test_router_dns.py
+  - test/integration/smoke/test_router_dnsservice.py
+  - test/integration/smoke/test_routers_network_ops.py
+  - test/integration/smoke/test_scale_vm.py
+  - test/integration/smoke/test_service_offerings.py
+  - test/integration/smoke/test_set_sourcenat.py
+  - test/integration/smoke/test_sharedfs_lifecycle.py
+  - test/integration/smoke/test_snapshots.py
+  - test/integration/smoke/test_templates.py
+  - test/integration/smoke/test_usage.py
+  - test/integration/smoke/test_vm_autoscaling.py
+  - test/integration/smoke/test_vm_lifecycle_with_snapshot_or_volume.py
+  - test/integration/smoke/test_vm_snapshots.py
+  - test/integration/smoke/test_vm_strict_host_tags.py
+  - test/integration/smoke/test_vnf_templates.py
+  - test/integration/smoke/test_volumes.py
+  hires:
+  - test/integration/smoke/test_attach_multiple_volumes.py
+  - test/integration/smoke/test_cluster_drs.py
+  - test/integration/smoke/test_create_network.py
+  - test/integration/smoke/test_deploy_vm_root_resize.py
+  - test/integration/smoke/test_events_resource.py
+  - test/integration/smoke/test_gateway_on_shared_networks.py
+  - test/integration/smoke/test_migration.py
+  - test/integration/smoke/test_network_acl.py
+  - test/integration/smoke/test_network_ipv6.py
+  - test/integration/smoke/test_nic.py
+  - test/integration/smoke/test_nonstrict_affinity_group.py
+  - test/integration/smoke/test_portforwardingrules.py
+  - test/integration/smoke/test_privategw_acl.py
+  - test/integration/smoke/test_privategw_acl_ovs_gre.py
+  - test/integration/smoke/test_pvlan.py
+  - test/integration/smoke/test_quarantined_ips.py
+  - test/integration/smoke/test_routers_iptables_default_policy.py
+  - test/integration/smoke/test_ssl_offloading.py
+  - test/integration/smoke/test_storage_policy.py
+  - test/integration/smoke/test_vm_deployment_planner.py
+  - test/integration/smoke/test_vm_lifecycle_unmanage_import.py
+  - test/integration/smoke/test_vm_lifecycle_unmanage_kvm_import.py
+  - test/integration/smoke/test_vpc_ipv6.py
+  - test/integration/smoke/test_vpc_redundant.py
+  - test/integration/smoke/test_vpc_router_nics.py
+  - test/integration/smoke/test_vpc_vpn.py
+  infra:
+  - test/integration/smoke/test_certauthority_root.py
+  - test/integration/smoke/test_extension_custom.py
+  - test/integration/smoke/test_extension_lifecycle.py
+  - test/integration/smoke/test_global_settings.py
+  - test/integration/smoke/test_host_control_state.py
+  - test/integration/smoke/test_host_maintenance.py
+  - test/integration/smoke/test_host_ping.py
+  - test/integration/smoke/test_host_tags.py
+  - test/integration/smoke/test_hostha_kvm.py
+  - test/integration/smoke/test_hostha_simulator.py
+  - test/integration/smoke/test_ms_maintenance_and_safe_shutdown.py
+  - test/integration/smoke/test_outofbandmanagement.py
+  - test/integration/smoke/test_outofbandmanagement_nestedplugin.py
+  - test/integration/smoke/test_over_provisioning.py
+  - test/integration/smoke/test_primary_storage_scope.py
+  - test/integration/smoke/test_public_ip_range.py
+  - test/integration/smoke/test_secondary_storage.py
+  - test/integration/smoke/test_ssvm.py
+  - test/integration/smoke/test_vm_life_cycle.py
+  unknown: []
+details:
+- file: test/integration/smoke/test_2fa.py
+  category: business
+  num_tests: 4
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_account_access.py
+  category: business
+  num_tests: 4
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_accounts.py
+  category: midres
+  num_tests: 46
+  create_calls: 8
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(8) <= num_tests(46)
+- file: test/integration/smoke/test_affinity_groups.py
+  category: midres
+  num_tests: 4
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(4)
+- file: test/integration/smoke/test_affinity_groups_projects.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_annotations.py
+  category: lowres
+  num_tests: 14
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_async_job.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_attach_multiple_volumes.py
+  category: hires
+  num_tests: 4
+  create_calls: 7
+  infra_hits: 0
+  notes:
+  - create_calls(7) > num_tests(4)
+- file: test/integration/smoke/test_backup_recovery_dummy.py
+  category: lowres
+  num_tests: 6
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_backup_recovery_nas.py
+  category: midres
+  num_tests: 6
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(6)
+- file: test/integration/smoke/test_backup_recovery_veeam.py
+  category: midres
+  num_tests: 6
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(6)
+- file: test/integration/smoke/test_bucket.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_certauthority_root.py
+  category: infra
+  num_tests: 12
+  create_calls: 0
+  infra_hits: 2
+  notes:
+  - infra_hits=2
+- file: test/integration/smoke/test_cluster_drs.py
+  category: hires
+  num_tests: 4
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - create_calls(5) > num_tests(4)
+- file: test/integration/smoke/test_console_endpoint.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_create_list_domain_account_project.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_create_network.py
+  category: hires
+  num_tests: 6
+  create_calls: 7
+  infra_hits: 0
+  notes:
+  - create_calls(7) > num_tests(6)
+- file: test/integration/smoke/test_deploy_vgpu_enabled_vm.py
+  category: midres
+  num_tests: 4
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(4)
+- file: test/integration/smoke/test_deploy_virtio_scsi_vm.py
+  category: midres
+  num_tests: 12
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(12)
+- file: test/integration/smoke/test_deploy_vm_extra_config_data.py
+  category: midres
+  num_tests: 14
+  create_calls: 9
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(9) <= num_tests(14)
+- file: test/integration/smoke/test_deploy_vm_iso.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_deploy_vm_iso_uefi.py
+  category: midres
+  num_tests: 8
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(8)
+- file: test/integration/smoke/test_deploy_vm_root_resize.py
+  category: hires
+  num_tests: 6
+  create_calls: 7
+  infra_hits: 0
+  notes:
+  - create_calls(7) > num_tests(6)
+- file: test/integration/smoke/test_deploy_vm_with_userdata.py
+  category: midres
+  num_tests: 4
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(4)
+- file: test/integration/smoke/test_deploy_vms_in_parallel.py
+  category: midres
+  num_tests: 4
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(4)
+- file: test/integration/smoke/test_deploy_vms_with_varied_deploymentplanners.py
+  category: midres
+  num_tests: 6
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(6)
+- file: test/integration/smoke/test_diagnostics.py
+  category: lowres
+  num_tests: 36
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_direct_download.py
+  category: midres
+  num_tests: 10
+  create_calls: 6
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(6) <= num_tests(10)
+- file: test/integration/smoke/test_disk_offerings.py
+  category: business
+  num_tests: 18
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_disk_provisioning_types.py
+  category: midres
+  num_tests: 8
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(8)
+- file: test/integration/smoke/test_domain_disk_offerings.py
+  category: midres
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(6)
+- file: test/integration/smoke/test_domain_network_offerings.py
+  category: midres
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(6)
+- file: test/integration/smoke/test_domain_service_offerings.py
+  category: midres
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(6)
+- file: test/integration/smoke/test_domain_vpc_offerings.py
+  category: midres
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(6)
+- file: test/integration/smoke/test_dynamicroles.py
+  category: business
+  num_tests: 36
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_enable_account_settings_for_domain.py
+  category: business
+  num_tests: 6
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_enable_role_based_users_in_projects.py
+  category: business
+  num_tests: 6
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_events_resource.py
+  category: hires
+  num_tests: 2
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - create_calls(3) > num_tests(2)
+- file: test/integration/smoke/test_extension_custom.py
+  category: infra
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_extension_custom_action_lifecycle.py
+  category: business
+  num_tests: 12
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_extension_lifecycle.py
+  category: infra
+  num_tests: 18
+  create_calls: 2
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_gateway_on_shared_networks.py
+  category: hires
+  num_tests: 2
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - create_calls(4) > num_tests(2)
+- file: test/integration/smoke/test_global_acls.py
+  category: midres
+  num_tests: 10
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(10)
+- file: test/integration/smoke/test_global_settings.py
+  category: infra
+  num_tests: 12
+  create_calls: 0
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_guest_os.py
+  category: business
+  num_tests: 8
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_guest_vlan_range.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_host_control_state.py
+  category: infra
+  num_tests: 12
+  create_calls: 1
+  infra_hits: 6
+  notes:
+  - infra_hits=6
+- file: test/integration/smoke/test_host_maintenance.py
+  category: infra
+  num_tests: 14
+  create_calls: 4
+  infra_hits: 30
+  notes:
+  - infra_hits=30
+- file: test/integration/smoke/test_host_ping.py
+  category: infra
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 2
+  notes:
+  - infra_hits=2
+- file: test/integration/smoke/test_host_tags.py
+  category: infra
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 2
+  notes:
+  - infra_hits=2
+- file: test/integration/smoke/test_hostha_kvm.py
+  category: infra
+  num_tests: 18
+  create_calls: 4
+  infra_hits: 11
+  notes:
+  - infra_hits=11
+- file: test/integration/smoke/test_hostha_simulator.py
+  category: infra
+  num_tests: 38
+  create_calls: 0
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_human_readable_logs.py
+  category: business
+  num_tests: 4
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_image_store_object_migration.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_import_unmanage_volumes.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_internal_lb.py
+  category: midres
+  num_tests: 8
+  create_calls: 8
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(8) <= num_tests(8)
+- file: test/integration/smoke/test_ipv4_routing.py
+  category: midres
+  num_tests: 26
+  create_calls: 18
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(18) <= num_tests(26)
+- file: test/integration/smoke/test_ipv6_infra.py
+  category: business
+  num_tests: 16
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_iso.py
+  category: midres
+  num_tests: 28
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(28)
+- file: test/integration/smoke/test_kubernetes_clusters.py
+  category: midres
+  num_tests: 22
+  create_calls: 9
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(9) <= num_tests(22)
+- file: test/integration/smoke/test_kubernetes_supported_versions.py
+  category: business
+  num_tests: 6
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_accounts.py
+  category: business
+  num_tests: 16
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_disk_offerings.py
+  category: business
+  num_tests: 16
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_domains.py
+  category: business
+  num_tests: 10
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_hosts.py
+  category: business
+  num_tests: 24
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_ids_parameter.py
+  category: midres
+  num_tests: 6
+  create_calls: 6
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(6) <= num_tests(6)
+- file: test/integration/smoke/test_list_service_offerings.py
+  category: business
+  num_tests: 24
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_storage_pools.py
+  category: business
+  num_tests: 22
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_list_volumes.py
+  category: midres
+  num_tests: 34
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(34)
+- file: test/integration/smoke/test_loadbalance.py
+  category: midres
+  num_tests: 6
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(6)
+- file: test/integration/smoke/test_login.py
+  category: business
+  num_tests: 0
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_metrics_api.py
+  category: midres
+  num_tests: 28
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(28)
+- file: test/integration/smoke/test_migration.py
+  category: hires
+  num_tests: 4
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - create_calls(5) > num_tests(4)
+- file: test/integration/smoke/test_ms_maintenance_and_safe_shutdown.py
+  category: infra
+  num_tests: 6
+  create_calls: 0
+  infra_hits: 5
+  notes:
+  - infra_hits=5
+- file: test/integration/smoke/test_multipleips_per_nic.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_nested_virtualization.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_network.py
+  category: midres
+  num_tests: 36
+  create_calls: 24
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(24) <= num_tests(36)
+- file: test/integration/smoke/test_network_acl.py
+  category: hires
+  num_tests: 2
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - create_calls(3) > num_tests(2)
+- file: test/integration/smoke/test_network_ipv6.py
+  category: hires
+  num_tests: 2
+  create_calls: 8
+  infra_hits: 0
+  notes:
+  - create_calls(8) > num_tests(2)
+- file: test/integration/smoke/test_network_permissions.py
+  category: midres
+  num_tests: 12
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(12)
+- file: test/integration/smoke/test_network_traffic_type_api.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_nic.py
+  category: hires
+  num_tests: 6
+  create_calls: 7
+  infra_hits: 0
+  notes:
+  - create_calls(7) > num_tests(6)
+- file: test/integration/smoke/test_nic_adapter_type.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_non_contigiousvlan.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_nonstrict_affinity_group.py
+  category: hires
+  num_tests: 4
+  create_calls: 9
+  infra_hits: 0
+  notes:
+  - create_calls(9) > num_tests(4)
+- file: test/integration/smoke/test_object_stores.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_outofbandmanagement.py
+  category: infra
+  num_tests: 32
+  create_calls: 0
+  infra_hits: 8
+  notes:
+  - infra_hits=8
+- file: test/integration/smoke/test_outofbandmanagement_nestedplugin.py
+  category: infra
+  num_tests: 12
+  create_calls: 0
+  infra_hits: 2
+  notes:
+  - infra_hits=2
+- file: test/integration/smoke/test_over_provisioning.py
+  category: infra
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 9
+  notes:
+  - infra_hits=9
+- file: test/integration/smoke/test_password_server.py
+  category: midres
+  num_tests: 6
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(6)
+- file: test/integration/smoke/test_persistent_network.py
+  category: midres
+  num_tests: 6
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(6)
+- file: test/integration/smoke/test_portable_publicip.py
+  category: lowres
+  num_tests: 4
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_portforwardingrules.py
+  category: hires
+  num_tests: 2
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - create_calls(3) > num_tests(2)
+- file: test/integration/smoke/test_primary_storage.py
+  category: midres
+  num_tests: 12
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(12)
+- file: test/integration/smoke/test_primary_storage_scope.py
+  category: infra
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_private_roles.py
+  category: business
+  num_tests: 8
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_privategw_acl.py
+  category: hires
+  num_tests: 8
+  create_calls: 14
+  infra_hits: 0
+  notes:
+  - create_calls(14) > num_tests(8)
+- file: test/integration/smoke/test_privategw_acl_ovs_gre.py
+  category: hires
+  num_tests: 6
+  create_calls: 14
+  infra_hits: 0
+  notes:
+  - create_calls(14) > num_tests(6)
+- file: test/integration/smoke/test_projects.py
+  category: midres
+  num_tests: 24
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(24)
+- file: test/integration/smoke/test_public_ip_range.py
+  category: infra
+  num_tests: 8
+  create_calls: 0
+  infra_hits: 8
+  notes:
+  - infra_hits=8
+- file: test/integration/smoke/test_purge_expunged_vms.py
+  category: midres
+  num_tests: 12
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(12)
+- file: test/integration/smoke/test_pvlan.py
+  category: hires
+  num_tests: 2
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - create_calls(3) > num_tests(2)
+- file: test/integration/smoke/test_quarantined_ips.py
+  category: hires
+  num_tests: 8
+  create_calls: 9
+  infra_hits: 0
+  notes:
+  - create_calls(9) > num_tests(8)
+- file: test/integration/smoke/test_regions.py
+  category: business
+  num_tests: 8
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_register_userdata.py
+  category: midres
+  num_tests: 16
+  create_calls: 6
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(6) <= num_tests(16)
+- file: test/integration/smoke/test_reset_configuration_settings.py
+  category: business
+  num_tests: 10
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_reset_vm_on_reboot.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_resource_accounting.py
+  category: midres
+  num_tests: 2
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(2)
+- file: test/integration/smoke/test_resource_detail.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_resource_names.py
+  category: midres
+  num_tests: 8
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(8)
+- file: test/integration/smoke/test_restore_vm.py
+  category: midres
+  num_tests: 8
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(8)
+- file: test/integration/smoke/test_router_dhcphosts.py
+  category: midres
+  num_tests: 10
+  create_calls: 8
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(8) <= num_tests(10)
+- file: test/integration/smoke/test_router_dns.py
+  category: midres
+  num_tests: 6
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(6)
+- file: test/integration/smoke/test_router_dnsservice.py
+  category: midres
+  num_tests: 4
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(4)
+- file: test/integration/smoke/test_routers.py
+  category: lowres
+  num_tests: 20
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_routers_iptables_default_policy.py
+  category: hires
+  num_tests: 4
+  create_calls: 8
+  infra_hits: 0
+  notes:
+  - create_calls(8) > num_tests(4)
+- file: test/integration/smoke/test_routers_network_ops.py
+  category: midres
+  num_tests: 10
+  create_calls: 10
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(10) <= num_tests(10)
+- file: test/integration/smoke/test_scale_vm.py
+  category: midres
+  num_tests: 10
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(10)
+- file: test/integration/smoke/test_secondary_storage.py
+  category: infra
+  num_tests: 10
+  create_calls: 0
+  infra_hits: 1
+  notes:
+  - infra_hits=1
+- file: test/integration/smoke/test_service_offerings.py
+  category: midres
+  num_tests: 28
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(28)
+- file: test/integration/smoke/test_set_sourcenat.py
+  category: midres
+  num_tests: 8
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(8)
+- file: test/integration/smoke/test_sharedfs_lifecycle.py
+  category: midres
+  num_tests: 4
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(3) <= num_tests(4)
+- file: test/integration/smoke/test_snapshots.py
+  category: midres
+  num_tests: 8
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(8)
+- file: test/integration/smoke/test_ssl_offloading.py
+  category: hires
+  num_tests: 4
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - create_calls(5) > num_tests(4)
+- file: test/integration/smoke/test_ssvm.py
+  category: infra
+  num_tests: 26
+  create_calls: 0
+  infra_hits: 14
+  notes:
+  - infra_hits=14
+- file: test/integration/smoke/test_staticroles.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_storage_policy.py
+  category: hires
+  num_tests: 2
+  create_calls: 3
+  infra_hits: 0
+  notes:
+  - create_calls(3) > num_tests(2)
+- file: test/integration/smoke/test_systemvm_userdata.py
+  category: lowres
+  num_tests: 8
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_templates.py
+  category: midres
+  num_tests: 42
+  create_calls: 11
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(11) <= num_tests(42)
+- file: test/integration/smoke/test_update_security_group.py
+  category: business
+  num_tests: 10
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_usage.py
+  category: midres
+  num_tests: 18
+  create_calls: 10
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(10) <= num_tests(18)
+- file: test/integration/smoke/test_usage_events.py
+  category: lowres
+  num_tests: 2
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_vm_autoscaling.py
+  category: midres
+  num_tests: 14
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(5) <= num_tests(14)
+- file: test/integration/smoke/test_vm_deployment_planner.py
+  category: hires
+  num_tests: 10
+  create_calls: 11
+  infra_hits: 0
+  notes:
+  - create_calls(11) > num_tests(10)
+- file: test/integration/smoke/test_vm_life_cycle.py
+  category: infra
+  num_tests: 58
+  create_calls: 38
+  infra_hits: 2
+  notes:
+  - infra_hits=2
+- file: test/integration/smoke/test_vm_lifecycle_unmanage_import.py
+  category: hires
+  num_tests: 2
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - create_calls(4) > num_tests(2)
+- file: test/integration/smoke/test_vm_lifecycle_unmanage_kvm_import.py
+  category: hires
+  num_tests: 4
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - create_calls(5) > num_tests(4)
+- file: test/integration/smoke/test_vm_lifecycle_with_snapshot_or_volume.py
+  category: midres
+  num_tests: 10
+  create_calls: 6
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(6) <= num_tests(10)
+- file: test/integration/smoke/test_vm_schedule.py
+  category: lowres
+  num_tests: 10
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_vm_snapshot_kvm.py
+  category: lowres
+  num_tests: 6
+  create_calls: 1
+  infra_hits: 0
+  notes:
+  - create_calls(1) == 1
+- file: test/integration/smoke/test_vm_snapshots.py
+  category: midres
+  num_tests: 8
+  create_calls: 2
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(2) <= num_tests(8)
+- file: test/integration/smoke/test_vm_strict_host_tags.py
+  category: midres
+  num_tests: 24
+  create_calls: 19
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(19) <= num_tests(24)
+- file: test/integration/smoke/test_vnf_templates.py
+  category: midres
+  num_tests: 10
+  create_calls: 4
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(4) <= num_tests(10)
+- file: test/integration/smoke/test_volumes.py
+  category: midres
+  num_tests: 34
+  create_calls: 15
+  infra_hits: 0
+  notes:
+  - 1 < create_calls(15) <= num_tests(34)
+- file: test/integration/smoke/test_vpc_ipv6.py
+  category: hires
+  num_tests: 2
+  create_calls: 5
+  infra_hits: 0
+  notes:
+  - create_calls(5) > num_tests(2)
+- file: test/integration/smoke/test_vpc_redundant.py
+  category: hires
+  num_tests: 10
+  create_calls: 13
+  infra_hits: 0
+  notes:
+  - create_calls(13) > num_tests(10)
+- file: test/integration/smoke/test_vpc_router_nics.py
+  category: hires
+  num_tests: 4
+  create_calls: 9
+  infra_hits: 0
+  notes:
+  - create_calls(9) > num_tests(4)
+- file: test/integration/smoke/test_vpc_vpn.py
+  category: hires
+  num_tests: 8
+  create_calls: 21
+  infra_hits: 0
+  notes:
+  - create_calls(21) > num_tests(8)
+- file: test/integration/smoke/test_webhook_delivery.py
+  category: business
+  num_tests: 2
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
+- file: test/integration/smoke/test_webhook_lifecycle.py
+  category: business
+  num_tests: 26
+  create_calls: 0
+  infra_hits: 0
+  notes:
+  - no creation calls found
