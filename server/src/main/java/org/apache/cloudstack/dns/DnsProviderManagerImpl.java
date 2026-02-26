@@ -179,21 +179,18 @@ public class DnsProviderManagerImpl extends ManagerBase implements DnsProviderMa
         Filter searchFilter = new Filter(DnsServerVO.class, "id", true, cmd.getStartIndex(), cmd.getPageSizeVal());
 
         // Step 2: Search for caller's own DNS servers using standard ACL pattern
-        SearchBuilder<DnsServerVO> sb = dnsServerDao.createSearchBuilder();
-        accountMgr.buildACLSearchBuilder(sb, domainId, isRecursive, permittedAccountIds, listProjectResourcesCriteria);
-        sb.and("state", sb.entity().getState(), SearchCriteria.Op.EQ);
-        sb.done();
+        SearchBuilder<DnsServerVO> ownerSb = dnsServerDao.createSearchBuilder();
+        accountMgr.buildACLSearchBuilder(ownerSb, domainId, isRecursive, permittedAccountIds, listProjectResourcesCriteria);
+        ownerSb.and("state", ownerSb.entity().getState(), SearchCriteria.Op.EQ);
+        ownerSb.done();
 
-        SearchCriteria<DnsServerVO> sc = sb.create();
-        accountMgr.buildACLSearchCriteria(sc, domainId, isRecursive, permittedAccountIds, listProjectResourcesCriteria);
-        sc.setParameters("state", DnsServer.State.Enabled);
-
-        Pair<List<DnsServerVO>, Integer> ownServersPair = dnsServerDao.searchAndCount(sc, searchFilter);
-        List<DnsServerVO> dnsServers = new ArrayList<>(ownServersPair.first());
-        int count = ownServersPair.second();
+        SearchCriteria<DnsServerVO> ownerSc = ownerSb.create();
+        accountMgr.buildACLSearchCriteria(ownerSc, domainId, isRecursive, permittedAccountIds, listProjectResourcesCriteria);
+        ownerSc.setParameters("state", DnsServer.State.Enabled);
 
         // Step 3: Search for public DNS servers from caller's domain and children
         // domains
+        // ToDo: use ViewVO and domainpath
         Long callerDomainId = caller.getDomainId();
         DomainVO callerDomain = domainDao.findById(callerDomainId);
         if (callerDomain != null) {
@@ -204,30 +201,28 @@ public class DnsProviderManagerImpl extends ManagerBase implements DnsProviderMa
                 domainIds.add(childDomain.getId());
             }
 
-            SearchBuilder<DnsServerVO> publicSb = dnsServerDao.createSearchBuilder();
-            publicSb.and("publicDns", publicSb.entity().isPublicServer(), SearchCriteria.Op.EQ);
-            publicSb.and("publicDomainId", publicSb.entity().getDomainId(), SearchCriteria.Op.IN);
-            publicSb.and("publicState", publicSb.entity().getState(), SearchCriteria.Op.EQ);
-            publicSb.done();
+            SearchBuilder<DnsServerVO> globalSb = dnsServerDao.createSearchBuilder();
+            globalSb.and().op("publicDns", globalSb.entity().isPublicServer(), SearchCriteria.Op.EQ);
+            globalSb.and("publicDomainId", globalSb.entity().getDomainId(), SearchCriteria.Op.IN);
+            globalSb.and("publicState", globalSb.entity().getState(), SearchCriteria.Op.EQ);
+            globalSb.cp();
+            globalSb.done();
 
-            SearchCriteria<DnsServerVO> publicSc = publicSb.create();
-            publicSc.setParameters("publicDns", 1);
-            publicSc.setParameters("publicDomainId", domainIds.toArray());
-            publicSc.setParameters("publicState", DnsServer.State.Enabled);
+            SearchCriteria<DnsServerVO> globalSc = globalSb.create();
+            globalSc.setParameters("publicDns", 1);
+            globalSc.setParameters("publicDomainId", domainIds.toArray());
+            globalSc.setParameters("publicState", DnsServer.State.Enabled);
 
-            List<DnsServerVO> publicServers = dnsServerDao.search(publicSc, null);
+            SearchCriteria<DnsServerVO> scc = dnsServerDao.createSearchCriteria();
+            scc.addOr("ownerSc", SearchCriteria.Op.SC, ownerSc);
+            scc.addOr("globalSc", SearchCriteria.Op.SC, globalSc);
 
-            // Deduplicate: add only public servers not already in the own servers list
-            List<Long> ownServerIds = dnsServers.stream().map(DnsServerVO::getId).collect(Collectors.toList());
-            for (DnsServerVO publicServer : publicServers) {
-                if (!ownServerIds.contains(publicServer.getId())) {
-                    dnsServers.add(publicServer);
-                    count++;
-                }
-            }
+            SearchCriteria<DnsServerVO> sc = dnsServerDao.createSearchCriteria();
+            sc.addAnd("sc", SearchCriteria.Op.SC, scc);
+
+            return dnsServerDao.searchAndCount(sc, searchFilter);
         }
-
-        return new Pair<>(dnsServers, count);
+        return dnsServerDao.searchAndCount(ownerSc, searchFilter);
     }
 
     @Override
