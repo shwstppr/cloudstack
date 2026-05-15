@@ -201,8 +201,10 @@ public class ServerAdapterTest {
     public void testGetDetailsForInstanceCreation_WithUserdata_AddsCpuMode() {
         ServiceOfferingVO offering = mock(ServiceOfferingVO.class);
         when(offering.isCustomized()).thenReturn(false);
+        Vm request = mock(Vm.class);
+        when(request.isWorkerVm()).thenReturn(true);
 
-        Map<String, String> result = ServerAdapter.getDetailsForInstanceCreation("#!/bin/bash", offering, null);
+        Map<String, String> result = ServerAdapter.getDetailsForInstanceCreation(request, offering, null);
 
         assertEquals("host-passthrough", result.get(VmDetailConstants.GUEST_CPU_MODE));
     }

@@ -504,8 +504,11 @@ public class OvfXmlUtil {
         if (initialization == null) {
             return null;
         }
-        Vm.Initialization.Configuration configuration = vm.getInitialization().getConfiguration();
+        Vm.Initialization.Configuration configuration = initialization.getConfiguration();
         if (configuration == null) {
+            return null;
+        }
+        if (!"ovf".equalsIgnoreCase(configuration.getType())) {
             return null;
         }
         return configuration.getData();
@@ -805,6 +808,10 @@ public class OvfXmlUtil {
         String instanceId = xpathString(xpath, metadataSection, ".//*[local-name()='InstanceId']/text()");
         if (StringUtils.isNotBlank(instanceId)) {
             vm.setInstanceId(instanceId);
+            if (vm.getInitialization() != null &&
+                    !Boolean.TRUE.equals(vm.getInitialization().isRegenerateIds())) {
+                vm.setId(instanceId);
+            }
         }
         String instanceName = xpathString(xpath, metadataSection, ".//*[local-name()='InstanceName']/text()");
         if (StringUtils.isNotBlank(instanceName)) {

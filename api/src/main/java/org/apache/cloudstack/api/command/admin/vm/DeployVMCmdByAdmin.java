@@ -47,7 +47,8 @@ public class DeployVMCmdByAdmin extends DeployVMCmd implements AdminCmd {
             since = "4.23.0")
     private Boolean blankInstance;
 
-    // Internal flag to allow deploying instance with a given type
+    // Internal flags mainly used during restore operation
+    // To allow deploying instance with a given type
     private String instanceType;
 
     /////////////////////////////////////////////////////
@@ -89,5 +90,9 @@ public class DeployVMCmdByAdmin extends DeployVMCmd implements AdminCmd {
 
     public void setInstanceType(String instanceType) {
         this.instanceType = instanceType;
+    }
+
+    public void setCustomId(String customId) {
+        this.customId = customId;
     }
 }
