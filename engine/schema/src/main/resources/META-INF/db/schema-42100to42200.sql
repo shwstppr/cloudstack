@@ -19,7 +19,6 @@
 -- Schema upgrade from 4.21.0.0 to 4.22.0.0
 --;
 
-
 -- health check status as enum
 CALL `cloud`.`IDEMPOTENT_CHANGE_COLUMN`('router_health_check', 'check_result', 'check_result', 'varchar(16) NOT NULL COMMENT "check executions result: SUCCESS, FAILURE, WARNING, UNKNOWN"');
 
@@ -87,3 +86,51 @@ CALL `cloud`.`INSERT_EXTENSION_DETAIL_IF_NOT_EXISTS`('MaaS', 'orchestratorrequir
 
 CALL `cloud`.`IDEMPOTENT_DROP_UNIQUE_KEY`('counter', 'uc_counter__provider__source__value');
 CALL `cloud`.`IDEMPOTENT_ADD_UNIQUE_KEY`('cloud.counter', 'uc_counter__provider__source__value__removed', '(provider, source, value, removed)');
+
+-- Add management_server_details table to allow ManagementServer scope configs
+CREATE TABLE IF NOT EXISTS `management_server_details` (
+    `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
+    `management_server_id` bigint unsigned NOT NULL COMMENT 'management server the detail is related to',
+    `name` varchar(255) NOT NULL COMMENT 'name of the detail',
+    `value` varchar(255) NOT NULL,
+    `display` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'True if the detail can be displayed to the end user',
+    PRIMARY KEY (`id`),
+    CONSTRAINT `fk_management_server_details__management_server_id` FOREIGN KEY `fk_management_server_details__management_server_id`(`management_server_id`) REFERENCES `mshost`(`id`) ON DELETE CASCADE,
+    KEY `i_management_server_details__name__value` (`name`(128),`value`(128))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+-- Add checkpoint tracking fields to backups table for incremental backup support
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'from_checkpoint_id', 'VARCHAR(255) DEFAULT NULL COMMENT "Previous active checkpoint id for incremental backups"');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'to_checkpoint_id', 'VARCHAR(255) DEFAULT NULL COMMENT "New checkpoint id created for the next incremental backup"');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'checkpoint_create_time', 'BIGINT DEFAULT NULL COMMENT "Checkpoint creation timestamp from libvirt"');
+CALL `cloud`.`IDEMPOTENT_ADD_COLUMN`('cloud.backups', 'host_id', 'BIGINT UNSIGNED DEFAULT NULL COMMENT "Host where backup is running"');
+
+-- Create image_transfer table for per-disk image transfers
+CREATE TABLE IF NOT EXISTS `cloud`.`image_transfer`(
+    `id` bigint unsigned NOT NULL auto_increment COMMENT 'id',
+    `uuid` varchar(40) NOT NULL COMMENT 'uuid',
+    `account_id` bigint unsigned NOT NULL COMMENT 'Account ID',
+    `domain_id` bigint unsigned NOT NULL COMMENT 'Domain ID',
+    `data_center_id` bigint unsigned NOT NULL COMMENT 'Data Center ID',
+    `backup_id` bigint unsigned COMMENT 'Backup ID',
+    `volume_id` bigint unsigned NOT NULL COMMENT 'Disk/Volume ID',
+    `host_id` bigint unsigned NOT NULL COMMENT 'Host ID',
+    `transfer_url` varchar(255) COMMENT 'ImageIO transfer URL',
+    `file` varchar(255) COMMENT 'File for the file backend',
+    `phase` varchar(20) NOT NULL COMMENT 'Transfer phase: initializing, transferring, finished, failed',
+    `socket` varchar(255) COMMENT 'Unix socket for nbd backend',
+    `direction` varchar(20) NOT NULL COMMENT 'Direction: upload, download',
+    `backend` varchar(20) NOT NULL COMMENT 'Backend: nbd, file',
+    `progress` int COMMENT 'Transfer progress percentage (0-100)',
+    `signed_ticket_id` varchar(255) COMMENT 'Signed ticket ID from ImageIO',
+    `created` datetime NOT NULL COMMENT 'date created',
+    `updated` datetime COMMENT 'date updated if not null',
+    `removed` datetime COMMENT 'date removed if not null',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uuid` (`uuid`),
+    CONSTRAINT `fk_image_transfer__backup_id` FOREIGN KEY (`backup_id`) REFERENCES `backups`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_image_transfer__volume_id` FOREIGN KEY (`volume_id`) REFERENCES `volumes`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_image_transfer__host_id` FOREIGN KEY (`host_id`) REFERENCES `host`(`id`) ON DELETE CASCADE,
+    INDEX `i_image_transfer__backup_id`(`backup_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

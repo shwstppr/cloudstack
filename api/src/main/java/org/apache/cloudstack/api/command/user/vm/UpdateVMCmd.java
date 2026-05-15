@@ -16,14 +16,11 @@
 // under the License.
 package org.apache.cloudstack.api.command.user.vm;
 
-import com.cloud.exception.InsufficientCapacityException;
-import com.cloud.exception.InvalidParameterValueException;
-import com.cloud.exception.ResourceUnavailableException;
-import com.cloud.user.Account;
-import com.cloud.uservm.UserVm;
-import com.cloud.utils.exception.CloudRuntimeException;
-import com.cloud.utils.net.Dhcp;
-import com.cloud.vm.VirtualMachine;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.cloudstack.acl.RoleType;
 import org.apache.cloudstack.acl.SecurityChecker.AccessType;
 import org.apache.cloudstack.api.ACL;
@@ -46,10 +43,14 @@ import org.apache.cloudstack.vm.lease.VMLeaseManager;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.cloud.exception.InsufficientCapacityException;
+import com.cloud.exception.InvalidParameterValueException;
+import com.cloud.exception.ResourceUnavailableException;
+import com.cloud.user.Account;
+import com.cloud.uservm.UserVm;
+import com.cloud.utils.exception.CloudRuntimeException;
+import com.cloud.utils.net.Dhcp;
+import com.cloud.vm.VirtualMachine;
 
 @APICommand(name = "updateVirtualMachine", description="Updates properties of a virtual machine. The VM has to be stopped and restarted for the " +
         "new properties to take effect. UpdateVirtualMachine does not first check whether the VM is stopped. " +
@@ -269,6 +270,14 @@ public class UpdateVMCmd extends BaseCustomIdCmd implements SecurityGroupAction,
 
     public String getExtraConfig() {
         return extraConfig;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public void setSecurityGroupIdList(List<Long> securityGroupIdList) {
+        this.securityGroupIdList = securityGroupIdList;
     }
 
     /////////////////////////////////////////////////////

@@ -135,20 +135,20 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
     }
 
     @Override
+    public List<VolumeVO> findNonDestroyedVolumesByInstanceIdAndPoolId(long instanceId, long poolId) {
+        SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
+        sc.setParameters("instanceId", instanceId);
+        sc.setParameters("poolId", poolId);
+        sc.setParameters("notDestroyed", Volume.State.Destroy, Volume.State.Expunged);
+        return listBy(sc);
+    }
+
+    @Override
     public List<VolumeVO> findByPoolId(long poolId) {
         SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
         sc.setParameters("poolId", poolId);
         sc.setParameters("notDestroyed", Volume.State.Destroy, Volume.State.Expunged);
         sc.setParameters("vType", Volume.Type.ROOT.toString());
-        return listBy(sc);
-    }
-
-    @Override
-    public List<VolumeVO> findByInstanceIdAndPoolId(long instanceId, long poolId) {
-        SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
-        sc.setParameters("instanceId", instanceId);
-        sc.setParameters("poolId", poolId);
-        sc.setParameters("notDestroyed", Volume.State.Destroy, Volume.State.Expunged);
         return listBy(sc);
     }
 
@@ -203,6 +203,17 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
         SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
         sc.setParameters("instanceId", id);
         sc.setParameters("vType", vType.toString());
+        return listBy(sc);
+    }
+
+    @Override
+    public List<VolumeVO> findByInstanceAndNotStates(long id, Volume.State...states) {
+        SearchBuilder<VolumeVO> sb = createSearchBuilder();
+        sb.and("instanceId", sb.entity().getInstanceId(), Op.EQ);
+        sb.and("state", sb.entity().getState(), Op.NIN);
+        SearchCriteria<VolumeVO> sc = sb.create();
+        sc.setParameters("instanceId", id);
+        sc.setParameters("state", (Object[]) states);
         return listBy(sc);
     }
 

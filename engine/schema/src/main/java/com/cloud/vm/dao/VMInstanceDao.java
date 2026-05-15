@@ -188,4 +188,6 @@ public interface VMInstanceDao extends GenericDao<VMInstanceVO, Long>, StateDao<
     Map<String, Long> getNameIdMapForVmIds(Collection<Long> ids);
 
     List<VMInstanceVO> listByIdsIncludingRemoved(List<Long> ids);
+
+    List<Long> listIdsByHostIdForVolumeStats(long hostIds);
 }

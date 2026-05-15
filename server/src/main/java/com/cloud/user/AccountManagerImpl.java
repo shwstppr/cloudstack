@@ -2646,8 +2646,18 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     }
 
     @Override
+    public Account getActiveAccountByUuid(String accountUuid) {
+        return _accountDao.findByUuid(accountUuid);
+    }
+
+    @Override
     public Account getAccount(long accountId) {
         return _accountDao.findByIdIncludingRemoved(accountId);
+    }
+
+    @Override
+    public Account getAccountByUuid(String accountUuid) {
+        return _accountDao.findByUuidIncludingRemoved(accountUuid);
     }
 
     @Override
@@ -2661,6 +2671,15 @@ public class AccountManagerImpl extends ManagerBase implements AccountManager, M
     @Override
     public User getActiveUser(long userId) {
         return _userDao.findById(userId);
+    }
+
+    @Override
+    public User getOneActiveUserForAccount(Account account) {
+        List<UserVO> users = _userDao.listByAccount(account.getId());
+        if (CollectionUtils.isEmpty(users)) {
+            return null;
+        }
+        return users.get(0);
     }
 
     @Override
