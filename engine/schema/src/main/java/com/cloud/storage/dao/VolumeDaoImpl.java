@@ -209,6 +209,17 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
     }
 
     @Override
+    public List<VolumeVO> findByInstanceAndNotStates(long id, Volume.State...states) {
+        SearchBuilder<VolumeVO> sb = createSearchBuilder();
+        sb.and("instanceId", sb.entity().getInstanceId(), Op.EQ);
+        sb.and("state", sb.entity().getState(), Op.NIN);
+        SearchCriteria<VolumeVO> sc = sb.create();
+        sc.setParameters("instanceId", id);
+        sc.setParameters("state", (Object[]) states);
+        return listBy(sc);
+    }
+
+    @Override
     public List<VolumeVO> findIncludingRemovedByInstanceAndType(long id, Type vType) {
         SearchCriteria<VolumeVO> sc = AllFieldsSearch.create();
         sc.setParameters("instanceId", id);
@@ -623,11 +634,11 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
             if (dbVol != null) {
                 StringBuilder str = new StringBuilder("Unable to update ").append(vo.toString());
                 str.append(": DB Data={id=").append(dbVol.getId()).append("; state=").append(dbVol.getState()).append("; updatecount=").append(dbVol.getUpdatedCount()).append(";updatedTime=")
-                .append(dbVol.getUpdated());
+                        .append(dbVol.getUpdated());
                 str.append(": New Data={id=").append(vo.getId()).append("; state=").append(nextState).append("; event=").append(event).append("; updatecount=").append(vo.getUpdatedCount())
-                .append("; updatedTime=").append(vo.getUpdated());
+                        .append("; updatedTime=").append(vo.getUpdated());
                 str.append(": stale Data={id=").append(vo.getId()).append("; state=").append(currentState).append("; event=").append(event).append("; updatecount=").append(oldUpdated)
-                .append("; updatedTime=").append(oldUpdatedTime);
+                        .append("; updatedTime=").append(oldUpdatedTime);
             } else {
                 logger.debug("Unable to update volume: id=" + vo.getId() + ", as there is no such volume exists in the database anymore");
             }
@@ -810,7 +821,7 @@ public class VolumeDaoImpl extends GenericDaoBase<VolumeVO, Long> implements Vol
     @Override
     public void updateDiskOffering(long volumeId, long diskOfferingId) {
         try (TransactionLegacy txn = TransactionLegacy.currentTxn();
-                PreparedStatement pstmt = txn.prepareAutoCloseStatement(sqlUpdateDiskOffering)) {
+             PreparedStatement pstmt = txn.prepareAutoCloseStatement(sqlUpdateDiskOffering)) {
             pstmt.setLong(1, diskOfferingId);
             pstmt.setLong(2, volumeId);
             pstmt.executeUpdate();

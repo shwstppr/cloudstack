@@ -42,21 +42,6 @@ import java.util.Optional;
 import java.util.TimeZone;
 import java.util.UUID;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
-import org.mockito.Spy;
-import org.mockito.junit.MockitoJUnitRunner;
-import org.mockito.stubbing.Answer;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import org.apache.cloudstack.api.ApiConstants;
 import org.apache.cloudstack.api.ServerApiException;
 import org.apache.cloudstack.api.command.admin.backup.ImportBackupOfferingCmd;
@@ -79,6 +64,20 @@ import org.apache.cloudstack.reservation.ReservationVO;
 import org.apache.cloudstack.reservation.dao.ReservationDao;
 import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.stubbing.Answer;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.cloud.alert.AlertManager;
 import com.cloud.api.query.dao.UserVmJoinDao;
@@ -330,7 +329,10 @@ public class BackupManagerTest {
         dbUtilMockedStatic.close();
         closeable.close();
         if (updatedConfigKeyDepot) {
-            ReflectionTestUtils.setField(BackupManager.BackupFrameworkEnabled, "s_depot", configDepotImpl);
+            ConfigKey configKey = BackupManager.BackupFrameworkEnabled;
+            ReflectionTestUtils.setField(configKey, "s_depot", configDepotImpl);
+            ReflectionTestUtils.setField(configKey, "_value", null);
+            updatedConfigKeyDepot = false;
         }
         CallContext.unregister();
     }
@@ -339,6 +341,7 @@ public class BackupManagerTest {
         ConfigKey configKey = BackupManager.BackupFrameworkEnabled;
         this.configDepotImpl = (ConfigDepotImpl) ReflectionTestUtils.getField(configKey, "s_depot");
         ConfigDepotImpl configDepot = Mockito.mock(ConfigDepotImpl.class);
+        ReflectionTestUtils.setField(configKey, "_value", null);
         Mockito.when(configDepot.getConfigStringValue(Mockito.eq(BackupManager.BackupFrameworkEnabled.key()),
                 Mockito.eq(ConfigKey.Scope.Global), Mockito.isNull())).thenReturn("true");
         Mockito.when(configDepot.getConfigStringValue(Mockito.eq(BackupManager.BackupFrameworkEnabled.key()),
