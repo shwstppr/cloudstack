@@ -25,7 +25,7 @@
       <a-tab-pane :tab="$t('label.details')" key="details">
         <DetailsTab :resource="resource" :loading="loading" />
       </a-tab-pane>
-      <a-tab-pane v-if="resource.clustertype === 'CloudManaged'" :tab="$t('label.access')" key="access">
+      <a-tab-pane v-if="accessAllowed" :tab="$t('label.access')" key="access">
         <a-card :title="$t('label.kubeconfig.cluster')" :loading="versionLoading">
           <div v-if="clusterConfig !== ''">
             <a-textarea :value="clusterConfig" :rows="5" readonly />
@@ -293,6 +293,14 @@ export default {
     }
     this.handleFetchData()
     this.setCurrentTab()
+    console.log(this.resource, this.$store.getters)
+  },
+  computed: {
+    accessAllowed () {
+      return this.resource.clustertype === 'CloudManaged' &&
+      (this.resource.accountid === this.$store.getters.userInfo.accountid ||
+      (this.resource.projectid && this.$store.getters.project && this.resource.projectid === this.$store.getters.project.id))
+    }
   },
   methods: {
     setCurrentTab () {
@@ -341,6 +349,9 @@ export default {
       })
     },
     fetchKubernetesClusterConfig () {
+      if (!this.accessAllowed) {
+        return
+      }
       this.clusterConfigLoading = true
       this.clusterConfig = ''
       if (!this.isObjectEmpty(this.resource)) {

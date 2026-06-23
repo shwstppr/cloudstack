@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.naming.ConfigurationException;
 
+import com.cloud.projects.dao.ProjectAccountDao;
 import com.cloud.uservm.UserVm;
 import com.cloud.vm.UserVmService;
 import org.apache.cloudstack.acl.ControlledEntity;
@@ -331,6 +332,8 @@ public class KubernetesClusterManagerImpl extends ManagerBase implements Kuberne
     public ProjectManager projectManager;
     @Inject
     RoleService roleService;
+    @Inject
+    ProjectAccountDao projectAccountDao;
 
     private void logMessage(final Level logLevel, final String message, final Exception e) {
         if (logLevel == Level.WARN) {
@@ -1761,6 +1764,30 @@ public class KubernetesClusterManagerImpl extends ManagerBase implements Kuberne
         return response;
     }
 
+    protected void checkClusterUseAccess(Account caller, KubernetesCluster kubernetesCluster) {
+        accountManager.checkAccess(caller, SecurityChecker.AccessType.UseEntry, true, kubernetesCluster);
+        if (caller.getId() == kubernetesCluster.getAccountId()) {
+            return;
+        }
+        PermissionDeniedException ex = new PermissionDeniedException(String.format(
+                "Caller '%s' does not have permission to use the resource '%s'",
+                caller.getAccountName(), kubernetesCluster.getName()));
+        Account owner = accountService.getActiveAccountById(kubernetesCluster.getAccountId());
+        if (owner == null) {
+            if (accountManager.isRootAdmin(caller.getId())) {
+                logger.debug("Owner account for {} is not found, but caller {} is root admin, allowing access",
+                        kubernetesCluster, caller);
+                return;
+            }
+        } else if (Account.Type.PROJECT.equals(owner.getType())) {
+            long callingUserId = CallContext.current().getCallingUserId();
+            if (projectAccountDao.canUserAccessProjectAccount(caller.getId(), callingUserId, owner.getId())) {
+                return;
+            }
+        }
+        throw ex;
+    }
+
     public KubernetesClusterConfigResponse getKubernetesClusterConfig(GetKubernetesClusterConfigCmd cmd) {
         if (!KubernetesServiceEnabled.value()) {
             logAndThrow(Level.ERROR, "Kubernetes Service plugin is disabled");
@@ -1771,7 +1798,7 @@ public class KubernetesClusterManagerImpl extends ManagerBase implements Kuberne
             throw new InvalidParameterValueException("Invalid Kubernetes cluster ID specified");
         }
         Account caller = CallContext.current().getCallingAccount();
-        accountManager.checkAccess(caller, SecurityChecker.AccessType.OperateEntry, false, kubernetesCluster);
+        checkClusterUseAccess(caller, kubernetesCluster);
         KubernetesClusterConfigResponse response = new KubernetesClusterConfigResponse();
         response.setId(kubernetesCluster.getUuid());
         response.setName(kubernetesCluster.getName());
