@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   compile:
-    if: github.repository == 'apache/cloudstack'
+    # TEMP: dropped 'if: github.repository == apache/cloudstack' to test on fork; restore before opening the real PR
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -85,7 +85,7 @@ jobs:
           compression-level: 0
 
   build:
-    if: github.repository == 'apache/cloudstack'
+    # TEMP: dropped 'if: github.repository == apache/cloudstack' to test on fork; restore before opening the real PR
     needs: compile
     runs-on: ubuntu-24.04
 
