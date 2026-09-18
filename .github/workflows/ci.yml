@@ -69,7 +69,11 @@ jobs:
 
       - name: Package build output
         run: |
-          tar --zstd -cf target-output.tar.zst $(find . -type d -name target)
+          paths=($(find . -type d -name target))
+          for p in engine/schema/dist systemvm/dist; do
+            [ -d "$p" ] && paths+=("$p")
+          done
+          tar --zstd -cf target-output.tar.zst "${paths[@]}"
           tar --zstd -cf m2-cloudstack.tar.zst -C "$HOME" .m2/repository/org/apache/cloudstack
           tar --zstd -cf marvin-dist.tar.zst tools/marvin/dist
 
