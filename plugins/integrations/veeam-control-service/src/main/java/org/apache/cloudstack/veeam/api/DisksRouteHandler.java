@@ -89,7 +89,7 @@ public class DisksRouteHandler extends ManagerBase implements RouteHandler {
                     return;
                 }
                 if ("DELETE".equalsIgnoreCase(method)) {
-                    handleDeleteById(id, resp, outFormat, io);
+                    handleDeleteById(id, req, resp, outFormat, io);
                     return;
                 }
                 if ("PUT".equalsIgnoreCase(method)) {
@@ -155,11 +155,12 @@ public class DisksRouteHandler extends ManagerBase implements RouteHandler {
         }
     }
 
-    protected void handleDeleteById(final String id, final HttpServletResponse resp, final Negotiation.OutFormat outFormat,
-                                 final VeeamControlServlet io) throws IOException {
+    protected void handleDeleteById(final String id, final HttpServletRequest req, final HttpServletResponse resp,
+                                 final Negotiation.OutFormat outFormat, final VeeamControlServlet io) throws IOException {
+        boolean async = RouteHandler.isRequestAsync(req);
         try {
             serverAdapter.deleteDisk(id);
-            io.getWriter().write(resp, HttpServletResponse.SC_OK, "Deleted disk ID: " + id, outFormat);
+            RouteHandler.writeDeleteResponse(resp, async, null, outFormat, io);
         } catch (CloudRuntimeException e) {
             io.badRequest(resp, e.getMessage(), outFormat);
         }

@@ -92,7 +92,7 @@ public class DisksRouteHandlerTest extends RouteHandlerTestSupport {
         handler.handle(newRequest("DELETE"), delete.response, "/api/disks/disk-1", Negotiation.OutFormat.JSON, newServlet());
         verify(handler.serverAdapter).deleteDisk("disk-1");
         verify(delete.response).setStatus(200);
-        assertContains(delete.body(), "Deleted disk ID: disk-1");
+        assertContains(delete.body(), "\"status\":\"complete\"");
 
         final ResponseCapture copy = newResponse();
         handler.handle(newRequest("POST", Map.of(), "application/json", "{}"), copy.response,
@@ -118,5 +118,19 @@ public class DisksRouteHandlerTest extends RouteHandlerTestSupport {
         verify(response.response).setHeader("Allow", "POST");
         verify(response.response).setStatus(405);
         assertContains(response.body(), "Method Not Allowed");
+    }
+
+    @Test
+    public void testHandleDelete_AsyncReturnsAcceptedWithoutBody() throws Exception {
+        final DisksRouteHandler handler = new DisksRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE", Map.of("async", "true"), null, null), delete.response, "/api/disks/disk-1",
+                Negotiation.OutFormat.JSON, newServlet());
+
+        verify(handler.serverAdapter).deleteDisk("disk-1");
+        verify(delete.response).setStatus(202);
+        assertEquals("", delete.body());
     }
 }

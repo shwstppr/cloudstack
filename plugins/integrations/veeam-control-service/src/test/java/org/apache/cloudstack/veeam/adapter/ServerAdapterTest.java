@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -38,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cloudstack.api.response.ExceptionResponse;
 import org.apache.cloudstack.backup.BackupVO;
 import org.apache.cloudstack.backup.KVMBackupExportService;
 import org.apache.cloudstack.backup.dao.BackupDao;
@@ -63,6 +65,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import com.cloud.api.ApiSerializerHelper;
 import com.cloud.api.query.dao.AsyncJobJoinDao;
 import com.cloud.api.query.dao.DataCenterJoinDao;
 import com.cloud.api.query.dao.HostJoinDao;
@@ -515,39 +518,73 @@ public class ServerAdapterTest {
 
 
     @Test
-    public void testWaitForJobCompletion_JobNotFound_Returns() {
+    public void testWaitForJobCompletion_JobNotFound_ReturnsNull() {
         when(asyncJobDao.findByIdIncludingRemoved(99L)).thenReturn(null);
-        serverAdapter.waitForJobCompletion(99L);
+        assertNull(serverAdapter.waitForJobCompletion(99L, 60000L));
         verify(asyncJobDao).findByIdIncludingRemoved(99L);
     }
 
     @Test
-    public void testWaitForJobCompletion_JobAlreadySucceeded_Returns() {
+    public void testWaitForJobCompletion_JobDone_ReturnsJob() {
+        for (AsyncJobVO.Status status : new AsyncJobVO.Status[] {AsyncJobVO.Status.SUCCEEDED,
+                AsyncJobVO.Status.FAILED, AsyncJobVO.Status.CANCELLED}) {
+            AsyncJobVO job = mock(AsyncJobVO.class);
+            when(job.getStatus()).thenReturn(status);
+            when(asyncJobDao.findByIdIncludingRemoved(1L)).thenReturn(job);
+            assertEquals(job, serverAdapter.waitForJobCompletion(1L, 60000L));
+        }
+    }
+
+    @Test
+    public void testWaitForJobCompletion_DeadlinePassed_ThrowsWithBackgroundCaveat() {
         AsyncJobVO job = mock(AsyncJobVO.class);
-        when(job.getStatus()).thenReturn(AsyncJobVO.Status.SUCCEEDED);
-        when(asyncJobDao.findByIdIncludingRemoved(1L)).thenReturn(job);
-        serverAdapter.waitForJobCompletion(1L);
+        when(job.getStatus()).thenReturn(AsyncJobVO.Status.IN_PROGRESS);
+        when(job.getUuid()).thenReturn("job-uuid");
+        when(asyncJobDao.findByIdIncludingRemoved(3L)).thenReturn(job);
+
+        AsyncJobFailedException e = assertThrows(AsyncJobFailedException.class, () -> serverAdapter.waitForJobCompletion(3L, 0L));
+        assertEquals("job-uuid", e.getJobUuid());
+        assertTrue(e.getMessage().contains("Timed out waiting for job job-uuid to complete after 0s"));
+        assertTrue(e.getMessage().contains("may still be running in the background"));
     }
 
     @Test
-    public void testWaitForJobCompletion_JobAlreadyFailed_Returns() {
+    public void testWaitForJobCompletion_Interrupted_ThrowsAndKeepsInterruptFlag() {
         AsyncJobVO job = mock(AsyncJobVO.class);
-        when(job.getStatus()).thenReturn(AsyncJobVO.Status.FAILED);
-        when(asyncJobDao.findByIdIncludingRemoved(2L)).thenReturn(job);
-        serverAdapter.waitForJobCompletion(2L);
+        when(job.getStatus()).thenReturn(AsyncJobVO.Status.IN_PROGRESS);
+        when(job.getUuid()).thenReturn("job-uuid");
+        when(asyncJobDao.findByIdIncludingRemoved(4L)).thenReturn(job);
+
+        Thread.currentThread().interrupt();
+        try {
+            AsyncJobFailedException e = assertThrows(AsyncJobFailedException.class, () -> serverAdapter.waitForJobCompletion(4L, 60000L));
+            assertTrue(e.getMessage().contains("Interrupted while waiting for job job-uuid"));
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
-
     @Test
-    public void testWaitForJobCompletion_NullJobJoinVO_Returns() {
-        AsyncJobJoinVO job = null;
-        serverAdapter.waitForJobCompletion(job);
+    public void testGetJobWaitTimeoutMillis_PositiveValueIsUsed() {
+        assertEquals(120000L, serverAdapter.getJobWaitTimeoutMillis(120));
     }
 
     @Test
-    public void testWaitForJobCompletion_CompletedJobJoinVO_DelegatesById() {
+    public void testGetJobWaitTimeoutMillis_ZeroNegativeOrNullFallsBackToDefault() {
+        for (Integer value : new Integer[] {0, -1, null}) {
+            assertEquals("Expected default for " + value, 3600000L, serverAdapter.getJobWaitTimeoutMillis(value));
+        }
+    }
+
+    @Test
+    public void testWaitForJobSuccess_NullJobJoinVO_Returns() {
+        serverAdapter.waitForJobCompletion(null);
+    }
+
+    @Test
+    public void testWaitForJobSuccess_JobSucceeded_Returns() {
         AsyncJobJoinVO jobVO = mock(AsyncJobJoinVO.class);
-        when(jobVO.getStatus()).thenReturn(AsyncJobVO.Status.SUCCEEDED.ordinal());
         when(jobVO.getId()).thenReturn(5L);
 
         AsyncJobVO job = mock(AsyncJobVO.class);
@@ -557,6 +594,46 @@ public class ServerAdapterTest {
         serverAdapter.waitForJobCompletion(jobVO);
 
         verify(asyncJobDao).findByIdIncludingRemoved(5L);
+    }
+
+    @Test
+    public void testWaitForJobSuccess_JobFailed_ThrowsWithElapsedAndErrorText() {
+        AsyncJobJoinVO jobVO = mock(AsyncJobJoinVO.class);
+        when(jobVO.getId()).thenReturn(6L);
+        when(jobVO.getUuid()).thenReturn("job-uuid");
+
+        AsyncJobVO job = mock(AsyncJobVO.class);
+        when(job.getStatus()).thenReturn(AsyncJobVO.Status.FAILED);
+        when(job.getResult()).thenReturn("Unable to destroy VM");
+        when(asyncJobDao.findByIdIncludingRemoved(6L)).thenReturn(job);
+
+        AsyncJobFailedException e = assertThrows(AsyncJobFailedException.class, () -> serverAdapter.waitForJobCompletion(jobVO));
+        assertEquals("job-uuid", e.getJobUuid());
+        assertEquals("Job job-uuid failed after 0s: Unable to destroy VM", e.getMessage());
+    }
+
+    @Test
+    public void testWaitForJobSuccess_JobCancelled_Throws() {
+        AsyncJobJoinVO jobVO = mock(AsyncJobJoinVO.class);
+        when(jobVO.getId()).thenReturn(7L);
+        when(jobVO.getUuid()).thenReturn("job-uuid");
+
+        AsyncJobVO job = mock(AsyncJobVO.class);
+        when(job.getStatus()).thenReturn(AsyncJobVO.Status.CANCELLED);
+        when(asyncJobDao.findByIdIncludingRemoved(7L)).thenReturn(job);
+
+        AsyncJobFailedException e = assertThrows(AsyncJobFailedException.class, () -> serverAdapter.waitForJobCompletion(jobVO));
+        assertEquals("Job job-uuid cancelled after 0s: no error details available", e.getMessage());
+    }
+
+    @Test
+    public void testGetJobErrorText_ExtractsErrorTextFromSerializedExceptionResponse() {
+        ExceptionResponse response = new ExceptionResponse();
+        response.setErrorText("Host is unreachable");
+        AsyncJobVO job = mock(AsyncJobVO.class);
+        when(job.getResult()).thenReturn(ApiSerializerHelper.toSerializedString(response));
+
+        assertEquals("Host is unreachable", ServerAdapter.getJobErrorText(job));
     }
 
 

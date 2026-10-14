@@ -29,11 +29,13 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cloudstack.veeam.adapter.AsyncJobFailedException;
 import org.apache.cloudstack.veeam.api.dto.Backup;
 import org.apache.cloudstack.veeam.api.dto.Checkpoint;
 import org.apache.cloudstack.veeam.api.dto.Disk;
 import org.apache.cloudstack.veeam.api.dto.DiskAttachment;
 import org.apache.cloudstack.veeam.api.dto.Nic;
+import org.apache.cloudstack.veeam.api.dto.Ref;
 import org.apache.cloudstack.veeam.api.dto.ResourceAction;
 import org.apache.cloudstack.veeam.api.dto.Snapshot;
 import org.apache.cloudstack.veeam.api.dto.Vm;
@@ -41,6 +43,8 @@ import org.apache.cloudstack.veeam.api.dto.VmAction;
 import org.apache.cloudstack.veeam.utils.Negotiation;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+
+import com.cloud.utils.exception.CloudRuntimeException;
 
 public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
 
@@ -125,8 +129,8 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
         handler.handle(newRequest("DELETE", Map.of("async", "true", "detach_only", "false"), null, null), delete.response,
                 "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
         verify(handler.serverAdapter).deleteInstance("vm-1", true, true);
-        verify(delete.response).setStatus(200);
-        assertContains(delete.body(), "deleted");
+        verify(delete.response).setStatus(202);
+        assertEquals("", delete.body());
 
         final ResponseCapture start = newResponse();
         handler.handle(newRequest("POST"), start.response, "/api/vms/vm-1/start", Negotiation.OutFormat.JSON, newServlet());
@@ -228,7 +232,7 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
         handler.handle(newRequest("DELETE", Map.of("async", "true"), null, null), delete.response,
                 "/api/vms/vm-1/snapshots/snap-1", Negotiation.OutFormat.JSON, newServlet());
         verify(delete.response).setStatus(202);
-        assertContains(delete.body(), "deleted");
+        assertEquals("", delete.body());
 
         final ResponseCapture restore = newResponse();
         handler.handle(newRequest("POST"), restore.response, "/api/vms/vm-1/snapshots/snap-1/restore", Negotiation.OutFormat.JSON, newServlet());
@@ -375,5 +379,159 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
             verify(handler.serverAdapter).deleteDisk("disk-1");
             verify(delete.response).setStatus(200);
         }
+    }
+
+    @Test
+    public void testHandleActions_AsyncJobFailureReturnsFailedActionWithFaultAndJob() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        final CloudRuntimeException failure = new CloudRuntimeException("Failed to start VM: Timed out waiting for job job-1",
+                new AsyncJobFailedException("job-1", "Timed out waiting for job job-1"));
+        when(handler.serverAdapter.startInstance("vm-1", false)).thenThrow(failure);
+
+        final ResponseCapture start = newResponse();
+        handler.handle(newRequest("POST"), start.response, "/api/vms/vm-1/start", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(start.response).setStatus(400);
+        assertContains(start.body(), "\"status\":\"failed\"");
+        assertContains(start.body(), "\"reason\":\"Operation Failed\"");
+        assertContains(start.body(), "Failed to start VM: Timed out waiting for job job-1");
+        assertContains(start.body(), "/api/jobs/job-1");
+    }
+
+    @Test
+    public void testHandleActions_AsyncJobFailureXmlContainsFaultAndJob() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.stopInstance("vm-1", false)).thenThrow(new CloudRuntimeException(
+                "Failed to stop VM: Timed out waiting for job job-1",
+                new AsyncJobFailedException("job-1", "Timed out waiting for job job-1")));
+
+        final ResponseCapture stop = newResponse();
+        handler.handle(newRequest("POST"), stop.response, "/api/vms/vm-1/stop", Negotiation.OutFormat.XML, newServlet());
+
+        verify(stop.response).setStatus(400);
+        assertContains(stop.body(), "<status>failed</status>");
+        assertContains(stop.body(), "<reason>Operation Failed</reason>");
+        assertContains(stop.body(), "<detail>Failed to stop VM: Timed out waiting for job job-1</detail>");
+        assertContains(stop.body(), "job-1");
+    }
+
+    @Test
+    public void testHandleDeleteById_AsyncJobFailureReturnsPlainFault() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        final CloudRuntimeException failure = new CloudRuntimeException("Failed to delete VM: Timed out waiting for job job-1",
+                new AsyncJobFailedException("job-1", "Timed out waiting for job job-1"));
+        when(handler.serverAdapter.deleteInstance("vm-1", true, false)).thenThrow(failure);
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(delete.response).setStatus(400);
+        assertContains(delete.body(), "\"reason\":\"Operation Failed\"");
+        assertContains(delete.body(), "Failed to delete VM: Timed out waiting for job job-1");
+        assertFalse(delete.body().contains("\"status\""));
+        assertFalse(delete.body().contains("\"job\""));
+    }
+
+    @Test
+    public void testHandleDeleteSnapshot_AsyncJobFailureReturnsOperationFailedFault() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        final CloudRuntimeException failure = new CloudRuntimeException("Failed to delete snapshot: Job job-2 failed after 3s: boom",
+                new AsyncJobFailedException("job-2", "Job job-2 failed after 3s: boom"));
+        when(handler.serverAdapter.deleteSnapshot("snap-1", false)).thenThrow(failure);
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1/snapshots/snap-1",
+                Negotiation.OutFormat.JSON, newServlet());
+
+        verify(delete.response).setStatus(400);
+        assertContains(delete.body(), "\"reason\":\"Operation Failed\"");
+        assertContains(delete.body(), "Failed to delete snapshot: Job job-2 failed after 3s: boom");
+        assertFalse(delete.body().contains("\"status\""));
+    }
+
+    @Test
+    public void testHandleDeleteById_OtherErrorReturnsBadRequestFault() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.deleteInstance("vm-1", true, false))
+                .thenThrow(new CloudRuntimeException("Failed to delete VM: boom"));
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(delete.response).setStatus(400);
+        assertContains(delete.body(), "Failed to delete VM: boom");
+        assertFalse(delete.body().contains("Operation Failed"));
+    }
+
+    @Test
+    public void testHandleDeleteById_SyncReturnsCompletedActionWithJob() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        final VmAction action = new VmAction();
+        action.setJob(Ref.of("/ovirt-engine/api/jobs/job-1", "job-1"));
+        action.setVm(withId(new Vm(), "vm-1"));
+        action.setStatus("in_progress");
+        when(handler.serverAdapter.deleteInstance("vm-1", true, false)).thenReturn(action);
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(delete.response).setStatus(200);
+        assertContains(delete.body(), "\"status\":\"complete\"");
+        assertContains(delete.body(), "/api/jobs/job-1");
+        assertFalse(delete.body().contains("\"vm\""));
+    }
+
+    @Test
+    public void testHandleDelete_AsyncReturnsAcceptedWithoutBody() throws Exception {
+        for (String async : new String[] {"true", "1"}) {
+            for (String path : new String[] {"/api/vms/vm-1", "/api/vms/vm-1/diskattachments/disk-1",
+                    "/api/vms/vm-1/snapshots/snap-1", "/api/vms/vm-1/checkpoints/chk-1"}) {
+                final VmsRouteHandler handler = new VmsRouteHandler();
+                handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+                when(handler.serverAdapter.deleteInstance("vm-1", true, true)).thenReturn(new VmAction());
+                when(handler.serverAdapter.deleteSnapshot("snap-1", true)).thenReturn(new ResourceAction());
+
+                final ResponseCapture delete = newResponse();
+                handler.handle(newRequest("DELETE", Map.of("async", async), null, null), delete.response, path,
+                        Negotiation.OutFormat.JSON, newServlet());
+
+                verify(delete.response).setStatus(202);
+                assertEquals("Expected empty body for " + path, "", delete.body());
+            }
+        }
+    }
+
+    @Test
+    public void testHandleDelete_SyncWithoutJobReturnsCompletedAction() throws Exception {
+        for (String path : new String[] {"/api/vms/vm-1/diskattachments/disk-1", "/api/vms/vm-1/checkpoints/chk-1"}) {
+            final VmsRouteHandler handler = new VmsRouteHandler();
+            handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+
+            final ResponseCapture delete = newResponse();
+            handler.handle(newRequest("DELETE"), delete.response, path, Negotiation.OutFormat.JSON, newServlet());
+
+            verify(delete.response).setStatus(200);
+            assertEquals("{\"status\":\"complete\"}", delete.body());
+        }
+    }
+
+    @Test
+    public void testHandleActions_OtherErrorReturnsPlainFault() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.startInstance("vm-1", false)).thenThrow(new CloudRuntimeException("Failed to start VM: boom"));
+
+        final ResponseCapture start = newResponse();
+        handler.handle(newRequest("POST"), start.response, "/api/vms/vm-1/start", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(start.response).setStatus(400);
+        assertContains(start.body(), "Failed to start VM: boom");
+        assertFalse(start.body().contains("\"status\":\"failed\""));
     }
 }

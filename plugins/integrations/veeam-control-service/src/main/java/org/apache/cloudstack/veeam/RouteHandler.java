@@ -23,6 +23,7 @@ import java.io.IOException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.cloudstack.veeam.api.dto.ResourceAction;
 import org.apache.cloudstack.veeam.utils.Negotiation;
 import org.apache.logging.log4j.Logger;
 
@@ -102,5 +103,23 @@ public interface RouteHandler extends Adapter {
             return true;
         }
         return parseBoolean(async, false);
+    }
+
+    /**
+     * Writes the response for a successful DELETE the way oVirt does: 202 Accepted without a body for
+     * async requests, otherwise 200 OK with a completed action, linking the job when there is one.
+     */
+    static void writeDeleteResponse(final HttpServletResponse resp, final boolean async, final ResourceAction action,
+                final Negotiation.OutFormat outFormat, final VeeamControlServlet io) throws IOException {
+        if (async) {
+            io.getWriter().write(resp, HttpServletResponse.SC_ACCEPTED, null, outFormat);
+            return;
+        }
+        ResourceAction response = new ResourceAction();
+        if (action != null) {
+            response.setJob(action.getJob());
+        }
+        response.setStatus("complete");
+        io.getWriter().write(resp, HttpServletResponse.SC_OK, response, outFormat);
     }
 }
