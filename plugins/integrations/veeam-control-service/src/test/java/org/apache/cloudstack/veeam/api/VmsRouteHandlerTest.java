@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,6 +45,7 @@ import org.apache.cloudstack.veeam.utils.Negotiation;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.cloud.exception.InvalidParameterValueException;
 import com.cloud.utils.exception.CloudRuntimeException;
 
 public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
@@ -491,7 +493,7 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
     public void testHandleDelete_AsyncReturnsAcceptedWithoutBody() throws Exception {
         for (String async : new String[] {"true", "1"}) {
             for (String path : new String[] {"/api/vms/vm-1", "/api/vms/vm-1/diskattachments/disk-1",
-                    "/api/vms/vm-1/snapshots/snap-1", "/api/vms/vm-1/checkpoints/chk-1"}) {
+                    "/api/vms/vm-1/snapshots/snap-1", "/api/vms/vm-1/checkpoints/chk-1", "/api/vms/vm-1/nics/nic-1"}) {
                 final VmsRouteHandler handler = new VmsRouteHandler();
                 handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
                 when(handler.serverAdapter.deleteInstance("vm-1", true, true)).thenReturn(new VmAction());
@@ -509,7 +511,8 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
 
     @Test
     public void testHandleDelete_SyncWithoutJobReturnsCompletedAction() throws Exception {
-        for (String path : new String[] {"/api/vms/vm-1/diskattachments/disk-1", "/api/vms/vm-1/checkpoints/chk-1"}) {
+        for (String path : new String[] {"/api/vms/vm-1/diskattachments/disk-1", "/api/vms/vm-1/checkpoints/chk-1",
+                "/api/vms/vm-1/nics/nic-1"}) {
             final VmsRouteHandler handler = new VmsRouteHandler();
             handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
 
@@ -533,5 +536,62 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
         verify(start.response).setStatus(400);
         assertContains(start.body(), "Failed to start VM: boom");
         assertFalse(start.body().contains("\"status\":\"failed\""));
+    }
+
+    @Test
+    public void testHandleGetNicById() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.getInstanceNic("vm-1", "nic-1")).thenReturn(withId(new Nic(), "nic-1"));
+
+        final ResponseCapture get = newResponse();
+        handler.handle(newRequest("GET"), get.response, "/api/vms/vm-1/nics/nic-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(handler.serverAdapter).getInstanceNic("vm-1", "nic-1");
+        verify(get.response).setStatus(200);
+        assertContains(get.body(), "\"id\":\"nic-1\"");
+    }
+
+    @Test
+    public void testHandleNicById_NotFoundReturns404() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.getInstanceNic("vm-1", "nic-x"))
+                .thenThrow(new InvalidParameterValueException("NIC with ID nic-x not found for VM with ID vm-1"));
+        doThrow(new InvalidParameterValueException("NIC with ID nic-x not found for VM with ID vm-1"))
+                .when(handler.serverAdapter).detachInstanceNic("vm-1", "nic-x");
+
+        for (String method : new String[] {"GET", "DELETE"}) {
+            final ResponseCapture response = newResponse();
+            handler.handle(newRequest(method), response.response, "/api/vms/vm-1/nics/nic-x", Negotiation.OutFormat.JSON, newServlet());
+            verify(response.response).setStatus(404);
+            assertContains(response.body(), "NIC with ID nic-x not found for VM with ID vm-1");
+        }
+    }
+
+    @Test
+    public void testHandleDeleteNicById_FailureReturns400() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        doThrow(new CloudRuntimeException("Failed to remove NIC: it is the default nic"))
+                .when(handler.serverAdapter).detachInstanceNic("vm-1", "nic-1");
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1/nics/nic-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(delete.response).setStatus(400);
+        assertContains(delete.body(), "Failed to remove NIC: it is the default nic");
+    }
+
+    @Test
+    public void testHandleNicById_UnsupportedMethodReturns405() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+
+        final ResponseCapture put = newResponse();
+        handler.handle(newRequest("PUT"), put.response, "/api/vms/vm-1/nics/nic-1", Negotiation.OutFormat.JSON, newServlet());
+
+        verify(put.response).setStatus(405);
+        verify(put.response).setHeader("Allow", "GET, DELETE");
     }
 }

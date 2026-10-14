@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cloudstack.api.command.user.vm.RemoveNicFromVMCmd;
 import org.apache.cloudstack.api.response.ExceptionResponse;
 import org.apache.cloudstack.backup.BackupVO;
 import org.apache.cloudstack.backup.KVMBackupExportService;
@@ -51,6 +52,7 @@ import org.apache.cloudstack.storage.datastore.db.PrimaryDataStoreDao;
 import org.apache.cloudstack.storage.datastore.db.StoragePoolVO;
 import org.apache.cloudstack.veeam.api.dto.DataCenter;
 import org.apache.cloudstack.veeam.api.dto.Disk;
+import org.apache.cloudstack.veeam.api.dto.Nic;
 import org.apache.cloudstack.veeam.api.dto.OvfXmlUtil;
 import org.apache.cloudstack.veeam.api.dto.Tag;
 import org.apache.cloudstack.veeam.api.dto.Vm;
@@ -59,6 +61,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -102,6 +105,7 @@ import com.cloud.user.AccountService;
 import com.cloud.user.User;
 import com.cloud.utils.Pair;
 import com.cloud.utils.Ternary;
+import com.cloud.utils.component.ComponentContext;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.NicVO;
 import com.cloud.vm.UserVmManager;
@@ -1213,5 +1217,91 @@ public class ServerAdapterTest {
     @Test(expected = InvalidParameterValueException.class)
     public void testListDisksByBackupUuid_AlwaysThrows() {
         serverAdapter.listDisksByBackupUuid("backup-uuid");
+    }
+
+    @Test(expected = InvalidParameterValueException.class)
+    public void testGetInstanceNic_VmNotFound_Throws() {
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(null);
+        serverAdapter.getInstanceNic("vm-uuid", "nic-uuid");
+    }
+
+    @Test
+    public void testGetInstanceNic_NicNotFoundOrOfAnotherVm_Throws() {
+        UserVmVO vm = mock(UserVmVO.class);
+        when(vm.getId()).thenReturn(10L);
+        when(vm.getUuid()).thenReturn("vm-uuid");
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(vm);
+        NicVO otherVmNic = mock(NicVO.class);
+        when(otherVmNic.getInstanceId()).thenReturn(11L);
+        when(nicDao.findByUuid("other-nic")).thenReturn(otherVmNic);
+
+        InvalidParameterValueException e = assertThrows(InvalidParameterValueException.class,
+                () -> serverAdapter.getInstanceNic("vm-uuid", "missing-nic"));
+        assertEquals("NIC with ID missing-nic not found for VM with ID vm-uuid", e.getMessage());
+        assertThrows(InvalidParameterValueException.class, () -> serverAdapter.getInstanceNic("vm-uuid", "other-nic"));
+    }
+
+    @Test
+    public void testGetInstanceNic_ReturnsNic() {
+        UserVmVO vm = mock(UserVmVO.class);
+        when(vm.getId()).thenReturn(10L);
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(vm);
+        NicVO nic = mock(NicVO.class);
+        when(nic.getInstanceId()).thenReturn(10L);
+        when(nic.getUuid()).thenReturn("nic-uuid");
+        when(nicDao.findByUuid("nic-uuid")).thenReturn(nic);
+
+        Nic result = serverAdapter.getInstanceNic("vm-uuid", "nic-uuid");
+
+        assertEquals("nic-uuid", result.getId());
+        assertTrue(result.getHref().endsWith("/api/vms/vm-uuid/nics/nic-uuid"));
+    }
+
+    @Test
+    public void testDetachInstanceNic_RemovesNicFromVm() {
+        UserVmVO vm = mock(UserVmVO.class);
+        when(vm.getId()).thenReturn(10L);
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(vm);
+        NicVO nic = mock(NicVO.class);
+        when(nic.getId()).thenReturn(20L);
+        when(nic.getInstanceId()).thenReturn(10L);
+        when(nicDao.findByUuid("nic-uuid")).thenReturn(nic);
+
+        try (MockedStatic<ComponentContext> ignored = Mockito.mockStatic(ComponentContext.class)) {
+            serverAdapter.detachInstanceNic("vm-uuid", "nic-uuid");
+        }
+
+        ArgumentCaptor<RemoveNicFromVMCmd> captor = ArgumentCaptor.forClass(RemoveNicFromVMCmd.class);
+        verify(userVmManager).removeNicFromVirtualMachine(captor.capture());
+        assertEquals(Long.valueOf(10L), captor.getValue().getVmId());
+        assertEquals(Long.valueOf(20L), captor.getValue().getNicId());
+    }
+
+    @Test
+    public void testDetachInstanceNic_NicNotFound_ThrowsWithoutRemoving() {
+        UserVmVO vm = mock(UserVmVO.class);
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(vm);
+
+        assertThrows(InvalidParameterValueException.class, () -> serverAdapter.detachInstanceNic("vm-uuid", "nic-uuid"));
+        verify(userVmManager, Mockito.never()).removeNicFromVirtualMachine(any());
+    }
+
+    @Test
+    public void testDetachInstanceNic_RemoveFailure_ThrowsCloudRuntimeException() {
+        UserVmVO vm = mock(UserVmVO.class);
+        when(vm.getId()).thenReturn(10L);
+        when(userVmDao.findByUuid("vm-uuid")).thenReturn(vm);
+        NicVO nic = mock(NicVO.class);
+        when(nic.getInstanceId()).thenReturn(10L);
+        when(nicDao.findByUuid("nic-uuid")).thenReturn(nic);
+        when(userVmManager.removeNicFromVirtualMachine(any()))
+                .thenThrow(new InvalidParameterValueException("Unable to remove nic from VM, it is the default nic"));
+
+        try (MockedStatic<ComponentContext> ignored = Mockito.mockStatic(ComponentContext.class)) {
+            CloudRuntimeException e = assertThrows(CloudRuntimeException.class,
+                    () -> serverAdapter.detachInstanceNic("vm-uuid", "nic-uuid"));
+            assertEquals(CloudRuntimeException.class, e.getClass());
+            assertEquals("Failed to remove NIC: Unable to remove nic from VM, it is the default nic", e.getMessage());
+        }
     }
 }

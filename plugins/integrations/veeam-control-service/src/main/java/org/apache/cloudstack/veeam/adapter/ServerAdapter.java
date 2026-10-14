@@ -67,6 +67,7 @@ import org.apache.cloudstack.api.command.user.vm.DeployVMCmd;
 import org.apache.cloudstack.api.command.user.vm.DestroyVMCmd;
 import org.apache.cloudstack.api.command.user.vm.ListNicsCmd;
 import org.apache.cloudstack.api.command.user.vm.ListVMsCmd;
+import org.apache.cloudstack.api.command.user.vm.RemoveNicFromVMCmd;
 import org.apache.cloudstack.api.command.user.vm.StartVMCmd;
 import org.apache.cloudstack.api.command.user.vm.StopVMCmd;
 import org.apache.cloudstack.api.command.user.vm.UpdateVMCmd;
@@ -1836,6 +1837,49 @@ public class ServerAdapter extends ManagerBase {
         }
         updateInstanceSecurityGroupsIfNeeded(vmVo, restoreConfig, networkVO);
         return NicVOToNicConverter.toNic(nic, vmUuid, this::getNetworkById);
+    }
+
+    @ApiAccess(command = ListNicsCmd.class)
+    public Nic getInstanceNic(final String vmUuid, final String nicUuid) {
+        UserVmVO vmVo = userVmDao.findByUuid(vmUuid);
+        if (vmVo == null) {
+            throw new InvalidParameterValueException("VM with ID " + vmUuid + " not found");
+        }
+        accountService.checkAccess(CallContext.current().getCallingAccount(), null, false, vmVo);
+        NicVO nic = getInstanceNicVO(vmVo, nicUuid);
+        return NicVOToNicConverter.toNic(nic, vmUuid, this::getNetworkById);
+    }
+
+    @ApiAccess(command = RemoveNicFromVMCmd.class)
+    public void detachInstanceNic(final String vmUuid, final String nicUuid) {
+        UserVmVO vmVo = userVmDao.findByUuid(vmUuid);
+        if (vmVo == null) {
+            throw new InvalidParameterValueException("VM with ID " + vmUuid + " not found");
+        }
+        accountService.checkAccess(CallContext.current().getCallingAccount(), SecurityChecker.AccessType.OperateEntry,
+                false, vmVo);
+        NicVO nic = getInstanceNicVO(vmVo, nicUuid);
+        CallContext context = CallContext.current();
+        context.setEventResourceType(ApiCommandResourceType.VirtualMachine);
+        context.setEventResourceId(vmVo.getId());
+        context.setEventDetails("Vm Id: " + vmVo.getUuid() + " Nic Id: " + nic.getUuid());
+        RemoveNicFromVMCmd cmd = new RemoveNicFromVMCmd();
+        ComponentContext.inject(cmd);
+        cmd.setVmId(vmVo.getId());
+        cmd.setNicId(nic.getId());
+        try {
+            userVmManager.removeNicFromVirtualMachine(cmd);
+        } catch (Exception e) {
+            throw new CloudRuntimeException("Failed to remove NIC: " + e.getMessage(), e);
+        }
+    }
+
+    protected NicVO getInstanceNicVO(final UserVmVO vmVo, final String nicUuid) {
+        NicVO nic = nicDao.findByUuid(nicUuid);
+        if (nic == null || nic.getInstanceId() != vmVo.getId()) {
+            throw new InvalidParameterValueException("NIC with ID " + nicUuid + " not found for VM with ID " + vmVo.getUuid());
+        }
+        return nic;
     }
 
     @ApiAccess(command = ListImageTransfersCmd.class)

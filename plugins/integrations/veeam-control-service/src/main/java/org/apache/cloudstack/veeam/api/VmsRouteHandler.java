@@ -184,6 +184,15 @@ public class VmsRouteHandler extends ManagerBase implements RouteHandler {
                         handleDeleteDiskAttachmentForVmId(id, subId, req, resp, outFormat, io);
                     }
                     return;
+                } else if ("nics".equals(subPath)) {
+                    if ("GET".equalsIgnoreCase(method)) {
+                        handleGetNicById(id, subId, resp, outFormat, io);
+                    } else if ("DELETE".equalsIgnoreCase(method)) {
+                        handleDeleteNicById(id, subId, req, resp, outFormat, io);
+                    } else {
+                        io.methodNotAllowed(resp, "GET, DELETE", outFormat);
+                    }
+                    return;
                 } else if ("snapshots".equals(subPath)) {
                     if (!"GET".equalsIgnoreCase(method) && !"DELETE".equalsIgnoreCase(method)) {
                         io.methodNotAllowed(resp, "GET, DELETE", outFormat);
@@ -391,6 +400,32 @@ public class VmsRouteHandler extends ManagerBase implements RouteHandler {
             Nic response = serverAdapter.attachInstanceNic(id, request);
             io.getWriter().write(resp, HttpServletResponse.SC_CREATED, response, outFormat);
         } catch (JsonProcessingException | CloudRuntimeException e) {
+            io.badRequest(resp, e.getMessage(), outFormat);
+        }
+    }
+
+    protected void handleGetNicById(final String vmId, final String nicId, final HttpServletResponse resp,
+                final Negotiation.OutFormat outFormat, final VeeamControlServlet io) throws IOException {
+        try {
+            Nic response = serverAdapter.getInstanceNic(vmId, nicId);
+            io.getWriter().write(resp, HttpServletResponse.SC_OK, response, outFormat);
+        } catch (InvalidParameterValueException e) {
+            io.notFound(resp, e.getMessage(), outFormat);
+        } catch (CloudRuntimeException e) {
+            io.badRequest(resp, e.getMessage(), outFormat);
+        }
+    }
+
+    protected void handleDeleteNicById(final String vmId, final String nicId, final HttpServletRequest req,
+                final HttpServletResponse resp, final Negotiation.OutFormat outFormat, final VeeamControlServlet io)
+            throws IOException {
+        boolean async = RouteHandler.isRequestAsync(req);
+        try {
+            serverAdapter.detachInstanceNic(vmId, nicId);
+            RouteHandler.writeDeleteResponse(resp, async, null, outFormat, io);
+        } catch (InvalidParameterValueException e) {
+            io.notFound(resp, e.getMessage(), outFormat);
+        } catch (CloudRuntimeException e) {
             io.badRequest(resp, e.getMessage(), outFormat);
         }
     }
