@@ -18,8 +18,11 @@
 package org.apache.cloudstack.veeam.api;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -293,5 +296,84 @@ public class VmsRouteHandlerTest extends RouteHandlerTestSupport {
         handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1/checkpoints/chk-1", Negotiation.OutFormat.JSON, newServlet());
         verify(handler.serverAdapter).deleteCheckpoint("vm-1", "chk-1");
         verify(delete.response).setStatus(200);
+    }
+
+    @Test
+    public void testIsRequestDetachOnly_EmptyValueIsTrueRegardlessOfDefault() throws Exception {
+        assertTrue(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", ""), null, null), false));
+        assertTrue(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", ""), null, null), true));
+    }
+
+    @Test
+    public void testIsRequestDetachOnly_MissingOrInvalidValueReturnsValueIfMissing() throws Exception {
+        assertFalse(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE"), false));
+        assertTrue(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE"), true));
+        assertFalse(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", "invalid"), null, null), false));
+        assertTrue(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", "invalid"), null, null), true));
+    }
+
+    @Test
+    public void testIsRequestDetachOnly_ExplicitValueOverridesValueIfMissing() throws Exception {
+        for (String value : new String[] {"true", "TRUE", "1"}) {
+            assertTrue(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", value), null, null), false));
+        }
+        for (String value : new String[] {"false", "False", "0"}) {
+            assertFalse(VmsRouteHandler.isRequestDetachOnly(newRequest("DELETE", Map.of("detach_only", value), null, null), true));
+        }
+    }
+
+    @Test
+    public void testHandleDeleteById_DeletesVolumesWhenDetachOnlyMissing() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+        when(handler.serverAdapter.deleteInstance("vm-1", true, false)).thenReturn(new VmAction());
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
+        verify(handler.serverAdapter).deleteInstance("vm-1", true, false);
+        verify(delete.response).setStatus(200);
+    }
+
+    @Test
+    public void testHandleDeleteById_KeepsVolumesWhenDetachOnlyEmptyOrTrue() throws Exception {
+        for (String value : new String[] {"", "true", "1"}) {
+            final VmsRouteHandler handler = new VmsRouteHandler();
+            handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+            when(handler.serverAdapter.deleteInstance("vm-1", false, false)).thenReturn(new VmAction());
+
+            final ResponseCapture delete = newResponse();
+            handler.handle(newRequest("DELETE", Map.of("detach_only", value), null, null), delete.response,
+                    "/api/vms/vm-1", Negotiation.OutFormat.JSON, newServlet());
+            verify(handler.serverAdapter).deleteInstance("vm-1", false, false);
+            verify(delete.response).setStatus(200);
+        }
+    }
+
+    @Test
+    public void testHandleDeleteDiskAttachment_OnlyDetachesWhenDetachOnlyMissing() throws Exception {
+        final VmsRouteHandler handler = new VmsRouteHandler();
+        handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+
+        final ResponseCapture delete = newResponse();
+        handler.handle(newRequest("DELETE"), delete.response, "/api/vms/vm-1/diskattachments/disk-1",
+                Negotiation.OutFormat.JSON, newServlet());
+        verify(handler.serverAdapter).detachInstanceDisk("vm-1", "disk-1");
+        verify(handler.serverAdapter, never()).deleteDisk("disk-1");
+        verify(delete.response).setStatus(200);
+    }
+
+    @Test
+    public void testHandleDeleteDiskAttachment_DeletesDiskWhenDetachOnlyFalse() throws Exception {
+        for (String value : new String[] {"false", "0"}) {
+            final VmsRouteHandler handler = new VmsRouteHandler();
+            handler.serverAdapter = mock(org.apache.cloudstack.veeam.adapter.ServerAdapter.class);
+
+            final ResponseCapture delete = newResponse();
+            handler.handle(newRequest("DELETE", Map.of("detach_only", value), null, null), delete.response,
+                    "/api/vms/vm-1/diskattachments/disk-1", Negotiation.OutFormat.JSON, newServlet());
+            verify(handler.serverAdapter).detachInstanceDisk("vm-1", "disk-1");
+            verify(handler.serverAdapter).deleteDisk("disk-1");
+            verify(delete.response).setStatus(200);
+        }
     }
 }

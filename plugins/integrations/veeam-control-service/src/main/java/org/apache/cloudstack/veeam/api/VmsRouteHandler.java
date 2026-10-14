@@ -299,7 +299,7 @@ public class VmsRouteHandler extends ManagerBase implements RouteHandler {
     protected void handleDeleteById(final String id, final HttpServletRequest req, final HttpServletResponse resp,
                 final Negotiation.OutFormat outFormat, final VeeamControlServlet io) throws IOException {
         boolean async = RouteHandler.isRequestAsync(req);
-        boolean deleteVolumes = Boolean.FALSE.toString().equals(req.getParameter("detach_only"));
+        boolean deleteVolumes = !isRequestDetachOnly(req, false);
         try {
             VmAction vm = serverAdapter.deleteInstance(id, deleteVolumes, async);
             io.getWriter().write(resp, HttpServletResponse.SC_OK, vm, outFormat);
@@ -422,7 +422,7 @@ public class VmsRouteHandler extends ManagerBase implements RouteHandler {
     protected void handleDeleteDiskAttachmentForVmId(final String vmId, final String diskId,
              final HttpServletRequest req, final HttpServletResponse resp,
              final Negotiation.OutFormat outFormat, final VeeamControlServlet io) throws IOException {
-        boolean delete = Boolean.FALSE.toString().equals(req.getParameter("detach_only"));
+        boolean delete = !isRequestDetachOnly(req, true);
         try {
             serverAdapter.detachInstanceDisk(vmId, diskId);
             if (delete) {
@@ -576,5 +576,19 @@ public class VmsRouteHandler extends ManagerBase implements RouteHandler {
         } catch (JsonProcessingException | CloudRuntimeException e) {
             io.badRequest(resp, e.getMessage(), outFormat);
         }
+    }
+
+    /**
+     * Returns whether disks should only be detached and preserved, as per the detach_only request parameter.
+     * Mimics oVirt: a parameter present without a value (e.g. ?detach_only) means true, while a missing or
+     * unrecognized value falls back to valueIfMissing, which differs per endpoint (false for VM removal,
+     * true for disk attachment removal).
+     */
+    protected static boolean isRequestDetachOnly(final HttpServletRequest req, final boolean valueIfMissing) {
+        String detachOnly = req.getParameter("detach_only");
+        if (detachOnly != null && detachOnly.isEmpty()) {
+            return true;
+        }
+        return RouteHandler.parseBoolean(detachOnly, valueIfMissing);
     }
 }
