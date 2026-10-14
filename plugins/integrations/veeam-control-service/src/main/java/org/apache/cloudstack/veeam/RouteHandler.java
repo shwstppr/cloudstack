@@ -74,8 +74,33 @@ public interface RouteHandler extends Adapter {
         }
     }
 
+    /**
+     * Interprets true/false (case-insensitive) and 1/0 as boolean.
+     * Returns defaultValue when the value is null, empty or unrecognized.
+     */
+    static boolean parseBoolean(String value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        String trimmed = value.trim();
+        if ("1".equals(trimmed) || Boolean.TRUE.toString().equalsIgnoreCase(trimmed)) {
+            return true;
+        }
+        if ("0".equals(trimmed) || Boolean.FALSE.toString().equalsIgnoreCase(trimmed)) {
+            return false;
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Returns whether the request asks for async processing. Mimics oVirt: the async parameter present
+     * without a value (e.g. ?async) means true, while a missing or unrecognized value means false.
+     */
     static boolean isRequestAsync(HttpServletRequest req) {
-        String asyncStr = req.getParameter("async");
-        return Boolean.TRUE.toString().equals(asyncStr);
+        String async = req.getParameter("async");
+        if (async != null && async.isEmpty()) {
+            return true;
+        }
+        return parseBoolean(async, false);
     }
 }
