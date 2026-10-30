@@ -1,0 +1,20 @@
+{
+  "management_ssh": "root@172.120.0.107",
+  "appliance_ssh": "linstor@172.120.0.166",
+  "appliance_node": "linstor-controller",
+  "account": "admin",
+  "domain_id": "f155b817-d454-11f1-8a58-52540032677e",
+  "zone_id": "af95c50a-a7fc-4c3c-a098-cb348ed123e1",
+  "cluster_id": "e0452ab0-131b-45bb-a5bc-dc8276001227",
+  "pool_id": "bc81d300-94af-4cd7-9e3c-c2e277e6e170",
+  "storage_tag": "linstor-poc",
+  "template_id": "f15a66cf-d454-11f1-8a58-52540032677e",
+  "offering_id": "c96fce7a-a94d-4858-a887-113c0c7332b9",
+  "network_id": "2679f495-e915-4ed7-ad1c-247aeee73cac",
+  "validation_vm_id": "3b89203c-2667-4c76-9e10-4d85583e30d3",
+  "router_key": "/root/.ssh/id_rsa.cloud",
+  "hosts": {
+    "08168acf-abc6-4728-a0da-deb12881b66d": "root@172.120.0.227",
+    "74ab26bb-7130-4e8e-badf-93e1069e2488": "root@172.120.0.235"
+  }
+}

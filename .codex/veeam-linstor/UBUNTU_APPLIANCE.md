@@ -83,10 +83,20 @@ Controller database remains `/var/lib/linstor/linstordb` (H2).
 
 ## API access and CloudStack KVM preparation
 
-Controller HTTP API is deliberately local: `127.0.0.1:3370`. Satellite
-currently listens on TCP 3366 and is registered at `172.120.0.166`.
-The VM firewall was inactive on arrival. Do not treat this as a remotely
-secured production deployment.
+Controller HTTP remains local at `127.0.0.1:3370`. During KVM integration,
+enabled LINSTOR native HTTPS and token authentication: the remote API is
+`https://172.120.0.166:3371`, with a self-signed certificate explicitly
+trusted by management and both KVM agents. Unauthenticated API requests
+return 401. Satellite listens on TCP 3366 and is registered at
+`172.120.0.166`. Firewalls remain inactive; satellite/DRBD connections use
+the lab network. This is not a production hardened deployment.
+
+Both KVM hosts are now registered as diskless satellite clients; the
+CloudStack `LINSTOR-POC` pool is Up on both. See
+[KVM_INTEGRATION_STATUS.md](KVM_INTEGRATION_STATUS.md) for configuration,
+cross-host snapshot/IO evidence, source-build maintenance, and remaining
+VM-level validation. The preparation sequence below records the original
+plan; it is not a list of entirely outstanding work.
 
 For administrative CLI access now:
 

@@ -1,9 +1,12 @@
 # Ordered backlog
 
-- [ ] Map UHAPI endpoint implementations and current VBR traffic.
+- [x] Map UHAPI endpoint implementations (see FEASIBILITY.md).
+- [ ] Capture current VBR traffic and version/build.
 - [ ] Identify real VBR disk read protocol; produce sample redacted trace.
-- [ ] Identify CloudStack LINSTOR integration and storage identifiers.
-- [ ] Verify controller/satellite and snapshot support on AlmaLinux 8.
+- [x] Identify CloudStack LINSTOR integration and storage identifiers.
+- [x] Verify Ubuntu controller/storage appliance, AlmaLinux 8 diskless satellites, snapshots and guest deployment.
+- [x] Verify HTTPS control API discovery; identify backup-time restriction, omitted LINSTOR domains and raw/cow metadata mismatch.
+- [ ] Approve CHANGE_PLAN.md before integration source changes.
 - [ ] Decide snapshot ownership, lifecycle, concurrency and locking.
 - [ ] Build read-only full snapshot data transport accepted by VBR.
 - [ ] Validate full backup and full restore.
