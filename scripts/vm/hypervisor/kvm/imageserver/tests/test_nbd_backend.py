@@ -258,6 +258,11 @@ class TestPatchZero(NbdBackendTestCase):
             "Content-Type": "application/json",
             "Content-Length": str(len(payload)),
         })
+        resp = http_get(f"{self._url}/extents")
+        extents = json.loads(resp.read())
+        self.assertGreaterEqual(len(extents), 1)
+        total = sum(e["length"] for e in extents)
+        self.assertEqual(total, IMAGE_SIZE)
 
         resp = http_get(self._url, headers={"Range": "bytes=0-1023"})
         got = resp.read()
@@ -323,12 +328,41 @@ class TestExtents(NbdBackendTestCase):
             "Content-Length": str(len(payload)),
         })
 
-        resp = http_get(f"{self._url}/extents")
-        extents = json.loads(resp.read())
-        self.assertGreaterEqual(len(extents), 1)
-        total = sum(e["length"] for e in extents)
-        self.assertEqual(total, IMAGE_SIZE)
 
+class TestAllocationDepthExtents(ImageServerTestCase):
+    """A QCOW2 delta must report only extents owned by its active layer."""
+
+    def test_dirty_extents_exclude_backing_image_ranges(self):
+        tmp = get_tmp_dir()
+        base = os.path.join(tmp, f"depth-base-{uuid.uuid4().hex}.raw")
+        delta = os.path.join(tmp, f"depth-delta-{uuid.uuid4().hex}.qcow2")
+        try:
+            subprocess.run(["qemu-img", "create", "-f", "raw", base, "1M"], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["qemu-io", "-f", "raw", "-c", "write -P 0x42 0 64k", base], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["qemu-img", "create", "-f", "qcow2", "-F", "raw", "-b", base, delta, "1M"],
+                           check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(["qemu-io", "-f", "qcow2", "-c", "write -P 0x99 512k 64k", delta], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except (FileNotFoundError, subprocess.CalledProcessError) as e:
+            self.skipTest(f"qemu-img/qemu-io is unavailable or failed: {e}")
+
+        _, url, _, cleanup = make_nbd_transfer_existing_disk(delta, "qcow2", allocation_depth=True)
+        try:
+            resp = http_get(f"{url}/extents?context=dirty")
+            extents = json.loads(resp.read())
+            dirty = [(e["start"], e["length"]) for e in extents if e["dirty"]]
+            self.assertTrue(dirty, f"expected active-layer ranges; got {extents}")
+            self.assertTrue(all(start >= 512 * 1024 for start, _ in dirty), dirty)
+            self.assertLess(sum(length for _, length in dirty), 256 * 1024, dirty)
+        finally:
+            cleanup()
+            for path in (base, delta):
+                try:
+                    os.unlink(path)
+                except FileNotFoundError:
+                    pass
 
 def _allocated_subranges(extents, granularity):
     """Split each non-hole extent (zero=False) into [start, end] inclusive byte ranges."""

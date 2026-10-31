@@ -309,6 +309,69 @@ class NbdConnection:
             return self._fallback_dirty_zero_extents(size)
         return merge_dirty_zero_extents(allocation_extents, dirty_extents, size)
 
+    def get_extents_by_allocation_depth(self) -> List[Dict[str, Any]]:
+        """Mark ranges from the active QCOW2 layer dirty, excluding its backing chain."""
+        size = self.size()
+        if size == 0:
+            return []
+        context = "qemu:allocation-depth"
+        if not hasattr(self._nbd, "block_status") and not hasattr(self._nbd, "block_status_64"):
+            return self._fallback_allocation_depth(size)
+        if hasattr(self._nbd, "can_meta_context"):
+            if not self._nbd.can_meta_context("base:allocation") or not self._nbd.can_meta_context(context):
+                return self._fallback_allocation_depth(size)
+
+        allocation_extents: List[Tuple[int, int, bool]] = []
+        depth_extents: List[Tuple[int, int, bool]] = []
+        chunk = min(size, NBD_BLOCK_STATUS_CHUNK)
+        offset = 0
+
+        def extent_cb(*args: Any, **kwargs: Any) -> int:
+            if len(args) < 3:
+                return 0
+            metacontext, off, entries = args[0], args[1], args[2]
+            if entries is None or not hasattr(entries, "__iter__"):
+                return 0
+            current = off
+            try:
+                for length, flags in _entries_to_pairs(entries):
+                    if metacontext == "base:allocation":
+                        allocation_extents.append((current, length,
+                                                   (flags & (NBD_STATE_HOLE | NBD_STATE_ZERO)) != 0))
+                    elif metacontext == context:
+                        # qemu:allocation-depth is a depth value, not a bit mask.
+                        depth_extents.append((current, length, flags == 1))
+                    current += length
+            except (TypeError, ValueError, IndexError) as e:
+                logging.warning("allocation-depth block status was invalid: %r", e)
+            return 0
+
+        block_status_fn = getattr(self._nbd, "block_status_64", getattr(self._nbd, "block_status", None))
+        if block_status_fn is None:
+            return self._fallback_allocation_depth(size)
+        try:
+            while offset < size:
+                count = min(chunk, size - offset)
+                try:
+                    block_status_fn(count, offset, extent_cb)
+                except TypeError:
+                    block_status_fn(offset, count, extent_cb)
+                offset += count
+        except Exception as e:
+            logging.warning("allocation-depth block_status failed: %r", e)
+            return self._fallback_allocation_depth(size)
+        if (not depth_extents or sum(length for _, length, _ in depth_extents) != size
+                or sum(length for _, length, _ in allocation_extents) != size):
+            return self._fallback_allocation_depth(size)
+        return merge_dirty_zero_extents(allocation_extents, depth_extents, size)
+
+    def _fallback_allocation_depth(self, size: int) -> List[Dict[str, Any]]:
+        allocation = self.get_allocation_extents()
+        return [
+            {"start": extent["start"], "length": extent["length"], "dirty": True, "zero": extent["zero"]}
+            for extent in allocation
+        ] or [{"start": 0, "length": size, "dirty": True, "zero": False}]
+
     @staticmethod
     def _fallback_dirty_zero_extents(size: int) -> List[Dict[str, Any]]:
         return [{"start": 0, "length": size, "dirty": False, "zero": False}]
@@ -360,10 +423,12 @@ class NbdBackend(ImageBackend):
         socket_path: str,
         export: Optional[str] = None,
         export_bitmap: Optional[str] = None,
+        allocation_depth: bool = False,
     ):
         self._socket_path = socket_path
         self._export = export
         self._export_bitmap = export_bitmap
+        self._allocation_depth = allocation_depth
 
     @property
     def supports_extents(self) -> bool:
@@ -376,6 +441,10 @@ class NbdBackend(ImageBackend):
     @property
     def export_bitmap(self) -> Optional[str]:
         return self._export_bitmap
+
+    @property
+    def allocation_depth(self) -> bool:
+        return self._allocation_depth
 
     def _connect(
         self,
@@ -476,6 +545,10 @@ class NbdBackend(ImageBackend):
             need_block_status=True, extra_meta_contexts=extra_contexts
         ) as conn:
             return conn.get_extents_dirty_and_zero(dirty_bitmap_context)
+
+    def get_allocation_depth_extents(self) -> List[Dict[str, Any]]:
+        with self._connect(need_block_status=True, extra_meta_contexts=["qemu:allocation-depth"]) as conn:
+            return conn.get_extents_by_allocation_depth()
 
     def open_session(self) -> NbdSession:
         return NbdSession(self._connect())

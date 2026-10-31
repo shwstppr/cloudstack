@@ -19,6 +19,8 @@ package com.cloud.hypervisor.kvm.resource.wrapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -29,11 +31,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.libvirt.LibvirtException;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.hypervisor.kvm.resource.LibvirtComputingResource;
 import com.cloud.hypervisor.kvm.storage.KVMStoragePool;
 import org.apache.cloudstack.utils.qemu.QemuImg;
+import org.apache.cloudstack.utils.qemu.QemuImgFile;
 import com.cloud.resource.CommandWrapper;
 import com.cloud.resource.ResourceWrapper;
 import com.cloud.utils.StringUtils;
@@ -42,11 +46,14 @@ import com.cloud.utils.script.Script;
 @ResourceWrapper(handles = StartNBDServerCommand.class)
 public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBDServerCommand, Answer, LibvirtComputingResource> {
     protected Logger logger = LogManager.getLogger(getClass());
+    private static final long MINIMUM_QEMU_VERSION_FOR_ALLOCATION_DEPTH = 5002000;
 
-    protected String createSystemdRunCmd(StartNBDServerCommand cmd, String unitName, String volumePath, String exportName, String socket) throws IOException {
+    protected String createSystemdRunCmd(StartNBDServerCommand cmd, String unitName, String volumePath, String exportName,
+                                         String socket, boolean allocationDepthSupported) throws IOException {
         String socketName = "/tmp/imagetransfer/" + socket + ".sock";
 
         String bitmapArg = "";
+        String allocationDepthArg = cmd.isAllocationDepth() && allocationDepthSupported ? "--allocation-depth" : "";
         boolean raw = cmd.getStorageBackupVolume() != null;
         if (StringUtils.isNotBlank(cmd.getFromCheckpointId())
                 && isBitmapPresentOnDisk(volumePath, cmd.getFromCheckpointId())) {
@@ -56,7 +63,7 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
         byte[] passphrase = cmd.getPassphrase(); // may be null
         String readOnlyArg = cmd.getDirection().equals("download") ? "--read-only" : "";
         String imageArg = volumePath;
-        if (raw) {
+        if (raw && !cmd.isCowExport()) {
             cmd.getStorageBackupVolume().validateForExport();
             // A block device may include allocation padding beyond the API's logical disk size.
             // Bound both NBD capacity and extents, for downloads and fresh-target uploads.
@@ -75,12 +82,13 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
         // --shared=NUM: Allow up to NUM clients to share the device (default 1), 0 for unlimited. Number of parallel connections is managed by the image server.
         String systemdRunCmd = String.format(
                 "systemd-run --unit=%s --property=Restart=no qemu-nbd %s " +
-                        "--export-name %s --socket %s --persistent --shared=0 %s %s %s",
+                "--export-name %s --socket %s --persistent --shared=0 %s %s %s %s",
                 unitName,
                 secretArg,
                 exportName,
                 socketName,
                 bitmapArg,
+                allocationDepthArg,
                 readOnlyArg,
                 imageArg
         );
@@ -128,7 +136,11 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
 
         String systemdRunCmd = "";
         try {
-            systemdRunCmd = createSystemdRunCmd(cmd, unitName, volumePath, exportName, socket);
+            boolean allocationDepthSupported = resource.getHypervisorQemuVersion() >= MINIMUM_QEMU_VERSION_FOR_ALLOCATION_DEPTH;
+            if (cmd.isAllocationDepth() && !allocationDepthSupported) {
+                logger.warn("QEMU allocation-depth metadata requires QEMU 5.2 or newer; using safe full-range fallback");
+            }
+            systemdRunCmd = createSystemdRunCmd(cmd, unitName, volumePath, exportName, socket, allocationDepthSupported);
         } catch (IOException e) {
             logger.error("Failed to create the KeyFile for qemu-nbd service", e);
             return new StartNBDServerAnswer(cmd, false, "Failed to create systemd run command for qemu-nbd service: " + e.getMessage());
@@ -184,13 +196,20 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
         UUID.fromString(cmd.getTransferId());
         if (!cmd.getTransferId().equals(cmd.getSocket()) ||
                 !cmd.getStorageBackupVolume().getVolumeUuid().equals(cmd.getExportName()) ||
-                cmd.getFromCheckpointId() != null || cmd.getPassphrase() != null) {
+                (cmd.getFromCheckpointId() != null && !cmd.isCowExport()) || cmd.getPassphrase() != null) {
             throw new IllegalArgumentException("Invalid Storage snapshot full-transfer parameters");
         }
         KVMStoragePool pool = StorageBackupCommandSupport.pool(cmd.getStorageBackupVolume(), resource);
         if ("download".equals(cmd.getDirection())) {
             UUID.fromString(cmd.getBackupUuid());
-            return pool.getFullBackupSnapshotPath(cmd.getStorageBackupVolume().getVolumePath(), cmd.getBackupUuid());
+            String currentSnapshot = pool.getFullBackupSnapshotPath(cmd.getStorageBackupVolume().getVolumePath(), cmd.getBackupUuid());
+            if (!cmd.isCowExport()) {
+                if (cmd.getFromCheckpointId() != null) {
+                    throw new IllegalArgumentException("Raw snapshot exports cannot use an incremental checkpoint");
+                }
+                return currentSnapshot;
+            }
+            return createCowExport(cmd, resource, pool, currentSnapshot);
         }
         if (!"upload".equals(cmd.getDirection()) || cmd.getBackupUuid() != null) {
             throw new IllegalArgumentException("Invalid Storage snapshot transfer direction");
@@ -204,6 +223,34 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
             throw new IllegalStateException("Storage snapshot restore target is not a raw block device");
         }
         return disk.getPath();
+    }
+
+    private String createCowExport(StartNBDServerCommand cmd, LibvirtComputingResource resource, KVMStoragePool pool,
+                                   String currentSnapshot) {
+        String transferId = cmd.getTransferId();
+        UUID.fromString(transferId);
+        Path exportPath = Path.of("/tmp/imagetransfer", "cs-vbr-export-" + transferId + ".qcow2");
+        try {
+            Files.createDirectories(exportPath.getParent());
+            Files.deleteIfExists(exportPath);
+            QemuImgFile export = new QemuImgFile(exportPath.toString(), cmd.getStorageBackupVolume().getSizeBytes(), QemuImg.PhysicalDiskFormat.QCOW2);
+            QemuImgFile current = new QemuImgFile(currentSnapshot, QemuImg.PhysicalDiskFormat.RAW);
+            QemuImg qemuImg = new QemuImg(resource.getCmdsTimeout());
+            qemuImg.create(export, current);
+            if (StringUtils.isNotBlank(cmd.getFromCheckpointId())) {
+                UUID.fromString(cmd.getFromCheckpointId());
+                String baselinePath = pool.getFullBackupSnapshotPath(cmd.getStorageBackupVolume().getVolumePath(), cmd.getFromCheckpointId());
+                qemuImg.rebase(export, new QemuImgFile(baselinePath, QemuImg.PhysicalDiskFormat.RAW), "raw", true);
+            }
+            return exportPath.toString();
+        } catch (IOException | LibvirtException | RuntimeException | org.apache.cloudstack.utils.qemu.QemuImgException e) {
+            try {
+                Files.deleteIfExists(exportPath);
+            } catch (IOException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw new IllegalStateException("Unable to construct QCOW2 LINSTOR backup export", e);
+        }
     }
 
     private boolean isBitmapPresentOnDisk(String volumePath, String fromCheckpointId) {

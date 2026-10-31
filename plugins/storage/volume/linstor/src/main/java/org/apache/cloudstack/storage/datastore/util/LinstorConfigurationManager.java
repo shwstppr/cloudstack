@@ -41,6 +41,11 @@ public class LinstorConfigurationManager implements Configurable
             "Experimental single-disk LINSTOR full backup and raw restore; does not enable incrementals.",
             true, ConfigKey.Scope.Zone);
 
+    public static final ConfigKey<Boolean> IncrementalBackupEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "kvm.backup.linstor.incremental.enabled", "false",
+            "Experimental LINSTOR Veeam incremental backups; requires full backup support and a QCOW2 content-diff export.",
+            true, ConfigKey.Scope.Zone);
+
     public static final ConfigKey<Boolean> BackupDiscoveryEnabled = new ConfigKey<>("Advanced", Boolean.class,
             "integration.veeam.control.linstor.discovery.enabled", "false",
             "Expose LINSTOR storage domains for backup discovery without enabling backup exports.",
@@ -52,7 +57,8 @@ public class LinstorConfigurationManager implements Configurable
             true, ConfigKey.Scope.Zone);
 
     public static final ConfigKey<?>[] CONFIG_KEYS = new ConfigKey<?>[] {
-            ApiToken, BackupSnapshots, InsecureSsl, VolumeStatsCacheTime, FullBackupEnabled, BackupDiscoveryEnabled, BackupSessionTimeoutSeconds
+            ApiToken, BackupSnapshots, InsecureSsl, VolumeStatsCacheTime, FullBackupEnabled, IncrementalBackupEnabled,
+            BackupDiscoveryEnabled, BackupSessionTimeoutSeconds
     };
 
     @Override

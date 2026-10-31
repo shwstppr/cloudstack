@@ -65,6 +65,7 @@ import com.cloud.storage.dao.VolumeDetailsDao;
 import com.cloud.utils.exception.CloudRuntimeException;
 import com.cloud.vm.VMInstanceVO;
 import com.cloud.vm.dao.VMInstanceDao;
+import com.cloud.vm.dao.VMInstanceDetailsDao;
 import com.google.gson.Gson;
 
 public class StorageKVMBackupExportServiceTest {
@@ -79,6 +80,7 @@ public class StorageKVMBackupExportServiceTest {
     BackupDao backups = mock(BackupDao.class);
     ImageTransferDao transfers = mock(ImageTransferDao.class);
     AgentManager agent = mock(AgentManager.class);
+    VMInstanceDetailsDao vmDetails = mock(VMInstanceDetailsDao.class);
     VolumeVO volume = mock(VolumeVO.class);
     VMInstanceVO vm = mock(VMInstanceVO.class);
     BackupVO backup = mock(BackupVO.class);
@@ -92,8 +94,10 @@ public class StorageKVMBackupExportServiceTest {
         ReflectionTestUtils.setField(service, "backupDao", backups);
         ReflectionTestUtils.setField(service, "imageTransferDao", transfers);
         ReflectionTestUtils.setField(service, "agentManager", agent);
+        ReflectionTestUtils.setField(service, "vmInstanceDetailsDao", vmDetails);
         when(vm.getId()).thenReturn(1L);
         when(vm.getDataCenterId()).thenReturn(7L);
+        when(vmDetails.listDetailsKeyPairs(1L)).thenReturn(Collections.emptyMap());
         when(volumes.findByInstance(1L)).thenReturn(List.of(volume));
         when(volume.getPoolId()).thenReturn(5L);
         when(volume.getId()).thenReturn(10L);
@@ -207,6 +211,27 @@ public class StorageKVMBackupExportServiceTest {
         assertTrue(sent.getDiskPathUuidMap().isEmpty());
         assertEquals(VOL, sent.getStorageBackupVolume().getVolumeUuid());
         assertEquals(BACKUP, sent.getSocket());
+    }
+
+    @Test
+    public void incrementalProviderPassesCheckpointLineageToCaptureCommand() throws Exception {
+        StoragePoolVO pool = pools.findById(5L);
+        when(pools.findByUuid(POOL)).thenReturn(pool);
+        Mockito.doReturn(new BackupStorageCapabilities(true, true, true, true,
+                com.cloud.storage.Storage.ImageFormat.QCOW2, 1, 14400)).when(service).getStorageCapabilities(pool);
+        when(backup.getToCheckpointId()).thenReturn("00000000-0000-0000-0000-000000000004");
+        when(backup.getFromCheckpointId()).thenReturn("00000000-0000-0000-0000-000000000005");
+        when(agent.send(eq(2L), any(Command.class))).thenReturn(new Answer(null, true, null));
+        doNothing().when(service).queueBackupFinalizeWaitWorkJob(vm, backup);
+
+        service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L));
+
+        ArgumentCaptor<Command> command = ArgumentCaptor.forClass(Command.class);
+        verify(agent).send(eq(2L), command.capture());
+        StartBackupCommand sent = (StartBackupCommand) command.getValue();
+        assertEquals("00000000-0000-0000-0000-000000000004", sent.getToCheckpointId());
+        assertEquals("00000000-0000-0000-0000-000000000005", sent.getFromCheckpointId());
+        assertEquals("00000000-0000-0000-0000-000000000004", sent.getSocket());
     }
 
     @Test

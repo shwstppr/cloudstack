@@ -61,15 +61,19 @@ def validate_transfer_config(obj: dict) -> dict:
     socket_path = obj.get("socket")
     export = obj.get("export")
     export_bitmap = obj.get("export_bitmap")
+    allocation_depth = obj.get("allocation_depth", False)
     if not isinstance(socket_path, str) or not socket_path.strip():
         raise ValueError("missing/invalid socket path for nbd backend")
     if export is not None and (not isinstance(export, str) or not export):
         raise ValueError("invalid export name")
+    if not isinstance(allocation_depth, bool):
+        raise ValueError("allocation_depth must be a boolean")
     return {
         "backend": "nbd",
         "socket": socket_path.strip(),
         "export": export,
         "export_bitmap": export_bitmap,
+        "allocation_depth": allocation_depth,
         "idle_timeout_seconds": idle_sec,
     }
 

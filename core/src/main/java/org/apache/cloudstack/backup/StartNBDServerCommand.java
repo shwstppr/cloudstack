@@ -29,6 +29,8 @@ public class StartNBDServerCommand extends Command {
     private String fromCheckpointId;
     private StorageBackupVolume storageBackupVolume;
     private String backupUuid;
+    private boolean allocationDepth;
+    private boolean cowExport;
     @LogLevel(LogLevel.Log4jLevel.Off)
     private byte[] passphrase;
 
@@ -56,6 +58,17 @@ public class StartNBDServerCommand extends Command {
         backupUuid = snapshotBackupUuid;
     }
 
+    public void setStorageSnapshotExport(StorageBackupVolume volume, String snapshotUuid, String fromCheckpointId, boolean cowExport) {
+        storageBackupVolume = volume;
+        backupUuid = snapshotUuid;
+        this.fromCheckpointId = fromCheckpointId;
+        this.cowExport = cowExport;
+    }
+
+    public boolean isCowExport() {
+        return cowExport;
+    }
+
     public String getSocket() {
         return socket;
     }
@@ -79,6 +92,14 @@ public class StartNBDServerCommand extends Command {
 
     public String getFromCheckpointId() {
         return fromCheckpointId;
+    }
+
+    public boolean isAllocationDepth() {
+        return allocationDepth;
+    }
+
+    public void setAllocationDepth(boolean allocationDepth) {
+        this.allocationDepth = allocationDepth;
     }
 
     public byte[] getPassphrase() {

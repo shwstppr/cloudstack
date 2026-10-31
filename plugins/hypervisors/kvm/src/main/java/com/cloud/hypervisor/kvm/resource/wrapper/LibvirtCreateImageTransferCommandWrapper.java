@@ -134,6 +134,7 @@ public class LibvirtCreateImageTransferCommandWrapper extends CommandWrapper<Cre
         final Map<String, Object> payload = new HashMap<>();
         payload.put("backend", backend.toString());
         payload.put("idle_timeout_seconds", cmd.getIdleTimeoutSeconds());
+        payload.put("allocation_depth", cmd.isAllocationDepth());
 
         if (backend == ImageTransfer.Backend.file) {
             final String filePath = cmd.getFile();

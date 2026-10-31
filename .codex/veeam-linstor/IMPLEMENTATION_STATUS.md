@@ -1,5 +1,32 @@
 # Local implementation — 2026-10-31
 
+## Incremental implementation in progress (2026-10-31)
+
+The committed baseline is `0efbfbf6c3d` (full LINSTOR backup/restore evidence).
+Local uncommitted changes implement an opt-in LINSTOR incremental path:
+
+- The LINSTOR provider owns a default-off incremental capability and advertises
+  QCOW2 only when both full and incremental backup are enabled.
+- Management stages a new LINSTOR snapshot per backup, passes active checkpoint
+  lineage to the KVM agent, and retains successful snapshots as the newest and
+  previous checkpoints. Failed captures are cleaned up; disabling incremental
+  mode cleans retained checkpoints on the next capture.
+- KVM exports a QCOW2 COW view of each immutable snapshot. Incremental views are
+  safely rebased onto the previous checkpoint. The image server can use QEMU
+  allocation-depth extents for dirty-range transfer; older QEMU falls back to
+  transferring all allocated ranges.
+- Temporary COW exports are removed when their transfer stops. Cleanup is
+  selected from persisted checkpoint metadata, not the current feature flag.
+
+This is implementation work, not acceptance evidence. Targeted Java tests
+passed: management 16, KVM 18 and LINSTOR provider 15, with zero failures in
+each suite. The latest reactor compiled the current server/KVM/provider source;
+`git diff --check` passes. The Python NBD backend module passed (33 tests, 2
+skipped), including the QCOW2 allocation-depth extent case. LINSTOR incrementals
+remain disabled by default and unvalidated in VBR. No live lab state or
+packages were changed. Full backup/restore remains documented and validated at
+the committed baseline `0efbfbf6c3d`.
+
 Later lab update: user-deployed packages were exercised in the first LINSTOR
 VBR job. It failed on raw export size, then snapshot-tag cleanup. See
 [LINSTOR_FIRST_BACKUP.md](LINSTOR_FIRST_BACKUP.md) for evidence, manual recovery
@@ -47,7 +74,10 @@ historical; refactor results are recorded at the end of this document.
 
 `kvm.backup.linstor.full.enabled` is a dynamic Zone boolean, default false.
 It enables discovery plus experimental single-disk LINSTOR full backup and
-raw restore. The earlier discovery-only flag remains discovery-only.
+raw restore. `kvm.backup.linstor.incremental.enabled` is also a dynamic Zone
+boolean, default false; it requires full backup and selects the unvalidated
+QCOW2/checkpoint path described above. The earlier discovery-only flag remains
+discovery-only.
 Multi-disk/mixed storage and encrypted volumes are rejected. LINSTOR exports
 do not generate QCOW2 checkpoints, dirty bitmaps, or incremental promises.
 Snapshots are crash-consistent; application quiescing is not implemented.

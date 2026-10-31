@@ -23,6 +23,7 @@ public class StopNBDServerCommand extends Command {
     private String transferId;
     private String direction;
     private StorageBackupVolume storageBackupVolume;
+    private boolean cowExport;
 
     public StopNBDServerCommand() {
     }
@@ -38,6 +39,9 @@ public class StopNBDServerCommand extends Command {
 
     public StorageBackupVolume getStorageBackupVolume() { return storageBackupVolume; }
     public void setStorageBackupVolume(StorageBackupVolume volume) { storageBackupVolume = volume; }
+
+    public boolean isCowExport() { return cowExport; }
+    public void setCowExport(boolean cowExport) { this.cowExport = cowExport; }
 
     public String getDirection() {
         return direction;

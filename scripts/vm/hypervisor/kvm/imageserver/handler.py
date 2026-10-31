@@ -735,6 +735,10 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if context == "dirty":
+                if getattr(backend, "allocation_depth", False):
+                    extents = backend.get_allocation_depth_extents()
+                    self._send_json(HTTPStatus.OK, extents)
+                    return
                 export_bitmap = backend.export_bitmap
                 if not export_bitmap:
                     allocation = backend.get_allocation_extents()

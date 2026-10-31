@@ -146,9 +146,10 @@ public class LinstorPrimaryDataStoreDriverImpl implements PrimaryDataStoreDriver
     @Override
     public BackupStorageCapabilities getBackupStorageCapabilities(StoragePool pool) {
         boolean enabled = Boolean.TRUE.equals(LinstorConfigurationManager.FullBackupEnabled.valueIn(pool.getDataCenterId()));
+        boolean incremental = enabled && Boolean.TRUE.equals(LinstorConfigurationManager.IncrementalBackupEnabled.valueIn(pool.getDataCenterId()));
         boolean discovery = enabled || Boolean.TRUE.equals(LinstorConfigurationManager.BackupDiscoveryEnabled.valueIn(pool.getDataCenterId()));
-        return new BackupStorageCapabilities(true, discovery, enabled,
-                com.cloud.storage.Storage.ImageFormat.RAW, 1,
+        return new BackupStorageCapabilities(true, discovery, enabled, incremental,
+                incremental ? com.cloud.storage.Storage.ImageFormat.QCOW2 : com.cloud.storage.Storage.ImageFormat.RAW, 1,
                 LinstorConfigurationManager.BackupSessionTimeoutSeconds.valueIn(pool.getDataCenterId()));
     }
 

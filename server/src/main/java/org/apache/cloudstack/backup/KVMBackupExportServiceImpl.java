@@ -254,7 +254,8 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     protected void releaseStorageSnapshot(BackupVO backup, StorageBackupVolume volume) {
         StopBackupCommand cmd = new StopBackupCommand(null, backup.getVmId(), backup.getId());
-        cmd.setStorageSnapshot(volume, backup.getUuid());
+        String checkpointId = StringUtils.isNotBlank(backup.getToCheckpointId()) ? backup.getToCheckpointId() : backup.getUuid();
+        cmd.setStorageSnapshot(volume, checkpointId);
         try {
             Answer answer = agentManager.send(backup.getHostId(), cmd);
             if (answer == null || !answer.getResult()) {
@@ -272,13 +273,36 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         if (backup.getStatus() != Backup.Status.Queued) {
             throw new CloudRuntimeException("Storage snapshot backup is not queued for capture");
         }
-        StartBackupCommand cmd = new StartBackupCommand(vm.getInstanceName(), null, null, null,
-                backup.getUuid(), Collections.emptyMap(), Collections.emptyMap(), vm.getState() == State.Stopped);
+        Map<String, String> vmDetails = vmInstanceDetailsDao.listDetailsKeyPairs(vm.getId());
+        String lastCheckpointId = vmDetails.get(VmDetailConstants.LAST_CHECKPOINT_ID);
+        boolean incrementalEnabled = getStorageCapabilities(primaryDataStoreDao.findByUuid(volume.getPoolUuid())).isIncrementalBackupEnabled();
+        List<String> checkpointsToRetire = new ArrayList<>();
+        if (StringUtils.isNotBlank(lastCheckpointId)) {
+            checkpointsToRetire.add(lastCheckpointId);
+        }
+        if (!incrementalEnabled && StringUtils.isNotBlank(vmDetails.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID))) {
+            checkpointsToRetire.add(vmDetails.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID));
+        }
+        for (String checkpointId : checkpointsToRetire) {
+            deleteStorageSnapshotCheckpoint(backup.getHostId(), vm.getId(), volume, checkpointId);
+        }
+        if (!incrementalEnabled) {
+            vmInstanceDetailsDao.removeDetail(vm.getId(), VmDetailConstants.ACTIVE_CHECKPOINT_ID);
+            vmInstanceDetailsDao.removeDetail(vm.getId(), VmDetailConstants.ACTIVE_CHECKPOINT_CREATE_TIME);
+            vmInstanceDetailsDao.removeDetail(vm.getId(), VmDetailConstants.LAST_CHECKPOINT_ID);
+            vmInstanceDetailsDao.removeDetail(vm.getId(), VmDetailConstants.LAST_CHECKPOINT_CREATE_TIME);
+        }
+        String snapshotId = StringUtils.isNotBlank(backup.getToCheckpointId()) ? backup.getToCheckpointId() : backup.getUuid();
+        StartBackupCommand cmd = new StartBackupCommand(vm.getInstanceName(), backup.getToCheckpointId(), backup.getFromCheckpointId(),
+                null, snapshotId, Collections.emptyMap(), Collections.emptyMap(), vm.getState() == State.Stopped);
         cmd.setStorageBackupVolume(volume);
         try {
             Answer answer = agentManager.send(backup.getHostId(), cmd);
             if (answer == null || !answer.getResult()) {
                 throw new CloudRuntimeException("Unable to start Storage snapshot full backup: " + (answer == null ? "no agent answer" : answer.getDetails()));
+            }
+            if (backup.getToCheckpointId() != null) {
+                backup.setCheckpointCreateTime(System.currentTimeMillis() / 1000);
             }
             updateBackupState(backup, Backup.Status.ReadyForImageTransfer);
             queueBackupFinalizeWaitWorkJob(vm, backup);
@@ -291,6 +315,20 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
                 e.addSuppressed(cleanup);
             }
             throw new CloudRuntimeException("Storage snapshot full backup failed; session metadata retained for cleanup", e);
+        }
+    }
+
+    private void deleteStorageSnapshotCheckpoint(Long hostId, Long vmId, StorageBackupVolume volume, String checkpointId) {
+        StopBackupCommand cmd = new StopBackupCommand(null, vmId, null);
+        cmd.setStorageSnapshot(volume, checkpointId);
+        try {
+            Answer answer = agentManager.send(hostId, cmd);
+            if (answer == null || !answer.getResult()) {
+                throw new CloudRuntimeException("Unable to release previous LINSTOR checkpoint " + checkpointId +
+                        (answer == null ? "" : ": " + answer.getDetails()));
+            }
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new CloudRuntimeException("Unable to reach a host to release LINSTOR checkpoint " + checkpointId, e);
         }
     }
 
@@ -386,9 +424,15 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         Map<String, String> vmDetails = vmInstanceDetailsDao.listDetailsKeyPairs(vmId);
         String fromCheckpointId = vmDetails.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID);
 
-        backup.setToCheckpointId(storageBackupVolume == null ? toCheckpointId : null);
-        backup.setFromCheckpointId(storageBackupVolume == null ? fromCheckpointId : null);
-        backup.setType("FULL");
+        boolean incrementalStorageBackup = storageBackupVolume != null &&
+                getStorageCapabilities(primaryDataStoreDao.findByUuid(storageBackupVolume.getPoolUuid())).isIncrementalBackupEnabled();
+        if (incrementalStorageBackup) {
+            toCheckpointId = UUID.randomUUID().toString();
+        }
+
+        backup.setToCheckpointId(storageBackupVolume == null || incrementalStorageBackup ? toCheckpointId : null);
+        backup.setFromCheckpointId(storageBackupVolume == null || (incrementalStorageBackup && fromCheckpointId != null) ? fromCheckpointId : null);
+        backup.setType(backup.getFromCheckpointId() == null ? "FULL" : "INCREMENTAL");
         backup.setHostId(hostId);
 
         BackupVO persisted = backupDao.persist(backup);
@@ -586,10 +630,14 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         }
 
         StorageBackupVolume storageBackupVolume = storageSnapshotBackupVolume(backup);
+        boolean retainStorageSnapshot = storageBackupVolume != null && StringUtils.isNotBlank(backup.getToCheckpointId());
         if (storageBackupVolume != null) {
-            releaseStorageSnapshot(backup, storageBackupVolume);
             if (failedStorageSnapshotBackup) {
+                releaseStorageSnapshot(backup, storageBackupVolume);
                 return backup;
+            }
+            if (!retainStorageSnapshot) {
+                releaseStorageSnapshot(backup, storageBackupVolume);
             }
         } else if (vm.getState() == State.Running) {
             StopBackupCommand stopCmd = new StopBackupCommand(vm.getInstanceName(), vmId, backupId);
@@ -608,7 +656,7 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             }
         }
 
-        if (storageBackupVolume == null) {
+        if (storageBackupVolume == null || retainStorageSnapshot) {
             updateVmCheckpoints(vmId, backup);
         }
 
@@ -738,9 +786,11 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         }
     }
 
-    protected void startStorageSnapshotNBDServer(String transferId, String direction, Long hostId, StorageBackupVolume volume, String backupUuid) {
+    protected void startStorageSnapshotNBDServer(String transferId, String direction, Long hostId, StorageBackupVolume volume,
+                                                  String snapshotUuid, String fromCheckpointId, boolean cowExport, boolean allocationDepth) {
         StartNBDServerCommand cmd = new StartNBDServerCommand(transferId, volume.getVolumeUuid(), null, transferId, direction, null, null);
-        cmd.setStorageBackupVolume(volume, backupUuid);
+        cmd.setStorageSnapshotExport(volume, snapshotUuid, fromCheckpointId, cowExport);
+        cmd.setAllocationDepth(allocationDepth);
         try {
             Answer answer = agentManager.send(hostId, cmd);
             if (answer == null || !answer.getResult()) {
@@ -896,12 +946,20 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             if (direction == ImageTransfer.Direction.upload) {
                 Volume.State.getStateMachine().transitTo(volume, Volume.Event.RestoreRequested, null, volumeDao);
             }
-            startStorageSnapshotNBDServer(id, direction.toString(), host.getId(), identity, backup == null ? null : backup.getUuid());
+            // The backup's persisted checkpoint is authoritative if provider configuration
+            // changes while VBR is transferring the already-advertised COW disk.
+            boolean cowExport = backup != null && StringUtils.isNotBlank(backup.getToCheckpointId());
+            String snapshotUuid = backup == null ? null : StringUtils.isNotBlank(backup.getToCheckpointId()) ? backup.getToCheckpointId() : backup.getUuid();
+            String fromCheckpointId = cowExport ? backup.getFromCheckpointId() : null;
+            boolean allocationDepth = cowExport && StringUtils.isNotBlank(fromCheckpointId);
+            startStorageSnapshotNBDServer(id, direction.toString(), host.getId(), identity,
+                    snapshotUuid, fromCheckpointId, cowExport, allocationDepth);
             // From this point registration might complete even if its reply is lost.
             transfer.setPhase(ImageTransfer.Phase.transferring);
             imageTransferDao.update(transfer.getId(), transfer);
             CreateImageTransferCommand cmd = new CreateImageTransferCommand(id, direction.toString(), identity.getVolumeUuid(),
                     id, null, ImageTransferIdleTimeoutSeconds.valueIn(volume.getDataCenterId()));
+            cmd.setAllocationDepth(allocationDepth);
             CreateImageTransferAnswer answer = (CreateImageTransferAnswer) agentManager.send(host.getId(), cmd);
             if (answer == null || !answer.getResult()) {
                 throw new CloudRuntimeException("Unable to register the Storage snapshot raw image transfer");
@@ -1114,6 +1172,10 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             BackupVO backup = backupDao.findByIdIncludingRemoved(imageTransfer.getBackupId());
             if (backup != null) {
                 stopNbdServerCommand.setStorageBackupVolume(storageSnapshotBackupVolume(backup));
+                StorageBackupVolume backupVolume = storageSnapshotBackupVolume(backup);
+                // A checkpoint ID means this backup used the QCOW2 COW export. Derive cleanup
+                // from the persisted transfer instead of a mutable provider feature flag.
+                stopNbdServerCommand.setCowExport(backupVolume != null && StringUtils.isNotBlank(backup.getToCheckpointId()));
             }
         } else if (volume != null && isStorageSnapshot(volume)) {
             stopNbdServerCommand.setStorageBackupVolume(storageSnapshotIdentity(volume));
@@ -1234,11 +1296,14 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             throw new CloudRuntimeException("VM not found: " + vmId);
         }
         List<CheckpointResponse> responses = new ArrayList<>();
-        if (volumeDao.findByInstance(vmId).stream().anyMatch(this::isStorageSnapshot)) {
+        Map<String, String> details = vmInstanceDetailsDao.listDetailsKeyPairs(vmId);
+        List<VolumeVO> vmVolumes = volumeDao.findByInstance(vmId);
+        boolean nativeSnapshots = vmVolumes.stream().anyMatch(this::isStorageSnapshot);
+        boolean incrementalEnabled = !nativeSnapshots || (vmVolumes.size() == 1 && vmVolumes.stream().filter(this::isStorageSnapshot)
+                .allMatch(volume -> getStorageCapabilities(primaryDataStoreDao.findById(volume.getPoolId())).isIncrementalBackupEnabled()));
+        if (!incrementalEnabled) {
             return responses;
         }
-
-        Map<String, String> details = vmInstanceDetailsDao.listDetailsKeyPairs(vmId);
         String activeCheckpointId = details.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID);
         if (activeCheckpointId != null) {
             responses.add(createCheckpointResponse(activeCheckpointId, details.get(VmDetailConstants.ACTIVE_CHECKPOINT_CREATE_TIME), true));
@@ -1287,8 +1352,11 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         if (vm == null) {
             throw new CloudRuntimeException("VM not found: " + cmd.getVmId());
         }
-        if (volumeDao.findByInstance(vm.getId()).stream().anyMatch(this::isStorageSnapshot)) {
-            throw new CloudRuntimeException("Storage snapshot full backups do not have QCOW2 checkpoints");
+        List<VolumeVO> vmVolumes = volumeDao.findByInstance(vm.getId());
+        boolean nativeSnapshots = vmVolumes.stream().anyMatch(this::isStorageSnapshot);
+        if (nativeSnapshots && (vmVolumes.size() != 1 || vmVolumes.stream().filter(this::isStorageSnapshot)
+                .noneMatch(volume -> getStorageCapabilities(primaryDataStoreDao.findById(volume.getPoolId())).isIncrementalBackupEnabled()))) {
+            throw new CloudRuntimeException("Storage snapshot full backups do not have provider checkpoints");
         }
 
         verifyKVMBackupExportServiceSupported(vm.getDataCenterId());
@@ -1305,7 +1373,14 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             return true;
         }
 
-        sendDeleteCheckpointCommand(vm, activeCheckpointId);
+        if (nativeSnapshots) {
+            VolumeVO volume = vmVolumes.stream().filter(this::isStorageSnapshot).findFirst()
+                    .orElseThrow(() -> new CloudRuntimeException("LINSTOR checkpoint volume is missing"));
+            Long hostId = vm.getHostId() != null ? vm.getHostId() : vm.getLastHostId();
+            deleteStorageSnapshotCheckpoint(hostId, vm.getId(), storageSnapshotIdentity(volume), activeCheckpointId);
+        } else {
+            sendDeleteCheckpointCommand(vm, activeCheckpointId);
+        }
         revertVmCheckpointDetailsAfterActiveDelete(vmId, details);
 
         return true;

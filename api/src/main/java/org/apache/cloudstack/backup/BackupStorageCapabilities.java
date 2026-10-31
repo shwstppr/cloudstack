@@ -25,19 +25,26 @@ import com.cloud.storage.Storage.ImageFormat;
  * possible after new backup sessions have been disabled.
  */
 public final class BackupStorageCapabilities {
-    public static final BackupStorageCapabilities UNSUPPORTED = new BackupStorageCapabilities(false, false, false, null, 0, 0);
+    public static final BackupStorageCapabilities UNSUPPORTED = new BackupStorageCapabilities(false, false, false, false, null, 0, 0);
     private final boolean nativeSnapshots;
     private final boolean discoverable;
     private final boolean fullBackupEnabled;
+    private final boolean incrementalBackupEnabled;
     private final ImageFormat volumeFormat;
     private final int maximumDisks;
     private final int sessionTimeoutSeconds;
 
     public BackupStorageCapabilities(boolean nativeSnapshots, boolean discoverable, boolean fullBackupEnabled,
                                      ImageFormat volumeFormat, int maximumDisks, int sessionTimeoutSeconds) {
+        this(nativeSnapshots, discoverable, fullBackupEnabled, false, volumeFormat, maximumDisks, sessionTimeoutSeconds);
+    }
+
+    public BackupStorageCapabilities(boolean nativeSnapshots, boolean discoverable, boolean fullBackupEnabled,
+                                     boolean incrementalBackupEnabled, ImageFormat volumeFormat, int maximumDisks, int sessionTimeoutSeconds) {
         this.nativeSnapshots = nativeSnapshots;
         this.discoverable = discoverable;
         this.fullBackupEnabled = fullBackupEnabled;
+        this.incrementalBackupEnabled = incrementalBackupEnabled && fullBackupEnabled;
         this.volumeFormat = volumeFormat;
         this.maximumDisks = maximumDisks;
         this.sessionTimeoutSeconds = sessionTimeoutSeconds;
@@ -46,6 +53,7 @@ public final class BackupStorageCapabilities {
     public boolean supportsNativeSnapshots() { return nativeSnapshots; }
     public boolean isDiscoverable() { return discoverable; }
     public boolean isFullBackupEnabled() { return fullBackupEnabled; }
+    public boolean isIncrementalBackupEnabled() { return incrementalBackupEnabled; }
     public ImageFormat getVolumeFormat() { return volumeFormat; }
     public int getMaximumDisks() { return maximumDisks; }
     public int getSessionTimeoutSeconds() { return sessionTimeoutSeconds; }

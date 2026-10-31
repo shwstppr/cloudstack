@@ -1,9 +1,12 @@
 # Proposed LINSTOR Veeam incremental implementation
 
-Status: proposed after full backup and independent restore passed on
-2026-10-31. This is a plan only; no incremental source changes have been
-made. See [FEASIBILITY.md](FEASIBILITY.md) for the protocol and storage
-evidence. Existing NFS behavior must remain unchanged.
+Status: implementation in progress after full backup and independent restore
+passed on 2026-10-31. Local uncommitted changes now include the provider
+capability/flag, LINSTOR snapshot checkpoint lifecycle, QCOW2 COW export, and
+allocation-depth dirty extents. Java build/test validation and live VBR
+acceptance remain pending. The feature is default-off. See
+[FEASIBILITY.md](FEASIBILITY.md) for protocol and storage evidence. Existing
+NFS behavior must remain unchanged.
 
 ## Goal and initial strategy
 
@@ -50,6 +53,14 @@ checkpoint metadata. Before implementation, verify whether `BackupVO`,
 `BackupDetails`, and the current checkpoint detail keys can safely retain the
 provider baseline across completed sessions and VBR retention; add a schema
 change only if they cannot.
+
+Implementation note: the local code now carries provider checkpoint IDs from
+management to the LINSTOR snapshot exporter. Every incremental-capable full
+backup exports a QCOW2 COW view; later exports are safely rebased onto the
+previous successful checkpoint. QEMU allocation-depth metadata is requested
+only for those delta exports. This is still unvalidated end to end with VBR,
+so it must not be enabled in the lab until package tests/build pass and the
+live acceptance gates below are run.
 
 ## Ordered implementation and validation gates
 

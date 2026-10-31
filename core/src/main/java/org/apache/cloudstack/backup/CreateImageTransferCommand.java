@@ -28,6 +28,7 @@ public class CreateImageTransferCommand extends Command {
     private String file;
     private ImageTransfer.Backend backend;
     private int idleTimeoutSeconds;
+    private boolean allocationDepth;
 
     public CreateImageTransferCommand() {
     }
@@ -90,5 +91,14 @@ public class CreateImageTransferCommand extends Command {
 
     public int getIdleTimeoutSeconds() {
         return idleTimeoutSeconds;
+    }
+
+    /** Enable QEMU's allocation-depth metadata for layered backup exports. */
+    public boolean isAllocationDepth() {
+        return allocationDepth;
+    }
+
+    public void setAllocationDepth(boolean allocationDepth) {
+        this.allocationDepth = allocationDepth;
     }
 }

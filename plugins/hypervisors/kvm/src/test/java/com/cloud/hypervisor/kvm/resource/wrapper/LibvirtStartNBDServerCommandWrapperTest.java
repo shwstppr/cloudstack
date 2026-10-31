@@ -176,4 +176,29 @@ public class LibvirtStartNBDServerCommandWrapperTest {
             Assert.assertTrue(bitmapOptionAdded);
         }
     }
+
+    @Test
+    public void testExecuteAddsAllocationDepthOptionWhenRequested() {
+        Mockito.when(command.isAllocationDepth()).thenReturn(true);
+        Mockito.when(resource.getHypervisorQemuVersion()).thenReturn(6002000L);
+
+        try (MockedConstruction<Script> scriptConstruction = Mockito.mockConstruction(Script.class, (mock, context) -> {
+            if (context.getCount() == 1) {
+                Mockito.when(mock.execute()).thenReturn("inactive");
+            } else {
+                Mockito.when(mock.execute()).thenReturn(null);
+            }
+        })) {
+            Answer answer = wrapper.execute(command, resource);
+
+            Assert.assertTrue(answer.getResult());
+            Script startScript = scriptConstruction.constructed().get(1);
+            boolean allocationDepthOptionAdded = Mockito.mockingDetails(startScript).getInvocations().stream().anyMatch(invocation ->
+                    invocation.getMethod().getName().equals("add")
+                            && invocation.getArguments().length > 0
+                            && invocation.getArguments()[0] instanceof String
+                            && ((String) invocation.getArguments()[0]).contains("--allocation-depth"));
+            Assert.assertTrue(allocationDepthOptionAdded);
+        }
+    }
 }

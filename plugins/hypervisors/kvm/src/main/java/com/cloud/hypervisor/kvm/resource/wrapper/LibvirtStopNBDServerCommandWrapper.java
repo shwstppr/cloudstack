@@ -17,6 +17,11 @@
 
 package com.cloud.hypervisor.kvm.resource.wrapper;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
+
 import org.apache.cloudstack.backup.StopNBDServerCommand;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,6 +62,7 @@ public class LibvirtStopNBDServerCommandWrapper extends CommandWrapper<StopNBDSe
                 logger.info(String.format("qemu-nbd service %s is not running, resetting failed state", unitName));
                 resetService(unitName);
                 disconnectStorageSnapshotTarget(cmd, resource);
+                cleanupCowExport(cmd);
                 return new Answer(cmd, true, "Image transfer finalized");
             }
 
@@ -70,12 +76,20 @@ public class LibvirtStopNBDServerCommandWrapper extends CommandWrapper<StopNBDSe
             }
             resetService(unitName);
             disconnectStorageSnapshotTarget(cmd, resource);
+            cleanupCowExport(cmd);
 
             return new Answer(cmd, true, "Image transfer finalized");
 
         } catch (Exception e) {
             logger.error("Error finalizing image transfer for upload", e);
             return new Answer(cmd, false, "Error finalizing image transfer: " + e.getMessage());
+        }
+    }
+
+    private void cleanupCowExport(StopNBDServerCommand cmd) throws IOException {
+        if (cmd.isCowExport()) {
+            UUID.fromString(cmd.getTransferId());
+            Files.deleteIfExists(Path.of("/tmp/imagetransfer", "cs-vbr-export-" + cmd.getTransferId() + ".qcow2"));
         }
     }
 

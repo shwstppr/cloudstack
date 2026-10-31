@@ -81,12 +81,13 @@ public class StorageFullBackupCommandWrapperTest {
     }
 
     @Test
-    public void checkpointRequestNeverReachesRawStorage() {
-        StartBackupCommand cmd = new StartBackupCommand("vm", "checkpoint", null, null, BACKUP,
+    public void providerCheckpointIdsAreUsedForRetainedStorageSnapshot() {
+        String checkpoint = "00000000-0000-0000-0000-000000000005";
+        StartBackupCommand cmd = new StartBackupCommand("vm", checkpoint, "00000000-0000-0000-0000-000000000006", null, checkpoint,
                 Collections.emptyMap(), Collections.emptyMap(), false);
         cmd.setStorageBackupVolume(volume);
-        assertFalse(new LibvirtStartBackupCommandWrapper().execute(cmd, resource).getResult());
-        verifyNoInteractions(pool);
+        assertTrue(new LibvirtStartBackupCommandWrapper().execute(cmd, resource).getResult());
+        verify(pool).createFullBackupSnapshot(VOL, checkpoint);
     }
 
     @Test
@@ -96,7 +97,7 @@ public class StorageFullBackupCommandWrapperTest {
         when(pool.getFullBackupSnapshotPath(VOL, BACKUP)).thenReturn("/dev/drbd/by-res/clone/0");
         LibvirtStartNBDServerCommandWrapper wrapper = new LibvirtStartNBDServerCommandWrapper();
         assertEquals("/dev/drbd/by-res/clone/0", wrapper.resolveStorageSnapshotPath(cmd, resource));
-        String command = wrapper.createSystemdRunCmd(cmd, "unit", "/dev/drbd/by-res/clone/0", VOL, TRANSFER);
+        String command = wrapper.createSystemdRunCmd(cmd, "unit", "/dev/drbd/by-res/clone/0", VOL, TRANSFER, true);
         assertTrue(command.contains("--read-only"));
         assertTrue(command.contains("--image-opts 'driver=raw,file.driver=host_device,"));
         assertTrue(command.contains("size=8589934592'"));
@@ -123,7 +124,7 @@ public class StorageFullBackupCommandWrapperTest {
         when(disk.getPath()).thenReturn("/dev/drbd1000");
         assertEquals("/dev/drbd1000", new LibvirtStartNBDServerCommandWrapper().resolveStorageSnapshotPath(cmd, resource));
         try {
-            String command = new LibvirtStartNBDServerCommandWrapper().createSystemdRunCmd(cmd, "unit", "/dev/drbd1000", VOL, TRANSFER);
+            String command = new LibvirtStartNBDServerCommandWrapper().createSystemdRunCmd(cmd, "unit", "/dev/drbd1000", VOL, TRANSFER, true);
             assertTrue(command.contains("size=8589934592'"));
             assertFalse(command.contains("--read-only"));
         } catch (java.io.IOException e) {

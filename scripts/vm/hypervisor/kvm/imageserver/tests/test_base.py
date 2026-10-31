@@ -310,11 +310,13 @@ class QemuNbdServer:
         socket_path: str,
         image_size: int = IMAGE_SIZE,
         image_format: str = "raw",
+        allocation_depth: bool = False,
     ):
         self.image_path = image_path
         self.socket_path = socket_path
         self.image_size = image_size
         self.image_format = image_format
+        self.allocation_depth = allocation_depth
         self._proc: Optional[subprocess.Popen] = None
 
     def start(self) -> None:
@@ -327,16 +329,19 @@ class QemuNbdServer:
                     f"disk image not found for format {self.image_format!r}: {self.image_path}"
                 )
 
-        self._proc = subprocess.Popen(
-            [
+        command = [
                 "qemu-nbd",
                 "--socket", self.socket_path,
                 "--format", self.image_format,
                 "--persistent",
                 "--shared=0",
                 "--cache=none",
-                self.image_path,
-            ],
+            ]
+        if self.allocation_depth:
+            command.append("--allocation-depth")
+        command.append(self.image_path)
+        self._proc = subprocess.Popen(
+            command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -439,7 +444,7 @@ def make_nbd_transfer(image_size=IMAGE_SIZE):
     return transfer_id, url, server, cleanup
 
 
-def make_nbd_transfer_existing_disk(image_path: str, image_format: str = "qcow2"):
+def make_nbd_transfer_existing_disk(image_path: str, image_format: str = "qcow2", allocation_depth: bool = False):
     """
     Start qemu-nbd for an existing on-disk image (e.g. qcow2) and register a transfer.
 
@@ -452,7 +457,7 @@ def make_nbd_transfer_existing_disk(image_path: str, image_format: str = "qcow2"
     sock_path = os.path.join(tmp, f"nbd_{uuid.uuid4().hex[:8]}.sock")
 
     server = QemuNbdServer(
-        image_path, sock_path, image_format=image_format
+        image_path, sock_path, image_format=image_format, allocation_depth=allocation_depth
     )
     server.start()
 
@@ -460,7 +465,7 @@ def make_nbd_transfer_existing_disk(image_path: str, image_format: str = "qcow2"
     resp = srv["send"]({
         "action": "register",
         "transfer_id": transfer_id,
-        "config": {"backend": "nbd", "socket": sock_path},
+        "config": {"backend": "nbd", "socket": sock_path, "allocation_depth": allocation_depth},
     })
     assert resp["status"] == "ok", f"register failed: {resp}"
     url = f"{srv['base_url']}/images/{transfer_id}"

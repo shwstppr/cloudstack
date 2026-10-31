@@ -57,12 +57,17 @@ public class LibvirtStartBackupCommandWrapper extends CommandWrapper<StartBackup
 
     protected Answer startStorageSnapshotBackup(StartBackupCommand cmd, LibvirtComputingResource resource) {
         try {
-            if (cmd.getFromCheckpointId() != null || cmd.getToCheckpointId() != null) {
-                throw new IllegalArgumentException("Storage snapshot full backup cannot create or reuse QCOW2 checkpoints");
+            if (cmd.getToCheckpointId() != null) {
+                java.util.UUID.fromString(cmd.getToCheckpointId());
             }
+            if (cmd.getFromCheckpointId() != null) {
+                java.util.UUID.fromString(cmd.getFromCheckpointId());
+            }
+            String snapshotId = cmd.getToCheckpointId() == null ? cmd.getSocket() : cmd.getToCheckpointId();
             StorageBackupCommandSupport.pool(cmd.getStorageBackupVolume(), resource).createFullBackupSnapshot(
-                    cmd.getStorageBackupVolume().getVolumePath(), cmd.getSocket());
-            return new StartBackupAnswer(cmd, true, "Storage snapshot full snapshot prepared");
+                    cmd.getStorageBackupVolume().getVolumePath(), snapshotId);
+            Long checkpointTime = cmd.getToCheckpointId() == null ? null : System.currentTimeMillis() / 1000;
+            return new StartBackupAnswer(cmd, true, "Storage snapshot backup checkpoint prepared", checkpointTime);
         } catch (RuntimeException e) {
             return new StartBackupAnswer(cmd, false, "Unable to prepare Storage snapshot full snapshot: " + e.getMessage());
         }

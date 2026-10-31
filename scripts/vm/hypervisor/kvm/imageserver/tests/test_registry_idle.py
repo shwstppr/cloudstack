@@ -51,6 +51,14 @@ class TestValidateTransferConfig(unittest.TestCase):
         self.assertEqual(c["idle_timeout_seconds"], 3)
         self.assertEqual(c["backend"], "file")
 
+    def test_allocation_depth_defaults_off_for_existing_transfers(self):
+        c = validate_transfer_config({"backend": "nbd", "socket": "/tmp/nbd.sock"})
+        self.assertFalse(c["allocation_depth"])
+
+    def test_allocation_depth_requires_boolean(self):
+        with self.assertRaises(ValueError):
+            validate_transfer_config({"backend": "nbd", "socket": "/tmp/nbd.sock", "allocation_depth": "true"})
+
 
 class TestRegistryIdleSweep(unittest.TestCase):
     def test_sweep_unregisters_after_idle(self):

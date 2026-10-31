@@ -74,6 +74,7 @@ public class LinstorPrimaryDataStoreDriverImplTest {
         StoragePoolVO pool = mock(StoragePoolVO.class);
         when(pool.getDataCenterId()).thenReturn(7L);
         String fullKey = LinstorConfigurationManager.FullBackupEnabled.key();
+        String incrementalKey = LinstorConfigurationManager.IncrementalBackupEnabled.key();
         String discoveryKey = LinstorConfigurationManager.BackupDiscoveryEnabled.key();
         String timeoutKey = LinstorConfigurationManager.BackupSessionTimeoutSeconds.key();
         ConfigKey.Scope scope = ConfigKey.Scope.Zone;
@@ -85,6 +86,7 @@ public class LinstorPrimaryDataStoreDriverImplTest {
             BackupStorageCapabilities capabilities = linstorPrimaryDataStoreDriver.getBackupStorageCapabilities(pool);
             Assert.assertTrue(capabilities.supportsNativeSnapshots());
             Assert.assertFalse(capabilities.isFullBackupEnabled());
+            Assert.assertFalse(capabilities.isIncrementalBackupEnabled());
             Assert.assertFalse(capabilities.isDiscoverable());
             Assert.assertEquals(com.cloud.storage.Storage.ImageFormat.RAW, capabilities.getVolumeFormat());
             Assert.assertEquals(1, capabilities.getMaximumDisks());
@@ -95,9 +97,12 @@ public class LinstorPrimaryDataStoreDriverImplTest {
             Assert.assertFalse(capabilities.isFullBackupEnabled());
             when(pool.getDataCenterId()).thenReturn(8L);
             when(depot.getConfigStringValue(fullKey, scope, 8L)).thenReturn("true");
+            when(depot.getConfigStringValue(incrementalKey, scope, 8L)).thenReturn("true");
             when(depot.getConfigStringValue(timeoutKey, scope, 8L)).thenReturn("3600");
             capabilities = linstorPrimaryDataStoreDriver.getBackupStorageCapabilities(pool);
             Assert.assertTrue(capabilities.isFullBackupEnabled());
+            Assert.assertTrue(capabilities.isIncrementalBackupEnabled());
+            Assert.assertEquals(com.cloud.storage.Storage.ImageFormat.QCOW2, capabilities.getVolumeFormat());
             Assert.assertTrue(capabilities.isDiscoverable());
             Assert.assertEquals(3600, capabilities.getSessionTimeoutSeconds());
         } finally {
