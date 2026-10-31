@@ -26,6 +26,7 @@ public class StorageBackupVolume {
     private String poolUuid;
     private String volumeUuid;
     private String volumePath;
+    private Long sizeBytes;
 
     public StorageBackupVolume(StoragePoolType poolType, String poolUuid, String volumeUuid, String volumePath) {
         this.poolType = poolType;
@@ -33,6 +34,20 @@ public class StorageBackupVolume {
         this.volumeUuid = volumeUuid;
         this.volumePath = volumePath;
         validate();
+    }
+
+    public StorageBackupVolume(StoragePoolType poolType, String poolUuid, String volumeUuid, String volumePath, Long sizeBytes) {
+        this(poolType, poolUuid, volumeUuid, volumePath);
+        this.sizeBytes = sizeBytes;
+        validateForExport();
+    }
+
+    /** Older session metadata can still be cleaned up, but cannot create an unbounded export. */
+    public void validateForExport() {
+        validate();
+        if (sizeBytes == null || sizeBytes <= 0 || sizeBytes % 512 != 0) {
+            throw new IllegalArgumentException("Storage backup export requires a positive sector-aligned logical size");
+        }
     }
 
     public void validate() {
@@ -50,4 +65,5 @@ public class StorageBackupVolume {
     public String getPoolUuid() { return poolUuid; }
     public String getVolumeUuid() { return volumeUuid; }
     public String getVolumePath() { return volumePath; }
+    public Long getSizeBytes() { return sizeBytes; }
 }

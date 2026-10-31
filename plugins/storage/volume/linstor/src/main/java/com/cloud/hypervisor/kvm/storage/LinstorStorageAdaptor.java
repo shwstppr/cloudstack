@@ -68,6 +68,7 @@ import com.linbit.linstor.api.model.ResourceGroupSpawn;
 import com.linbit.linstor.api.model.ResourceMakeAvailable;
 import com.linbit.linstor.api.model.ResourceWithVolumes;
 import com.linbit.linstor.api.model.Snapshot;
+import com.linbit.linstor.api.model.SnapshotModify;
 import com.linbit.linstor.api.model.SnapshotRestore;
 import com.linbit.linstor.api.model.StoragePool;
 import com.linbit.linstor.api.model.Volume;
@@ -492,16 +493,24 @@ public class LinstorStorageAdaptor implements StorageAdaptor {
                 if (snapshot == null) {
                     throw new CloudRuntimeException("LINSTOR backup clone has lost its source snapshot");
                 }
-                verifyFullBackupOwner(snapshot.getProps(), props);
+                verifyFullBackupOwner(snapshot.getSnapshotDefinitionProps(), props);
                 return getFullBackupSnapshotPath(pool, volumePath, backupUuid);
             }
             if (snapshot == null) {
                 snapshot = new Snapshot();
                 snapshot.setName(name);
-                snapshot.setProps(props);
                 checkLinstorAnswersThrow(api.resourceSnapshotCreate(source, snapshot));
+                // Snapshot creation ignores props; ownership belongs to the snapshot definition.
+                SnapshotModify modify = new SnapshotModify();
+                modify.setOverrideProps(props);
+                checkLinstorAnswersThrow(api.snapshotModify(source, name, modify));
+                snapshot = fullBackupSnapshot(api, source, name);
+                if (snapshot == null) {
+                    throw new CloudRuntimeException("LINSTOR backup snapshot disappeared before ownership verification");
+                }
+                verifyFullBackupOwner(snapshot.getSnapshotDefinitionProps(), props);
             } else {
-                verifyFullBackupOwner(snapshot.getProps(), props);
+                verifyFullBackupOwner(snapshot.getSnapshotDefinitionProps(), props);
             }
             ResourceDefinition rd = new ResourceDefinition();
             rd.setName(name);
@@ -555,7 +564,7 @@ public class LinstorStorageAdaptor implements StorageAdaptor {
                 verifyFullBackupOwner(clone.getProps(), props);
             }
             if (snapshot != null) {
-                verifyFullBackupOwner(snapshot.getProps(), props);
+                verifyFullBackupOwner(snapshot.getSnapshotDefinitionProps(), props);
             }
             if (clone != null) {
                 checkLinstorAnswersThrow(api.resourceDefinitionDelete(name));

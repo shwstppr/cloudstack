@@ -53,7 +53,7 @@ public class StorageFullBackupCommandWrapperTest {
     static final String VOL = "00000000-0000-0000-0000-000000000002";
     static final String BACKUP = "00000000-0000-0000-0000-000000000003";
     static final String TRANSFER = "00000000-0000-0000-0000-000000000004";
-    StorageBackupVolume volume = new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL);
+    StorageBackupVolume volume = new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L);
     LibvirtComputingResource resource = mock(LibvirtComputingResource.class);
     KVMStoragePool pool = mock(KVMStoragePool.class);
 
@@ -98,9 +98,19 @@ public class StorageFullBackupCommandWrapperTest {
         assertEquals("/dev/drbd/by-res/clone/0", wrapper.resolveStorageSnapshotPath(cmd, resource));
         String command = wrapper.createSystemdRunCmd(cmd, "unit", "/dev/drbd/by-res/clone/0", VOL, TRANSFER);
         assertTrue(command.contains("--read-only"));
-        assertTrue(command.contains("--format=raw"));
+        assertTrue(command.contains("--image-opts 'driver=raw,file.driver=host_device,"));
+        assertTrue(command.contains("size=8589934592'"));
         assertFalse(command.contains("driver=qcow2"));
         verify(pool, never()).getPhysicalDisk(anyString());
+    }
+
+    @Test
+    public void missingLogicalSizeCannotExposeAnUnboundedDevice() {
+        StartNBDServerCommand cmd = nbd("upload");
+        when(cmd.getStorageBackupVolume()).thenReturn(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL));
+        org.junit.Assert.assertThrows(IllegalArgumentException.class,
+                () -> new LibvirtStartNBDServerCommandWrapper().resolveStorageSnapshotPath(cmd, resource));
+        verifyNoInteractions(pool);
     }
 
     @Test
@@ -112,6 +122,13 @@ public class StorageFullBackupCommandWrapperTest {
         when(disk.getFormat()).thenReturn(QemuImg.PhysicalDiskFormat.RAW);
         when(disk.getPath()).thenReturn("/dev/drbd1000");
         assertEquals("/dev/drbd1000", new LibvirtStartNBDServerCommandWrapper().resolveStorageSnapshotPath(cmd, resource));
+        try {
+            String command = new LibvirtStartNBDServerCommandWrapper().createSystemdRunCmd(cmd, "unit", "/dev/drbd1000", VOL, TRANSFER);
+            assertTrue(command.contains("size=8589934592'"));
+            assertFalse(command.contains("--read-only"));
+        } catch (java.io.IOException e) {
+            throw new AssertionError(e);
+        }
         verify(pool, never()).getFullBackupSnapshotPath(anyString(), anyString());
     }
 

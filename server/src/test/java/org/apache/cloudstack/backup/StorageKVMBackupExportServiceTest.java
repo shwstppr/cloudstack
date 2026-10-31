@@ -99,6 +99,7 @@ public class StorageKVMBackupExportServiceTest {
         when(volume.getId()).thenReturn(10L);
         when(volume.getUuid()).thenReturn(VOL);
         when(volume.getPath()).thenReturn(VOL);
+        when(volume.getSize()).thenReturn(8589934592L);
         when(volume.getDataCenterId()).thenReturn(7L);
         when(volume.getInstanceId()).thenReturn(null);
         StoragePoolVO pool = mock(StoragePoolVO.class);
@@ -153,6 +154,11 @@ public class StorageKVMBackupExportServiceTest {
         copy.validate();
         assertEquals(StoragePoolType.RBD, copy.getPoolType());
         assertEquals("provider-owned-handle", copy.getVolumePath());
+        assertThrows(IllegalArgumentException.class, copy::validateForExport);
+        assertThrows(IllegalArgumentException.class,
+                () -> new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, "handle", 0L));
+        assertThrows(IllegalArgumentException.class,
+                () -> new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, "handle", 513L));
     }
 
     @Test
@@ -167,6 +173,7 @@ public class StorageKVMBackupExportServiceTest {
         StorageBackupVolume identity = service.storageSnapshotSource(vm);
         assertEquals(POOL, identity.getPoolUuid());
         assertEquals(VOL, identity.getVolumePath());
+        assertEquals(Long.valueOf(8589934592L), identity.getSizeBytes());
         when(volume.getEncryptFormat()).thenReturn("LUKS");
         assertThrows(CloudRuntimeException.class, () -> service.storageSnapshotSource(vm));
     }
@@ -191,7 +198,7 @@ public class StorageKVMBackupExportServiceTest {
     public void startPersistsNoQcowsOrCheckpointArguments() throws Exception {
         when(agent.send(eq(2L), any(Command.class))).thenReturn(new Answer(null, true, null));
         doNothing().when(service).queueBackupFinalizeWaitWorkJob(vm, backup);
-        service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL));
+        service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L));
         ArgumentCaptor<Command> command = ArgumentCaptor.forClass(Command.class);
         verify(agent).send(eq(2L), command.capture());
         StartBackupCommand sent = (StartBackupCommand) command.getValue();
@@ -205,7 +212,7 @@ public class StorageKVMBackupExportServiceTest {
     @Test
     public void repeatedStartDoesNotRecaptureAnExportedSnapshot() {
         when(backup.getStatus()).thenReturn(Backup.Status.ReadyForImageTransfer);
-        assertSame(backup, service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL)));
+        assertSame(backup, service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L)));
         verifyNoInteractions(agent);
     }
 
@@ -213,7 +220,7 @@ public class StorageKVMBackupExportServiceTest {
     public void failedStartAttemptsOwnedCleanupAndRetainsMetadata() throws Exception {
         when(agent.send(eq(2L), any(Command.class))).thenReturn(new Answer(null, false, "failed"), new Answer(null, true, null));
         assertThrows(CloudRuntimeException.class,
-                () -> service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL)));
+                () -> service.startStorageSnapshotBackup(vm, backup, new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L)));
         ArgumentCaptor<Command> command = ArgumentCaptor.forClass(Command.class);
         verify(agent, times(2)).send(eq(2L), command.capture());
         StopBackupCommand cleanup = (StopBackupCommand) command.getAllValues().get(1);
@@ -224,7 +231,7 @@ public class StorageKVMBackupExportServiceTest {
 
     @Test
     public void durableMetadataRoundTripContainsOnlyCanonicalIdentities() {
-        String json = new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL));
+        String json = new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L));
         when(backupDetails.findDetail(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME))
                 .thenReturn(new BackupDetailVO(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME, json, false));
         assertEquals(POOL, service.storageSnapshotBackupVolume(backup).getPoolUuid());
@@ -259,7 +266,7 @@ public class StorageKVMBackupExportServiceTest {
         when(backups.findById(20L)).thenReturn(backup);
         when(backupDetails.findDetail(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME))
                 .thenReturn(new BackupDetailVO(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME,
-                        new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL)), false));
+                        new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L)), false));
         VMInstanceDao instances = mock(VMInstanceDao.class);
         ReflectionTestUtils.setField(service, "vmInstanceDao", instances);
         when(instances.findById(1L)).thenReturn(vm);
@@ -280,7 +287,7 @@ public class StorageKVMBackupExportServiceTest {
         when(backup.getStatus()).thenReturn(Backup.Status.Error);
         when(backupDetails.findDetail(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME))
                 .thenReturn(new BackupDetailVO(20L, KVMBackupExportServiceImpl.STORAGE_FULL_VOLUME,
-                        new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL)), false));
+                        new Gson().toJson(new StorageBackupVolume(StoragePoolType.RBD, POOL, VOL, VOL, 8589934592L)), false));
         when(transfers.listByBackupId(20L)).thenReturn(Collections.emptyList());
         when(transfers.listAll()).thenReturn(Collections.emptyList());
         doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(1)).get()).when(service).withStorageSnapshotLock(anyString(), any());

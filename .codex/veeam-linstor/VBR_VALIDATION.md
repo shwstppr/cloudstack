@@ -1,5 +1,9 @@
 # VBR validation and current implementation status
 
+First LINSTOR attempt (2026-10-31): failed; see
+[LINSTOR_FIRST_BACKUP.md](LINSTOR_FIRST_BACKUP.md) for both diagnosed bugs,
+manual cleanup and fixes. It does not establish successful LINSTOR backup.
+
 The user approved the implementation plan on 2026-10-30 and noted that
 oVirt hypervisor jobs may not be controllable through VBR REST/PowerShell.
 Do not assume that generic VBR automation support covers this plugin.

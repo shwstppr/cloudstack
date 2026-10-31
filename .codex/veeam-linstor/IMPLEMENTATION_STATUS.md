@@ -1,5 +1,11 @@
 # Local implementation — 2026-10-31
 
+Later lab update: user-deployed packages were exercised in the first LINSTOR
+VBR job. It failed on raw export size, then snapshot-tag cleanup. See
+[LINSTOR_FIRST_BACKUP.md](LINSTOR_FIRST_BACKUP.md) for evidence, manual recovery
+and local fixes awaiting updated packages. Earlier local-only statements
+below describe the original implementation/refactor turns.
+
 The user resumed implementation after the actual VBR NFS full, incremental,
 and independent restore baseline. Changes remain local and uncommitted;
 no lab packages, services or feature flags were changed in this implementation turn.

@@ -379,7 +379,18 @@ public class LinstorStorageAdaptorTest {
         java.util.concurrent.atomic.AtomicReference<com.linbit.linstor.api.model.Snapshot> snapshot = new java.util.concurrent.atomic.AtomicReference<>();
         when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenAnswer(invocation -> snapshot.get());
         when(api.resourceSnapshotCreate(eq("cs-" + FULL_VOLUME), any())).thenAnswer(invocation -> {
-            snapshot.set(invocation.getArgument(1)); return success();
+            // Real controller creation does not persist properties from the request object.
+            com.linbit.linstor.api.model.Snapshot created = new com.linbit.linstor.api.model.Snapshot();
+            created.setName(name);
+            created.setProps(new Properties());
+            created.setSnapshotDefinitionProps(new Properties());
+            snapshot.set(created);
+            return success();
+        });
+        when(api.snapshotModify(eq("cs-" + FULL_VOLUME), eq(name), any())).thenAnswer(invocation -> {
+            snapshot.get().setSnapshotDefinitionProps(
+                    ((com.linbit.linstor.api.model.SnapshotModify) invocation.getArgument(2)).getOverrideProps());
+            return success();
         });
         when(api.resourceSnapshotsRestoreVolumeDefinition(anyString(), anyString(), any())).thenReturn(success());
         when(api.resourceSnapshotRestore(anyString(), anyString(), any())).thenReturn(success());
@@ -389,10 +400,15 @@ public class LinstorStorageAdaptorTest {
 
         String path = adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP);
         Assert.assertEquals("/dev/drbd/by-res/" + name + "/0", path);
-        Assert.assertEquals(FULL_BACKUP, snapshot.get().getProps().get(LinstorStorageAdaptor.FULL_BACKUP_OWNER_PROP));
+        Assert.assertEquals(FULL_BACKUP, snapshot.get().getSnapshotDefinitionProps().get(LinstorStorageAdaptor.FULL_BACKUP_OWNER_PROP));
         Assert.assertEquals(FULL_VOLUME, definitions.get(name).getProps().get(LinstorStorageAdaptor.FULL_BACKUP_SOURCE_PROP));
         Assert.assertEquals(path, adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
         verify(api, times(1)).resourceSnapshotCreate(anyString(), any());
+        verify(api, times(1)).snapshotModify(anyString(), anyString(), any());
+        InOrder ownershipOrder = Mockito.inOrder(api);
+        ownershipOrder.verify(api).resourceSnapshotCreate(anyString(), any());
+        ownershipOrder.verify(api).snapshotModify(anyString(), anyString(), any());
+        ownershipOrder.verify(api).resourceDefinitionCreate(any());
         verify(api, times(1)).resourceDefinitionCreate(any());
         verify(api, never()).resourceDefinitionDelete("cs-" + FULL_VOLUME);
         verify(api, never()).resourceSnapshotRollback(anyString(), anyString(), any());
@@ -419,7 +435,18 @@ public class LinstorStorageAdaptorTest {
         java.util.concurrent.atomic.AtomicReference<com.linbit.linstor.api.model.Snapshot> snapshot = new java.util.concurrent.atomic.AtomicReference<>();
         when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenAnswer(invocation -> snapshot.get());
         when(api.resourceSnapshotCreate(eq("cs-" + FULL_VOLUME), any())).thenAnswer(invocation -> {
-            snapshot.set(invocation.getArgument(1)); return success();
+            // Real controller creation does not persist properties from the request object.
+            com.linbit.linstor.api.model.Snapshot created = new com.linbit.linstor.api.model.Snapshot();
+            created.setName(name);
+            created.setProps(new Properties());
+            created.setSnapshotDefinitionProps(new Properties());
+            snapshot.set(created);
+            return success();
+        });
+        when(api.snapshotModify(eq("cs-" + FULL_VOLUME), eq(name), any())).thenAnswer(invocation -> {
+            snapshot.get().setSnapshotDefinitionProps(
+                    ((com.linbit.linstor.api.model.SnapshotModify) invocation.getArgument(2)).getOverrideProps());
+            return success();
         });
         when(api.resourceSnapshotsRestoreVolumeDefinition(anyString(), anyString(), any())).thenReturn(success());
         when(api.resourceSnapshotRestore(anyString(), anyString(), any())).thenReturn(error("restore failed"));
@@ -434,6 +461,38 @@ public class LinstorStorageAdaptorTest {
         Assert.assertTrue(definitions.containsKey("cs-" + FULL_VOLUME));
         verify(api, times(1)).resourceDefinitionDelete(name);
         verify(api, times(1)).resourceSnapshotDelete("cs-" + FULL_VOLUME, name, Collections.emptyList());
+    }
+
+    @Test
+    public void fullBackupRequiresPersistedOwnershipBeforeCloning() throws ApiException {
+        fullBackupDefinitions();
+        String name = LinstorStorageAdaptor.fullBackupName(FULL_BACKUP);
+        com.linbit.linstor.api.model.Snapshot snapshot = new com.linbit.linstor.api.model.Snapshot();
+        snapshot.setSnapshotDefinitionProps(new Properties());
+        when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenReturn(null, snapshot, snapshot);
+        when(api.resourceSnapshotCreate(anyString(), any())).thenReturn(success());
+        when(api.snapshotModify(anyString(), anyString(), any())).thenReturn(success());
+        Assert.assertThrows(CloudRuntimeException.class, () -> adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
+        verify(api, never()).resourceDefinitionCreate(any());
+        verify(api, never()).resourceSnapshotDelete(anyString(), anyString(), any());
+    }
+
+    @Test
+    public void fullBackupCannotAdoptOwnershipInheritedFromResourceProperties() throws ApiException {
+        fullBackupDefinitions();
+        String name = LinstorStorageAdaptor.fullBackupName(FULL_BACKUP);
+        com.linbit.linstor.api.model.Snapshot snapshot = new com.linbit.linstor.api.model.Snapshot();
+        Properties inherited = new Properties();
+        inherited.put(LinstorStorageAdaptor.FULL_BACKUP_OWNER_PROP, FULL_BACKUP);
+        inherited.put(LinstorStorageAdaptor.FULL_BACKUP_POOL_PROP, pool.getUuid());
+        inherited.put(LinstorStorageAdaptor.FULL_BACKUP_SOURCE_PROP, FULL_VOLUME);
+        snapshot.setProps(inherited);
+        snapshot.setSnapshotDefinitionProps(new Properties());
+        when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenReturn(snapshot);
+        Assert.assertThrows(CloudRuntimeException.class, () -> adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
+        verify(api, never()).snapshotModify(anyString(), anyString(), any());
+        verify(api, never()).resourceDefinitionCreate(any());
+        verify(api, never()).resourceSnapshotDelete(anyString(), anyString(), any());
     }
 
     @Test

@@ -55,7 +55,15 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
 
         byte[] passphrase = cmd.getPassphrase(); // may be null
         String readOnlyArg = cmd.getDirection().equals("download") ? "--read-only" : "";
-        String imageArg = raw ? "--format=raw " + volumePath : volumePath;
+        String imageArg = volumePath;
+        if (raw) {
+            cmd.getStorageBackupVolume().validateForExport();
+            // A block device may include allocation padding beyond the API's logical disk size.
+            // Bound both NBD capacity and extents, for downloads and fresh-target uploads.
+            String escapedPath = volumePath.replace(",", ",,").replace("'", "'\"'\"'");
+            imageArg = String.format("--image-opts 'driver=raw,file.driver=host_device,file.filename=%s,size=%d'",
+                    escapedPath, cmd.getStorageBackupVolume().getSizeBytes());
+        }
         String secretArg = "";
         if (passphrase != null && passphrase.length > 0) {
             KeyFile srcKey = new KeyFile(passphrase);
@@ -172,6 +180,7 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
     }
 
     protected String resolveStorageSnapshotPath(StartNBDServerCommand cmd, LibvirtComputingResource resource) {
+        cmd.getStorageBackupVolume().validateForExport();
         UUID.fromString(cmd.getTransferId());
         if (!cmd.getTransferId().equals(cmd.getSocket()) ||
                 !cmd.getStorageBackupVolume().getVolumeUuid().equals(cmd.getExportName()) ||

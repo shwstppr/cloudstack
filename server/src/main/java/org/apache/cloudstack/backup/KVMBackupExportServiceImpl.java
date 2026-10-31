@@ -220,7 +220,7 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         if (StringUtils.isNotBlank(volume.getEncryptFormat())) {
             throw new CloudRuntimeException("Encrypted raw snapshot export is not supported by this transport");
         }
-        return new StorageBackupVolume(pool.getPoolType(), pool.getUuid(), volume.getUuid(), volume.getPath());
+        return new StorageBackupVolume(pool.getPoolType(), pool.getUuid(), volume.getUuid(), volume.getPath(), volume.getSize());
     }
 
     protected void requireStorageSnapshotEnabled(StoragePool pool) {
