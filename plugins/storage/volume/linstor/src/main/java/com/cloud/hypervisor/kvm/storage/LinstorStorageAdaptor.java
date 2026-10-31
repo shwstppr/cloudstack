@@ -67,6 +67,8 @@ import com.linbit.linstor.api.model.ResourceDefinitionModify;
 import com.linbit.linstor.api.model.ResourceGroupSpawn;
 import com.linbit.linstor.api.model.ResourceMakeAvailable;
 import com.linbit.linstor.api.model.ResourceWithVolumes;
+import com.linbit.linstor.api.model.Snapshot;
+import com.linbit.linstor.api.model.SnapshotRestore;
 import com.linbit.linstor.api.model.StoragePool;
 import com.linbit.linstor.api.model.Volume;
 import com.linbit.linstor.api.model.VolumeDefinition;
@@ -84,6 +86,9 @@ public class LinstorStorageAdaptor implements StorageAdaptor {
     private static final Map<String, KVMStoragePool> MapStorageUuidToStoragePool = new HashMap<>();
     static final String BACKUP_SCRATCH_PREFIX = "cs-bkscratch-";
     static final String BACKUP_SCRATCH_VM_PROP = "Aux/cs-backup-vm";
+    static final String FULL_BACKUP_OWNER_PROP = "Aux/cs-vbr-backup";
+    static final String FULL_BACKUP_SOURCE_PROP = "Aux/cs-vbr-source";
+    static final String FULL_BACKUP_POOL_PROP = "Aux/cs-vbr-pool";
     private static final long DEVICE_WAIT_MS = 10000;
     // Controllers this agent has already removed its leftover backup scratch from, see deleteLeftoverBackupScratch().
     private static final Set<String> BackupScratchSweptControllers = ConcurrentHashMap.newKeySet();
@@ -427,6 +432,142 @@ public class LinstorStorageAdaptor implements StorageAdaptor {
                     apiEx.getBestMessage());
         } catch (CloudRuntimeException e) {
             logger.warn("Linstor: unable to look for leftover backup scratch on {}: {}", localNodeName, e.getMessage());
+        }
+    }
+
+    static String fullBackupName(String backupUuid) {
+        if (!UUID.fromString(backupUuid).toString().equals(backupUuid)) {
+            throw new IllegalArgumentException("Invalid backup UUID");
+        }
+        return "cs-vbr-" + backupUuid.replace("-", "");
+    }
+
+    private ResourceDefinition fullBackupResource(DevelopersApi api, String name) throws ApiException {
+        return api.resourceDefinitionList(Collections.singletonList(name), false, null, null, null).stream()
+                .filter(rd -> name.equals(rd.getName())).findFirst().orElse(null);
+    }
+
+    private Snapshot fullBackupSnapshot(DevelopersApi api, String source, String name) throws ApiException {
+        try {
+            return api.resourceSnapshotList(source, name);
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private Properties fullBackupProperties(KVMStoragePool pool, String volumePath, String backupUuid) {
+        if (!UUID.fromString(volumePath).toString().equals(volumePath)) {
+            throw new IllegalArgumentException("LINSTOR full backup requires a canonical volume path UUID");
+        }
+        Properties props = new Properties();
+        props.put(FULL_BACKUP_OWNER_PROP, backupUuid);
+        props.put(FULL_BACKUP_SOURCE_PROP, volumePath);
+        props.put(FULL_BACKUP_POOL_PROP, pool.getUuid());
+        return props;
+    }
+
+    private void verifyFullBackupOwner(Properties actual, Properties expected) {
+        if (actual == null || !expected.entrySet().stream().allMatch(e -> e.getValue().equals(actual.get(e.getKey())))) {
+            throw new CloudRuntimeException("Refusing to access or delete a LINSTOR snapshot resource owned by another session");
+        }
+    }
+
+    public String createFullBackupSnapshot(KVMStoragePool pool, String volumePath, String backupUuid) {
+        DevelopersApi api = getLinstorAPI(pool);
+        String name = fullBackupName(backupUuid);
+        String source = getLinstorRscName(volumePath);
+        Properties props = fullBackupProperties(pool, volumePath, backupUuid);
+        try {
+            ResourceDefinition sourceRd = fullBackupResource(api, source);
+            if (sourceRd == null || !((LinstorStoragePool) pool).getResourceGroup().equals(sourceRd.getResourceGroupName())) {
+                throw new CloudRuntimeException("Source LINSTOR resource does not belong to the requested pool");
+            }
+            ResourceDefinition existing = fullBackupResource(api, name);
+            Snapshot snapshot = fullBackupSnapshot(api, source, name);
+            if (existing != null) {
+                verifyFullBackupOwner(existing.getProps(), props);
+                if (snapshot == null) {
+                    throw new CloudRuntimeException("LINSTOR backup clone has lost its source snapshot");
+                }
+                verifyFullBackupOwner(snapshot.getProps(), props);
+                return getFullBackupSnapshotPath(pool, volumePath, backupUuid);
+            }
+            if (snapshot == null) {
+                snapshot = new Snapshot();
+                snapshot.setName(name);
+                snapshot.setProps(props);
+                checkLinstorAnswersThrow(api.resourceSnapshotCreate(source, snapshot));
+            } else {
+                verifyFullBackupOwner(snapshot.getProps(), props);
+            }
+            ResourceDefinition rd = new ResourceDefinition();
+            rd.setName(name);
+            rd.setResourceGroupName(((LinstorStoragePool) pool).getResourceGroup());
+            rd.setProps(props);
+            ResourceDefinitionCreate create = new ResourceDefinitionCreate();
+            create.setResourceDefinition(rd);
+            checkLinstorAnswersThrow(api.resourceDefinitionCreate(create));
+            SnapshotRestore restore = new SnapshotRestore();
+            restore.setToResource(name);
+            checkLinstorAnswersThrow(api.resourceSnapshotsRestoreVolumeDefinition(source, name, restore));
+            checkLinstorAnswersThrow(api.resourceSnapshotRestore(source, name, restore));
+            return getFullBackupSnapshotPath(pool, volumePath, backupUuid);
+        } catch (ApiException | RuntimeException e) {
+            // Names are deterministic; a timeout may have completed at the controller. Cleanup checks ownership again.
+            try {
+                deleteFullBackupSnapshot(pool, volumePath, backupUuid);
+            } catch (RuntimeException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw new CloudRuntimeException("Unable to prepare LINSTOR full backup " + backupUuid, e);
+        }
+    }
+
+    public String getFullBackupSnapshotPath(KVMStoragePool pool, String volumePath, String backupUuid) {
+        DevelopersApi api = getLinstorAPI(pool);
+        String name = fullBackupName(backupUuid);
+        try {
+            ResourceDefinition clone = fullBackupResource(api, name);
+            if (clone == null) {
+                throw new CloudRuntimeException("LINSTOR backup clone is missing");
+            }
+            verifyFullBackupOwner(clone.getProps(), fullBackupProperties(pool, volumePath, backupUuid));
+            makeResourceAvailable(api, name, false);
+            return String.format("/dev/drbd/by-res/%s/0", name);
+        } catch (ApiException e) {
+            throw new CloudRuntimeException("Unable to access LINSTOR full backup " + backupUuid, e);
+        }
+    }
+
+    public void deleteFullBackupSnapshot(KVMStoragePool pool, String volumePath, String backupUuid) {
+        DevelopersApi api = getLinstorAPI(pool);
+        String name = fullBackupName(backupUuid);
+        String source = getLinstorRscName(volumePath);
+        Properties props = fullBackupProperties(pool, volumePath, backupUuid);
+        try {
+            ResourceDefinition clone = fullBackupResource(api, name);
+            Snapshot snapshot = fullBackupSnapshot(api, source, name);
+            // Check both objects before deleting either of them.
+            if (clone != null) {
+                verifyFullBackupOwner(clone.getProps(), props);
+            }
+            if (snapshot != null) {
+                verifyFullBackupOwner(snapshot.getProps(), props);
+            }
+            if (clone != null) {
+                checkLinstorAnswersThrow(api.resourceDefinitionDelete(name));
+                if (!LinstorUtil.waitForResourceDefinitionDeleted(api, name, DEVICE_WAIT_MS)) {
+                    throw new CloudRuntimeException("LINSTOR clone deletion is pending; retaining its source snapshot");
+                }
+            }
+            if (snapshot != null) {
+                checkLinstorAnswersThrow(api.resourceSnapshotDelete(source, name, Collections.emptyList()));
+            }
+        } catch (ApiException e) {
+            throw new CloudRuntimeException("Unable to clean up LINSTOR full backup " + backupUuid, e);
         }
     }
 

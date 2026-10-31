@@ -30,6 +30,7 @@ public class StartBackupCommand extends Command {
     private String socket;
     private Map<String, String> diskPathUuidMap;
     private boolean stoppedVM;
+    private StorageBackupVolume storageBackupVolume;
     @LogLevel(LogLevel.Log4jLevel.Off)
     private Map<String, byte[]> diskPathPassphraseMap;
 
@@ -51,6 +52,10 @@ public class StartBackupCommand extends Command {
     public String getVmName() {
         return vmName;
     }
+
+    public StorageBackupVolume getStorageBackupVolume() { return storageBackupVolume; }
+
+    public void setStorageBackupVolume(StorageBackupVolume volume) { this.storageBackupVolume = volume; }
 
     public String getToCheckpointId() {
         return toCheckpointId;

@@ -19,6 +19,7 @@ package org.apache.cloudstack.veeam.api.converter;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -35,6 +36,24 @@ import com.cloud.storage.Storage;
 import com.cloud.storage.Volume;
 
 public class VolumeJoinVOToDiskConverterTest {
+
+    @Test
+    public void testBackendFormatOverridesTemplateFormatInDisksAndAttachments() {
+        VolumeJoinVO volume = mock(VolumeJoinVO.class);
+        when(volume.getFormat()).thenReturn(Storage.ImageFormat.QCOW2);
+
+        Disk disk = VolumeJoinVOToDiskConverter.toDisk(volume, null, v -> Storage.ImageFormat.RAW);
+        assertEquals("raw", disk.getFormat());
+        assertNull(disk.getQcowVersion());
+        assertEquals("raw", VolumeJoinVOToDiskConverter.toDiskList(List.of(volume), null,
+                v -> Storage.ImageFormat.RAW).get(0).getFormat());
+        assertEquals("raw", VolumeJoinVOToDiskConverter.toDiskAttachmentList(List.of(volume), null,
+                v -> Storage.ImageFormat.RAW).get(0).getDisk().getFormat());
+
+        Disk unchanged = VolumeJoinVOToDiskConverter.toDisk(volume, null);
+        assertEquals("cow", unchanged.getFormat());
+        assertEquals("qcow2_v3", unchanged.getQcowVersion());
+    }
 
     @Test
     public void testToDisk_MapsCoreFieldsAndResolverOverridesActualSize() {

@@ -27,6 +27,8 @@ public class StartNBDServerCommand extends Command {
     private String socket;
     private String direction;
     private String fromCheckpointId;
+    private StorageBackupVolume storageBackupVolume;
+    private String backupUuid;
     @LogLevel(LogLevel.Log4jLevel.Off)
     private byte[] passphrase;
 
@@ -45,6 +47,13 @@ public class StartNBDServerCommand extends Command {
 
     public String getExportName() {
         return exportName;
+    }
+
+    public StorageBackupVolume getStorageBackupVolume() { return storageBackupVolume; }
+    public String getBackupUuid() { return backupUuid; }
+    public void setStorageBackupVolume(StorageBackupVolume volume, String snapshotBackupUuid) {
+        storageBackupVolume = volume;
+        backupUuid = snapshotBackupUuid;
     }
 
     public String getSocket() {

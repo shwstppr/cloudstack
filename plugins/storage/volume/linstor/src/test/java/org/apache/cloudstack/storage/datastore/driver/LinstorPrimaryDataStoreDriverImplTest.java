@@ -16,6 +16,11 @@
 // under the License.
 package org.apache.cloudstack.storage.datastore.driver;
 
+import org.apache.cloudstack.backup.BackupStorageCapabilities;
+import org.apache.cloudstack.framework.config.ConfigKey;
+import org.apache.cloudstack.framework.config.impl.ConfigDepotImpl;
+import org.apache.cloudstack.storage.datastore.util.LinstorConfigurationManager;
+import java.lang.reflect.Field;
 import com.linbit.linstor.api.ApiException;
 import com.linbit.linstor.api.DevelopersApi;
 import com.linbit.linstor.api.model.AutoSelectFilter;
@@ -57,6 +62,48 @@ import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class LinstorPrimaryDataStoreDriverImplTest {
+
+    @Test
+    public void backupCapabilitiesAreProviderOwnedAndEvaluatedPerZone() throws Exception {
+        Field field = ConfigKey.class.getDeclaredField("s_depot");
+        field.setAccessible(true);
+        ConfigDepotImpl previous =
+                (ConfigDepotImpl) field.get(null);
+        ConfigDepotImpl depot = mock(
+                ConfigDepotImpl.class);
+        StoragePoolVO pool = mock(StoragePoolVO.class);
+        when(pool.getDataCenterId()).thenReturn(7L);
+        String fullKey = LinstorConfigurationManager.FullBackupEnabled.key();
+        String discoveryKey = LinstorConfigurationManager.BackupDiscoveryEnabled.key();
+        String timeoutKey = LinstorConfigurationManager.BackupSessionTimeoutSeconds.key();
+        ConfigKey.Scope scope = ConfigKey.Scope.Zone;
+        when(depot.getConfigStringValue(fullKey, scope, 7L)).thenReturn("false");
+        when(depot.getConfigStringValue(discoveryKey, scope, 7L)).thenReturn("false");
+        when(depot.getConfigStringValue(timeoutKey, scope, 7L)).thenReturn("14400");
+        try {
+            ConfigKey.init(depot);
+            BackupStorageCapabilities capabilities = linstorPrimaryDataStoreDriver.getBackupStorageCapabilities(pool);
+            Assert.assertTrue(capabilities.supportsNativeSnapshots());
+            Assert.assertFalse(capabilities.isFullBackupEnabled());
+            Assert.assertFalse(capabilities.isDiscoverable());
+            Assert.assertEquals(com.cloud.storage.Storage.ImageFormat.RAW, capabilities.getVolumeFormat());
+            Assert.assertEquals(1, capabilities.getMaximumDisks());
+            Assert.assertEquals(14400, capabilities.getSessionTimeoutSeconds());
+            when(depot.getConfigStringValue(discoveryKey, scope, 7L)).thenReturn("true");
+            capabilities = linstorPrimaryDataStoreDriver.getBackupStorageCapabilities(pool);
+            Assert.assertTrue(capabilities.isDiscoverable());
+            Assert.assertFalse(capabilities.isFullBackupEnabled());
+            when(pool.getDataCenterId()).thenReturn(8L);
+            when(depot.getConfigStringValue(fullKey, scope, 8L)).thenReturn("true");
+            when(depot.getConfigStringValue(timeoutKey, scope, 8L)).thenReturn("3600");
+            capabilities = linstorPrimaryDataStoreDriver.getBackupStorageCapabilities(pool);
+            Assert.assertTrue(capabilities.isFullBackupEnabled());
+            Assert.assertTrue(capabilities.isDiscoverable());
+            Assert.assertEquals(3600, capabilities.getSessionTimeoutSeconds());
+        } finally {
+            ConfigKey.init(previous);
+        }
+    }
 
     private DevelopersApi api;
 

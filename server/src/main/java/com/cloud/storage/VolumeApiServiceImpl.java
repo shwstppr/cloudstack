@@ -3032,6 +3032,10 @@ public class VolumeApiServiceImpl extends ManagerBase implements VolumeApiServic
         _accountMgr.checkAccess(caller, null, true, volumeToAttach, vm);
 
         StoragePoolVO volumeToAttachStoragePool = _storagePoolDao.findById(volumeToAttach.getPoolId());
+        if (volumeToAttachStoragePool != null) {
+            // Once offered to a guest, this volume must never be reused as a fresh backup restore target.
+            _volsDetailsDao.removeDetail(volumeId, org.apache.cloudstack.backup.KVMBackupExportService.RestoreTargetDetail);
+        }
         if (logger.isTraceEnabled() && volumeToAttachStoragePool != null) {
             logger.trace("volume to attach {} has a primary storage assigned to begin with {}",
                     volumeToAttach, volumeToAttachStoragePool);

@@ -22,6 +22,7 @@ import com.cloud.agent.api.Command;
 public class StopNBDServerCommand extends Command {
     private String transferId;
     private String direction;
+    private StorageBackupVolume storageBackupVolume;
 
     public StopNBDServerCommand() {
     }
@@ -34,6 +35,9 @@ public class StopNBDServerCommand extends Command {
     public String getTransferId() {
         return transferId;
     }
+
+    public StorageBackupVolume getStorageBackupVolume() { return storageBackupVolume; }
+    public void setStorageBackupVolume(StorageBackupVolume volume) { storageBackupVolume = volume; }
 
     public String getDirection() {
         return direction;

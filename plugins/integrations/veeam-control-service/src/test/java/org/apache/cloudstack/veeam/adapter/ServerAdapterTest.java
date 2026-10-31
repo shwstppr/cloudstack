@@ -17,6 +17,7 @@
 
 package org.apache.cloudstack.veeam.adapter;
 
+import org.apache.cloudstack.backup.BackupStorageCapabilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -112,8 +113,82 @@ import com.cloud.vm.snapshot.dao.VMSnapshotDao;
 @RunWith(MockitoJUnitRunner.class)
 public class ServerAdapterTest {
 
+    @Test
+    public void testVolumeFormatComesFromProviderRatherThanNameOrTemplate() {
+        VolumeJoinVO volume = mock(VolumeJoinVO.class);
+        when(volume.getPoolId()).thenReturn(17L);
+        when(volume.getFormat()).thenReturn(Storage.ImageFormat.QCOW2);
+        StoragePoolVO pool = mock(StoragePoolVO.class);
+        when(primaryDataStoreDao.findById(17L)).thenReturn(pool);
+        when(kvmBackupExportService.getStorageCapabilities(pool)).thenReturn(
+                new BackupStorageCapabilities(true, false, false, Storage.ImageFormat.RAW, 1, 14400));
+        assertEquals(Storage.ImageFormat.RAW, serverAdapter.getVolumeImageFormat(volume));
+        when(kvmBackupExportService.getStorageCapabilities(pool)).thenReturn(BackupStorageCapabilities.UNSUPPORTED);
+        assertEquals(Storage.ImageFormat.QCOW2, serverAdapter.getVolumeImageFormat(volume));
+        when(primaryDataStoreDao.findById(17L)).thenReturn(null);
+        assertEquals(Storage.ImageFormat.QCOW2, serverAdapter.getVolumeImageFormat(volume));
+    }
+
+    @Test
+    public void testProviderDiscoveryDoesNotEnableBackupAndRemainsZoneScoped() {
+        StoragePoolVO pool = mock(StoragePoolVO.class);
+        when(pool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
+        when(primaryDataStoreDao.listByDataCenterId(7L)).thenReturn(List.of(pool));
+        when(primaryDataStoreDao.listByDataCenterId(8L)).thenReturn(List.of());
+        when(kvmBackupExportService.getStorageCapabilities(pool)).thenReturn(
+                new BackupStorageCapabilities(true, true, false, Storage.ImageFormat.RAW, 1, 14400));
+        assertTrue(serverAdapter.getDiscoverableStorageTypes(7L).contains(Storage.StoragePoolType.RBD));
+        assertFalse(serverAdapter.getDiscoverableStorageTypes(8L).contains(Storage.StoragePoolType.RBD));
+        assertTrue(serverAdapter.getDiscoverableStorageTypes(8L).contains(Storage.StoragePoolType.NetworkFilesystem));
+        UserVmVO vm = mock(UserVmVO.class);
+        VolumeVO volume = mock(VolumeVO.class);
+        when(volume.getPoolId()).thenReturn(17L);
+        when(volumeDao.findUsableVolumesForInstance(vm.getId())).thenReturn(List.of(volume));
+        when(primaryDataStoreDao.listByIds(anyList())).thenReturn(List.of(pool));
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> serverAdapter.validateInstanceStorage(vm));
+        when(kvmBackupExportService.getStorageCapabilities(pool)).thenReturn(
+                new BackupStorageCapabilities(true, true, true, Storage.ImageFormat.RAW, 1, 14400));
+        serverAdapter.validateInstanceStorage(vm);
+        when(volumeDao.findUsableVolumesForInstance(vm.getId())).thenReturn(List.of(volume, mock(VolumeVO.class)));
+        org.junit.Assert.assertThrows(InvalidParameterValueException.class, () -> serverAdapter.validateInstanceStorage(vm));
+    }
+
     @InjectMocks
     ServerAdapter serverAdapter;
+
+    @Test
+    public void providerDiscoveryFiltersEachPoolAndPreservesNfsMetadata() {
+        DataCenterVO zone = mock(DataCenterVO.class);
+        when(zone.getId()).thenReturn(7L);
+        when(dataCenterDao.findByUuid("zone")).thenReturn(zone);
+        StoragePoolVO enabled = mock(StoragePoolVO.class);
+        StoragePoolVO disabled = mock(StoragePoolVO.class);
+        when(enabled.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
+        when(primaryDataStoreDao.listByDataCenterId(7L)).thenReturn(List.of(enabled));
+        when(primaryDataStoreDao.findById(17L)).thenReturn(enabled);
+        when(primaryDataStoreDao.findById(18L)).thenReturn(disabled);
+        when(kvmBackupExportService.getStorageCapabilities(enabled)).thenReturn(
+                new BackupStorageCapabilities(true, true, false, Storage.ImageFormat.RAW, 1, 14400));
+        when(kvmBackupExportService.getStorageCapabilities(disabled)).thenReturn(
+                new BackupStorageCapabilities(true, false, false, Storage.ImageFormat.RAW, 1, 14400));
+        StoragePoolJoinVO nativePool = mock(StoragePoolJoinVO.class);
+        when(nativePool.getId()).thenReturn(17L);
+        when(nativePool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
+        StoragePoolJoinVO hiddenPool = mock(StoragePoolJoinVO.class);
+        when(hiddenPool.getId()).thenReturn(18L);
+        when(hiddenPool.getPoolType()).thenReturn(Storage.StoragePoolType.RBD);
+        StoragePoolJoinVO nfsPool = mock(StoragePoolJoinVO.class);
+        when(nfsPool.getPoolType()).thenReturn(Storage.StoragePoolType.NetworkFilesystem);
+        when(storagePoolJoinDao.listAvailableByZoneHypervisorAndType(eq(7L), eq(Hypervisor.HypervisorType.KVM), any(), any()))
+                .thenReturn(List.of(nativePool, hiddenPool, nfsPool));
+        List<org.apache.cloudstack.veeam.api.dto.StorageDomain> domains = serverAdapter.listStorageDomainsByDcId("zone", 0L, 10L);
+        assertEquals(2, domains.size());
+        org.junit.Assert.assertNull(domains.get(0).getStorage());
+        assertNotNull(domains.get(1).getStorage());
+        domains = serverAdapter.listStorageDomainsByDcId("zone", 1L, 1L);
+        assertEquals(1, domains.size());
+        assertNotNull(domains.get(0).getStorage());
+    }
 
     @Mock AccountService accountService;
     @Mock DataCenterDao dataCenterDao;

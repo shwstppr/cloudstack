@@ -70,6 +70,33 @@ public class LibvirtFinalizeImageTransferCommandWrapperTest {
     }
 
     @Test
+    public void testStrictUnregisterKeepsRunningServerAndItsOtherTransfers() {
+        Mockito.when(command.getTransferId()).thenReturn("tr-strict");
+        Mockito.when(command.isRequireSafeUnregister()).thenReturn(true);
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class);
+             MockedStatic<ImageServerControlSocket> control = Mockito.mockStatic(ImageServerControlSocket.class)) {
+            control.when(() -> ImageServerControlSocket.unregisterTransfer("tr-strict")).thenReturn(-1);
+            Assert.assertFalse(wrapper.execute(command, resource).getResult());
+            Assert.assertEquals(1, scripts.constructed().size());
+            Mockito.verify(scripts.constructed().get(0)).add("systemctl is-active --quiet " + resource.IMAGE_SERVER_SYSTEMD_UNIT_NAME);
+        }
+    }
+
+    @Test
+    public void testStrictUnregisterAcceptsConfirmedInactiveServer() {
+        Mockito.when(command.getTransferId()).thenReturn("tr-strict");
+        Mockito.when(command.isRequireSafeUnregister()).thenReturn(true);
+        try (MockedConstruction<Script> scripts = Mockito.mockConstruction(Script.class, (script, context) -> {
+            Mockito.when(script.execute()).thenReturn("inactive");
+            Mockito.when(script.getExitValue()).thenReturn(3);
+        }); MockedStatic<ImageServerControlSocket> control = Mockito.mockStatic(ImageServerControlSocket.class)) {
+            control.when(() -> ImageServerControlSocket.unregisterTransfer("tr-strict")).thenReturn(-1);
+            Assert.assertTrue(wrapper.execute(command, resource).getResult());
+            Assert.assertEquals(1, scripts.constructed().size());
+        }
+    }
+
+    @Test
     public void testExecuteServerUnreachableReturnsSuccessAndForcesStop() {
         Mockito.when(command.getTransferId()).thenReturn("tr-2");
 

@@ -21,6 +21,7 @@ import com.cloud.agent.api.Command;
 
 public class FinalizeImageTransferCommand extends Command {
     private String transferId;
+    private boolean requireSafeUnregister;
 
     public FinalizeImageTransferCommand() {
     }
@@ -32,6 +33,9 @@ public class FinalizeImageTransferCommand extends Command {
     public String getTransferId() {
         return transferId;
     }
+
+    public boolean isRequireSafeUnregister() { return requireSafeUnregister; }
+    public void setRequireSafeUnregister(boolean value) { requireSafeUnregister = value; }
 
     @Override
     public boolean executeInSequence() {

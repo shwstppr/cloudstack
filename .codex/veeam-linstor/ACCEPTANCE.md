@@ -1,7 +1,7 @@
 # Acceptance criteria and demo plan
 
 ## Lab prerequisites
-- CloudStack MS, KVM host, working Veeam VBR/proxy, standalone AlmaLinux 8 LINSTOR controller VM and appropriate LINSTOR satellite/storage nodes.
+- CloudStack MS, KVM host, working Veeam VBR/proxy, standalone Ubuntu LINSTOR controller/storage appliance and AlmaLinux 8 diskless KVM satellites (current lab).
 - Explicitly validate whether 100GB disk is controller-only or usable data capacity. Controller-only VM does not supply a functional DRBD-backed storage pool.
 - Confirm resource placement, network reachability, supported LINSTOR driver, sufficient free disk, and backup repository space.
 

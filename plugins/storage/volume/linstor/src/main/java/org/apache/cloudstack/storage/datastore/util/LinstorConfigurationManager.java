@@ -36,8 +36,23 @@ public class LinstorConfigurationManager implements Configurable
             "Allow self-signed/untrusted TLS certificates from the Linstor controller (disables certificate and hostname verification)",
             true, ConfigKey.Scope.StoragePool, null);
 
+    public static final ConfigKey<Boolean> FullBackupEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "kvm.backup.linstor.full.enabled", "false",
+            "Experimental single-disk LINSTOR full backup and raw restore; does not enable incrementals.",
+            true, ConfigKey.Scope.Zone);
+
+    public static final ConfigKey<Boolean> BackupDiscoveryEnabled = new ConfigKey<>("Advanced", Boolean.class,
+            "integration.veeam.control.linstor.discovery.enabled", "false",
+            "Expose LINSTOR storage domains for backup discovery without enabling backup exports.",
+            true, ConfigKey.Scope.Zone);
+
+    public static final ConfigKey<Integer> BackupSessionTimeoutSeconds = new ConfigKey<>("Advanced", Integer.class,
+            "kvm.backup.linstor.session.timeout.seconds", "14400",
+            "Maximum lifetime of LINSTOR backup/restore exports before recovery cleanup is attempted.",
+            true, ConfigKey.Scope.Zone);
+
     public static final ConfigKey<?>[] CONFIG_KEYS = new ConfigKey<?>[] {
-            ApiToken, BackupSnapshots, InsecureSsl, VolumeStatsCacheTime
+            ApiToken, BackupSnapshots, InsecureSsl, VolumeStatsCacheTime, FullBackupEnabled, BackupDiscoveryEnabled, BackupSessionTimeoutSeconds
     };
 
     @Override

@@ -89,6 +89,7 @@ import org.apache.cloudstack.backup.ImageTransfer.Direction;
 import org.apache.cloudstack.backup.ImageTransfer.Format;
 import org.apache.cloudstack.backup.ImageTransferVO;
 import org.apache.cloudstack.backup.KVMBackupExportService;
+import org.apache.cloudstack.backup.BackupStorageCapabilities;
 import org.apache.cloudstack.backup.dao.BackupDao;
 import org.apache.cloudstack.backup.dao.ImageTransferDao;
 import org.apache.cloudstack.context.CallContext;
@@ -1011,6 +1012,23 @@ public class ServerAdapter extends ManagerBase {
         return volumeApiService.getVolumePhysicalSize(vo.getFormat(), vo.getPath(), vo.getChainInfo());
     }
 
+    protected BackupStorageCapabilities backupCapabilities(StoragePoolVO pool) {
+        BackupStorageCapabilities capabilities = pool == null ? null : kvmBackupExportService.getStorageCapabilities(pool);
+        return capabilities == null ? BackupStorageCapabilities.UNSUPPORTED : capabilities;
+    }
+
+    protected Storage.ImageFormat getVolumeImageFormat(VolumeJoinVO volume) {
+        Storage.ImageFormat format = backupCapabilities(primaryDataStoreDao.findById(volume.getPoolId())).getVolumeFormat();
+        return format == null ? volume.getFormat() : format;
+    }
+
+    protected List<Storage.StoragePoolType> getDiscoverableStorageTypes(long zoneId) {
+        List<Storage.StoragePoolType> types = new ArrayList<>(SUPPORTED_STORAGE_TYPES);
+        primaryDataStoreDao.listByDataCenterId(zoneId).stream().filter(pool -> backupCapabilities(pool).isDiscoverable())
+                .map(StoragePoolVO::getPoolType).filter(type -> !types.contains(type)).forEach(types::add);
+        return types;
+    }
+
     @NotNull
     protected Disk createDisk(Account serviceAccount, StoragePoolVO pool, String name, Long diskOfferingId, long sizeInGb, Long initialSize) {
         Volume volume;
@@ -1024,12 +1042,15 @@ public class ServerAdapter extends ManagerBase {
             throw new CloudRuntimeException("Failed to create volume");
         }
         volume = volumeApiService.createVolume(volume.getId(), null, null, pool.getId(), true);
+        if (backupCapabilities(pool).supportsNativeSnapshots() && backupCapabilities(pool).isFullBackupEnabled()) {
+            volumeDetailsDao.addDetail(volume.getId(), KVMBackupExportService.RestoreTargetDetail, volume.getUuid(), false);
+        }
         if (initialSize != null) {
             volumeDetailsDao.addDetail(volume.getId(), ApiConstants.VIRTUAL_SIZE, String.valueOf(initialSize), true);
         }
 
         // Implementation for creating a Disk resource
-        return VolumeJoinVOToDiskConverter.toDisk(volumeJoinDao.findById(volume.getId()), this::getVolumePhysicalSize);
+        return VolumeJoinVOToDiskConverter.toDisk(volumeJoinDao.findById(volume.getId()), this::getVolumePhysicalSize, this::getVolumeImageFormat);
     }
 
     protected List<Nic> listNicsByInstance(final long instanceId, final String instanceUuid) {
@@ -1183,10 +1204,17 @@ public class ServerAdapter extends ManagerBase {
         if (dataCenterVO == null) {
             throw new InvalidParameterValueException("DataCenter with ID " + uuid + " not found");
         }
-        Filter filter = new Filter(StoragePoolJoinVO.class, "id", true, offset, limit);
+        // Provider enablement can differ between pools of the same type; paginate after filtering.
+        Filter filter = new Filter(StoragePoolJoinVO.class, "id", true, null, null);
         List<StoragePoolJoinVO> storagePoolVOS = storagePoolJoinDao.listAvailableByZoneHypervisorAndType(dataCenterVO.getId(),
-                Hypervisor.HypervisorType.KVM, SUPPORTED_STORAGE_TYPES, filter);
-        return StoreVOToStorageDomainConverter.toStorageDomainListFromPools(storagePoolVOS);
+                Hypervisor.HypervisorType.KVM, getDiscoverableStorageTypes(dataCenterVO.getId()), filter);
+        return storagePoolVOS.stream().filter(pool -> SUPPORTED_STORAGE_TYPES.contains(pool.getPoolType()) ||
+                        backupCapabilities(primaryDataStoreDao.findById(pool.getId())).isDiscoverable())
+                .skip(offset == null ? 0L : Math.max(0L, offset))
+                .limit(limit == null ? Long.MAX_VALUE : Math.max(0L, limit))
+                .map(pool -> StoreVOToStorageDomainConverter.toStorageDomain(pool,
+                        !backupCapabilities(primaryDataStoreDao.findById(pool.getId())).supportsNativeSnapshots()))
+                .collect(Collectors.toList());
     }
 
     @ApiAccess(command = ListNetworksCmd.class)
@@ -1515,7 +1543,7 @@ public class ServerAdapter extends ManagerBase {
     @ApiAccess(command = ListVolumesCmd.class)
     protected List<DiskAttachment> listDiskAttachmentsByInstanceId(final long instanceId) {
         List<VolumeJoinVO> kvmVolumes = volumeJoinDao.listByInstanceId(instanceId);
-        return VolumeJoinVOToDiskConverter.toDiskAttachmentList(kvmVolumes, this::getVolumePhysicalSize);
+        return VolumeJoinVOToDiskConverter.toDiskAttachmentList(kvmVolumes, this::getVolumePhysicalSize, this::getVolumeImageFormat);
     }
 
     @ApiAccess(command = ListVolumesCmd.class)
@@ -1535,7 +1563,7 @@ public class ServerAdapter extends ManagerBase {
         List<VolumeJoinVO> kvmVolumes = volumeJoinDao.listByZonesHypervisorTypeAndOwners(
                 kvmBackupExportService.listCompatibleDataCenterIds(), Hypervisor.HypervisorType.KVM,
                 ownerDetails.first(), ownerDetails.second(), filter);
-        return VolumeJoinVOToDiskConverter.toDiskList(kvmVolumes, this::getVolumePhysicalSize);
+        return VolumeJoinVOToDiskConverter.toDiskList(kvmVolumes, this::getVolumePhysicalSize, this::getVolumeImageFormat);
     }
 
     @ApiAccess(command = ListVolumesCmd.class)
@@ -1545,7 +1573,7 @@ public class ServerAdapter extends ManagerBase {
             throw new InvalidParameterValueException("Disk with ID " + uuid + " not found");
         }
         accountService.checkAccess(CallContext.current().getCallingAccount(), null, false, vo);
-        return VolumeJoinVOToDiskConverter.toDisk(volumeJoinDao.findByUuid(uuid), this::getVolumePhysicalSize);
+        return VolumeJoinVOToDiskConverter.toDisk(volumeJoinDao.findByUuid(uuid), this::getVolumePhysicalSize, this::getVolumeImageFormat);
     }
 
     protected void assignVolumeToAccount(VolumeVO volumeVO, long accountId) {
@@ -1613,7 +1641,7 @@ public class ServerAdapter extends ManagerBase {
         Volume volume = volumeApiService.attachVolumeToVM(vmVo.getId(), volumeVO.getId(), deviceId, true, false);
         processInstanceRestoreConfigIfNeeded(vmVo, volume);
         VolumeJoinVO attachedVolumeVO = volumeJoinDao.findById(volume.getId());
-        return VolumeJoinVOToDiskConverter.toDiskAttachment(attachedVolumeVO, this::getVolumePhysicalSize);
+        return VolumeJoinVOToDiskConverter.toDiskAttachment(attachedVolumeVO, this::getVolumePhysicalSize, this::getVolumeImageFormat);
     }
 
     @ApiAccess(command = DetachVolumeCmd.class)
@@ -1991,6 +2019,17 @@ public class ServerAdapter extends ManagerBase {
         List<VolumeVO> volumes = volumeDao.findUsableVolumesForInstance(vm.getId());
         List<Long> storageIds = volumes.stream().map(VolumeVO::getPoolId).distinct().collect(Collectors.toList());
         List<StoragePoolVO> pools = primaryDataStoreDao.listByIds(storageIds);
+        boolean nativeSnapshots = pools.stream().anyMatch(pool -> backupCapabilities(pool).supportsNativeSnapshots());
+        if (nativeSnapshots) {
+            if (pools.size() != 1 || volumes.size() != 1) {
+                throw new InvalidParameterValueException("Native full backup currently requires exactly one disk and pool");
+            }
+            BackupStorageCapabilities capabilities = backupCapabilities(pools.get(0));
+            if (!capabilities.isFullBackupEnabled() || volumes.size() > capabilities.getMaximumDisks()) {
+                throw new InvalidParameterValueException("Storage provider has not enabled backup for these volumes");
+            }
+            return;
+        }
         pools.stream().filter(p -> !SUPPORTED_STORAGE_TYPES.contains(p.getPoolType()))
                 .findAny().ifPresent(p -> {
                     throw new InvalidParameterValueException("VM is using storage pool " + p.getName() +

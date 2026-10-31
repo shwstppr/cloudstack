@@ -39,6 +39,16 @@ public class LibvirtStopBackupCommandWrapper extends CommandWrapper<StopBackupCo
     public Answer execute(StopBackupCommand cmd, LibvirtComputingResource resource) {
         String vmName = cmd.getVmName();
 
+        if (cmd.getStorageBackupVolume() != null) {
+            try {
+                StorageBackupCommandSupport.pool(cmd.getStorageBackupVolume(), resource).deleteFullBackupSnapshot(
+                        cmd.getStorageBackupVolume().getVolumePath(), cmd.getBackupUuid());
+                return new StopBackupAnswer(cmd, true, "Storage snapshot full snapshot released");
+            } catch (RuntimeException e) {
+                return new StopBackupAnswer(cmd, false, "Unable to release Storage snapshot full snapshot: " + e.getMessage());
+            }
+        }
+
         try {
             Connect conn = LibvirtConnection.getConnection();
             Domain dm = conn.domainLookupByName(vmName);

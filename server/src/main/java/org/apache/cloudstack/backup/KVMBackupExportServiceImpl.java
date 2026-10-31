@@ -17,6 +17,10 @@
 
 package org.apache.cloudstack.backup;
 
+import org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager;
+import org.apache.cloudstack.engine.subsystem.api.storage.DataStore;
+import org.apache.cloudstack.engine.subsystem.api.storage.PrimaryDataStoreDriver;
+import com.cloud.storage.StoragePool;
 import static org.apache.cloudstack.backup.BackupManager.BackupFrameworkEnabled;
 import static org.apache.cloudstack.backup.BackupManager.BackupProviderPlugin;
 
@@ -30,6 +34,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.function.Supplier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import com.cloud.utils.db.GlobalLock;
 
 import javax.inject.Inject;
 
@@ -45,6 +54,8 @@ import org.apache.cloudstack.api.command.admin.backup.StartBackupCmd;
 import org.apache.cloudstack.api.response.CheckpointResponse;
 import org.apache.cloudstack.api.response.ImageTransferResponse;
 import org.apache.cloudstack.backup.dao.BackupDao;
+import org.apache.cloudstack.backup.dao.BackupDetailsDao;
+import com.google.gson.Gson;
 import org.apache.cloudstack.backup.dao.ImageTransferDao;
 import org.apache.cloudstack.context.CallContext;
 import org.apache.cloudstack.engine.subsystem.api.storage.VolumeDataFactory;
@@ -150,6 +161,138 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
     private VolumeDataFactory volumeDataFactory;
 
     VmWorkJobHandlerProxy jobHandlerProxy = new VmWorkJobHandlerProxy(this);
+    static final String STORAGE_FULL_VOLUME = "storage.full.volume";
+    @Inject
+    BackupDetailsDao backupDetailsDao;
+    private ScheduledExecutorService storageSnapshotCleanupExecutor;
+
+    protected <T> T withStorageSnapshotLock(String identity, Supplier<T> action) {
+        GlobalLock lock = GlobalLock.getInternLock("storage-backup-" + identity);
+        boolean acquired = false;
+        try {
+            acquired = lock.lock(30);
+            if (!acquired) {
+                throw new CloudRuntimeException("Storage snapshot session is busy; retry the operation");
+            }
+            return action.get();
+        } finally {
+            if (acquired) {
+                lock.unlock();
+            }
+            lock.releaseRef();
+        }
+    }
+
+    private String storageSnapshotTransferLock(ImageTransferVO transfer) {
+        if (transfer.getBackupId() != null) {
+            return "vm-" + backupDao.findByIdIncludingRemoved(transfer.getBackupId()).getVmId();
+        }
+        return "volume-" + transfer.getVolumeId();
+    }
+
+    @Inject
+    private DataStoreManager dataStoreManager;
+
+    @Override
+    public BackupStorageCapabilities getStorageCapabilities(StoragePool pool) {
+        if (pool == null) {
+            return BackupStorageCapabilities.UNSUPPORTED;
+        }
+        DataStore store = dataStoreManager.getPrimaryDataStore(pool.getId());
+        if (store == null || !(store.getDriver() instanceof PrimaryDataStoreDriver)) {
+            return BackupStorageCapabilities.UNSUPPORTED;
+        }
+        BackupStorageCapabilities capabilities = ((PrimaryDataStoreDriver) store.getDriver())
+                .getBackupStorageCapabilities(pool);
+        return capabilities == null ? BackupStorageCapabilities.UNSUPPORTED : capabilities;
+    }
+
+    protected boolean isStorageSnapshot(Volume volume) {
+        return volume != null && volume.getPoolId() != null &&
+                getStorageCapabilities(primaryDataStoreDao.findById(volume.getPoolId())).supportsNativeSnapshots();
+    }
+
+    protected StorageBackupVolume storageSnapshotIdentity(Volume volume) {
+        StoragePoolVO pool = primaryDataStoreDao.findById(volume.getPoolId());
+        if (!getStorageCapabilities(pool).supportsNativeSnapshots()) {
+            throw new CloudRuntimeException("Storage provider does not support native snapshot export");
+        }
+        if (StringUtils.isNotBlank(volume.getEncryptFormat())) {
+            throw new CloudRuntimeException("Encrypted raw snapshot export is not supported by this transport");
+        }
+        return new StorageBackupVolume(pool.getPoolType(), pool.getUuid(), volume.getUuid(), volume.getPath());
+    }
+
+    protected void requireStorageSnapshotEnabled(StoragePool pool) {
+        if (!getStorageCapabilities(pool).isFullBackupEnabled()) {
+            throw new CloudRuntimeException("Native full backup is disabled by the storage provider");
+        }
+    }
+
+    protected StorageBackupVolume storageSnapshotSource(VMInstanceVO vm) {
+        List<VolumeVO> volumes = volumeDao.findByInstance(vm.getId());
+        if (volumes.stream().noneMatch(this::isStorageSnapshot)) {
+            return null;
+        }
+        StoragePoolVO pool = primaryDataStoreDao.findById(volumes.get(0).getPoolId());
+        requireStorageSnapshotEnabled(pool);
+        if (volumes.size() != 1 || volumes.size() > getStorageCapabilities(pool).getMaximumDisks()) {
+            throw new CloudRuntimeException("Native full backup exceeds the provider/transport disk limit; mixed storage is unsupported");
+        }
+        return storageSnapshotIdentity(volumes.get(0));
+    }
+
+    protected StorageBackupVolume storageSnapshotBackupVolume(BackupVO backup) {
+        BackupDetailVO detail = backupDetailsDao.findDetail(backup.getId(), STORAGE_FULL_VOLUME);
+        if (detail == null) {
+            return null;
+        }
+        StorageBackupVolume volume = new Gson().fromJson(detail.getValue(), StorageBackupVolume.class);
+        volume.validate();
+        return volume;
+    }
+
+    protected void releaseStorageSnapshot(BackupVO backup, StorageBackupVolume volume) {
+        StopBackupCommand cmd = new StopBackupCommand(null, backup.getVmId(), backup.getId());
+        cmd.setStorageSnapshot(volume, backup.getUuid());
+        try {
+            Answer answer = agentManager.send(backup.getHostId(), cmd);
+            if (answer == null || !answer.getResult()) {
+                throw new CloudRuntimeException("Storage snapshot snapshot cleanup failed; backup ownership metadata retained");
+            }
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new CloudRuntimeException("Storage snapshot snapshot cleanup pending; backup ownership metadata retained", e);
+        }
+    }
+
+    protected Backup startStorageSnapshotBackup(VMInstanceVO vm, BackupVO backup, StorageBackupVolume volume) {
+        if (backup.getStatus() == Backup.Status.ReadyForImageTransfer || backup.getStatus() == Backup.Status.BackedUp) {
+            return backup;
+        }
+        if (backup.getStatus() != Backup.Status.Queued) {
+            throw new CloudRuntimeException("Storage snapshot backup is not queued for capture");
+        }
+        StartBackupCommand cmd = new StartBackupCommand(vm.getInstanceName(), null, null, null,
+                backup.getUuid(), Collections.emptyMap(), Collections.emptyMap(), vm.getState() == State.Stopped);
+        cmd.setStorageBackupVolume(volume);
+        try {
+            Answer answer = agentManager.send(backup.getHostId(), cmd);
+            if (answer == null || !answer.getResult()) {
+                throw new CloudRuntimeException("Unable to start Storage snapshot full backup: " + (answer == null ? "no agent answer" : answer.getDetails()));
+            }
+            updateBackupState(backup, Backup.Status.ReadyForImageTransfer);
+            queueBackupFinalizeWaitWorkJob(vm, backup);
+            return backup;
+        } catch (AgentUnavailableException | OperationTimedoutException | RuntimeException e) {
+            updateBackupState(backup, Backup.Status.Error);
+            try {
+                releaseStorageSnapshot(backup, volume);
+            } catch (RuntimeException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw new CloudRuntimeException("Storage snapshot full backup failed; session metadata retained for cleanup", e);
+        }
+    }
 
     private Boolean isZoneCompatible(Long zoneId) {
         if (!BackupFrameworkEnabled.valueIn(zoneId)) {
@@ -184,6 +327,13 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     @Override
     public Backup createBackup(StartBackupCmd cmd) {
+        if (volumeDao.findByInstance(cmd.getVmId()).stream().anyMatch(this::isStorageSnapshot)) {
+            return withStorageSnapshotLock("vm-" + cmd.getVmId(), () -> createBackupInternal(cmd));
+        }
+        return createBackupInternal(cmd);
+    }
+
+    protected Backup createBackupInternal(StartBackupCmd cmd) {
         Long vmId = cmd.getVmId();
 
         VMInstanceVO vm = vmInstanceDao.findById(vmId);
@@ -203,6 +353,10 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         }
 
         validateVmVolumesForBackup(vm);
+        StorageBackupVolume storageBackupVolume = storageSnapshotSource(vm);
+        if (storageBackupVolume != null && existingBackup != null && existingBackup.getStatus() != Backup.Status.BackedUp) {
+            throw new CloudRuntimeException("A Storage snapshot backup session already exists for this VM");
+        }
 
         Pair<Long, Long> clusterAndHostId = virtualMachineManager.findClusterAndHostIdForVm(vm, false);
         Long hostId = clusterAndHostId.second();
@@ -232,12 +386,16 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         Map<String, String> vmDetails = vmInstanceDetailsDao.listDetailsKeyPairs(vmId);
         String fromCheckpointId = vmDetails.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID);
 
-        backup.setToCheckpointId(toCheckpointId);
-        backup.setFromCheckpointId(fromCheckpointId);
+        backup.setToCheckpointId(storageBackupVolume == null ? toCheckpointId : null);
+        backup.setFromCheckpointId(storageBackupVolume == null ? fromCheckpointId : null);
         backup.setType("FULL");
         backup.setHostId(hostId);
 
-        return backupDao.persist(backup);
+        BackupVO persisted = backupDao.persist(backup);
+        if (storageBackupVolume != null) {
+            backupDetailsDao.addDetail(persisted.getId(), STORAGE_FULL_VOLUME, new Gson().toJson(storageBackupVolume), false);
+        }
+        return persisted;
     }
 
     protected void removeFailedBackup(BackupVO backup) {
@@ -276,6 +434,10 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         if (vm == null) {
             removeFailedBackup(backup);
             throw new CloudRuntimeException("Instance not found for Backup: " + backup.getUuid());
+        }
+        StorageBackupVolume storageBackupVolume = storageSnapshotBackupVolume(backup);
+        if (storageBackupVolume != null) {
+            return withStorageSnapshotLock("vm-" + vmId, () -> startStorageSnapshotBackup(vm, backupDao.findById(backup.getId()), storageBackupVolume));
         }
         boolean isVmStopped = vm.getState() == State.Stopped;
 
@@ -373,6 +535,20 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     @Override
     public Backup finalizeBackup(FinalizeBackupCmd cmd) {
+        BackupVO backup = backupDao.findByIdIncludingRemoved(cmd.getBackupId());
+        if (backup != null && storageSnapshotBackupVolume(backup) != null) {
+            return withStorageSnapshotLock("vm-" + backup.getVmId(), () -> {
+                BackupVO current = backupDao.findByIdIncludingRemoved(backup.getId());
+                if (current.getStatus() == Backup.Status.BackedUp) {
+                    return current;
+                }
+                return finalizeBackupInternal(cmd);
+            });
+        }
+        return finalizeBackupInternal(cmd);
+    }
+
+    protected Backup finalizeBackupInternal(FinalizeBackupCmd cmd) {
         Long vmId = cmd.getVmId();
         Long backupId = cmd.getBackupId();
 
@@ -391,17 +567,31 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             throw new CloudRuntimeException("VM not found: " + vmId);
         }
 
-        updateBackupState(backup, Backup.Status.FinalizingImageTransfer);
+        boolean failedStorageSnapshotBackup = storageSnapshotBackupVolume(backup) != null &&
+                (backup.getStatus() == Backup.Status.Error || backup.getStatus() == Backup.Status.Failed);
+        if (!failedStorageSnapshotBackup) {
+            updateBackupState(backup, Backup.Status.FinalizingImageTransfer);
+        }
 
         List<ImageTransferVO> transfers = imageTransferDao.listByBackupId(backupId);
         for (ImageTransferVO transfer : transfers) {
             if (transfer.getPhase() != ImageTransferVO.Phase.finished) {
                 logger.warn("Finalize called for backup {} while Image transfer {} is not finalized, attempting to finalize it", backup.getUuid(), transfer.getUuid());
-                finalizeImageTransfer(transfer.getId());
+                if (isStorageSnapshotTransfer(transfer)) {
+                    finishStorageSnapshotImageTransfer(transfer, false);
+                } else {
+                    finalizeImageTransfer(transfer.getId());
+                }
             }
         }
 
-        if (vm.getState() == State.Running) {
+        StorageBackupVolume storageBackupVolume = storageSnapshotBackupVolume(backup);
+        if (storageBackupVolume != null) {
+            releaseStorageSnapshot(backup, storageBackupVolume);
+            if (failedStorageSnapshotBackup) {
+                return backup;
+            }
+        } else if (vm.getState() == State.Running) {
             StopBackupCommand stopCmd = new StopBackupCommand(vm.getInstanceName(), vmId, backupId);
 
             StopBackupAnswer answer;
@@ -418,7 +608,9 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             }
         }
 
-        updateVmCheckpoints(vmId, backup);
+        if (storageBackupVolume == null) {
+            updateVmCheckpoints(vmId, backup);
+        }
 
         updateBackupState(backup, Backup.Status.BackedUp);
         backupDao.remove(backup.getId());
@@ -546,6 +738,19 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         }
     }
 
+    protected void startStorageSnapshotNBDServer(String transferId, String direction, Long hostId, StorageBackupVolume volume, String backupUuid) {
+        StartNBDServerCommand cmd = new StartNBDServerCommand(transferId, volume.getVolumeUuid(), null, transferId, direction, null, null);
+        cmd.setStorageBackupVolume(volume, backupUuid);
+        try {
+            Answer answer = agentManager.send(hostId, cmd);
+            if (answer == null || !answer.getResult()) {
+                throw new CloudRuntimeException("Unable to start Storage snapshot raw NBD export");
+            }
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new CloudRuntimeException("Storage snapshot NBD startup is unresolved; retain session for cleanup", e);
+        }
+    }
+
     private String getVolumePathPrefix(StoragePoolVO storagePool) {
         if (ScopeType.HOST.equals(storagePool.getScope())) {
                 return storagePool.getPath();
@@ -653,6 +858,147 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     }
 
+    protected void validateStorageSnapshotRestoreTarget(VolumeVO volume, ImageTransfer.Format format) {
+        requireStorageSnapshotEnabled(primaryDataStoreDao.findById(volume.getPoolId()));
+        com.cloud.storage.VolumeDetailVO marker = volumeDetailsDao.findDetail(volume.getId(), RestoreTargetDetail);
+        if (format != ImageTransfer.Format.raw || volume.getInstanceId() != null || volume.getAttached() != null || volume.getState() != Volume.State.Ready ||
+                marker == null || !volume.getUuid().equals(marker.getValue())) {
+            throw new CloudRuntimeException("Storage snapshot upload requires a new, unattached raw restore target");
+        }
+        storageSnapshotIdentity(volume);
+    }
+
+    protected ImageTransferVO createStorageSnapshotImageTransfer(VolumeVO volume, BackupVO backup, ImageTransfer.Direction direction,
+                                                        ImageTransfer.Format format) {
+        StorageBackupVolume identity;
+        Host host;
+        if (direction == ImageTransfer.Direction.upload) {
+            validateStorageSnapshotRestoreTarget(volume, format);
+            identity = storageSnapshotIdentity(volume);
+            host = getStorageSnapshotRestoreHost(primaryDataStoreDao.findById(volume.getPoolId()));
+        } else {
+            identity = backup == null ? null : storageSnapshotBackupVolume(backup);
+            if (identity == null || !volume.getUuid().equals(identity.getVolumeUuid()) ||
+                    !backup.getVmId().equals(volume.getInstanceId()) || backup.getStatus() != Backup.Status.ReadyForImageTransfer) {
+                throw new CloudRuntimeException("Disk does not belong to the Storage snapshot backup ready for transfer");
+            }
+            host = hostDao.findById(backup.getHostId());
+        }
+        if (host == null || host.getStatus() != com.cloud.host.Status.Up) {
+            throw new CloudRuntimeException("Storage snapshot transfer requires an Up KVM host");
+        }
+        String id = UUID.randomUUID().toString();
+        ImageTransferVO transfer = new ImageTransferVO(id, backup == null ? null : backup.getId(), volume.getId(), host.getId(),
+                id, ImageTransfer.Phase.initializing, direction, volume.getAccountId(), volume.getDomainId(), volume.getDataCenterId());
+        // Persist the export identity before any agent request, including requests whose answer may be lost.
+        transfer = imageTransferDao.persist(transfer);
+        try {
+            if (direction == ImageTransfer.Direction.upload) {
+                Volume.State.getStateMachine().transitTo(volume, Volume.Event.RestoreRequested, null, volumeDao);
+            }
+            startStorageSnapshotNBDServer(id, direction.toString(), host.getId(), identity, backup == null ? null : backup.getUuid());
+            // From this point registration might complete even if its reply is lost.
+            transfer.setPhase(ImageTransfer.Phase.transferring);
+            imageTransferDao.update(transfer.getId(), transfer);
+            CreateImageTransferCommand cmd = new CreateImageTransferCommand(id, direction.toString(), identity.getVolumeUuid(),
+                    id, null, ImageTransferIdleTimeoutSeconds.valueIn(volume.getDataCenterId()));
+            CreateImageTransferAnswer answer = (CreateImageTransferAnswer) agentManager.send(host.getId(), cmd);
+            if (answer == null || !answer.getResult()) {
+                throw new CloudRuntimeException("Unable to register the Storage snapshot raw image transfer");
+            }
+            transfer.setTransferUrl(answer.getTransferUrl());
+            transfer.setSignedTicketId(answer.getImageTransferId());
+            transfer.setPhase(ImageTransfer.Phase.transferring);
+            imageTransferDao.update(transfer.getId(), transfer);
+            return transfer;
+        } catch (AgentUnavailableException | OperationTimedoutException | NoTransitionException | RuntimeException e) {
+            try {
+                finishStorageSnapshotImageTransfer(transfer, true);
+            } catch (RuntimeException cleanup) {
+                e.addSuppressed(cleanup);
+            }
+            throw new CloudRuntimeException("Storage snapshot transfer failed; unresolved export identity is retained for cleanup", e);
+        }
+    }
+
+    protected Host getStorageSnapshotRestoreHost(StoragePoolVO pool) {
+        List<HostVO> candidates;
+        switch (pool.getScope()) {
+            case CLUSTER:
+                candidates = hostDao.findByClusterId(pool.getClusterId());
+                break;
+            case ZONE:
+                candidates = hostDao.findByDataCenterId(pool.getDataCenterId());
+                break;
+            case HOST:
+                candidates = storagePoolHostDao.listByPoolId(pool.getId()).stream()
+                        .map(association -> hostDao.findById(association.getHostId())).collect(Collectors.toList());
+                break;
+            default:
+                throw new CloudRuntimeException("Unsupported Storage snapshot storage pool scope");
+        }
+        return candidates.stream().filter(host -> host != null && host.getStatus() == com.cloud.host.Status.Up &&
+                host.getHypervisorType() == com.cloud.hypervisor.Hypervisor.HypervisorType.KVM).findFirst()
+                .orElseThrow(() -> new CloudRuntimeException("No Up KVM host is available for Storage snapshot restore"));
+    }
+
+    protected void closeStorageSnapshotImageTransfer(ImageTransferVO transfer) {
+        try {
+            // Unregister drains in-flight requests before NBD or its block device can be released.
+            if (transfer.getPhase() != ImageTransfer.Phase.initializing) {
+                FinalizeImageTransferCommand cmd = new FinalizeImageTransferCommand(transfer.getUuid());
+                cmd.setRequireSafeUnregister(true);
+                Answer unregister = agentManager.send(transfer.getHostId(), cmd);
+                if (unregister == null || !unregister.getResult()) {
+                    throw new CloudRuntimeException("Storage snapshot image-server unregister is unresolved; export ownership retained");
+                }
+            }
+            if (!stopNBDServer(transfer)) {
+                throw new CloudRuntimeException("Storage snapshot transfer cleanup is pending; export ownership retained");
+            }
+        } catch (AgentUnavailableException | OperationTimedoutException e) {
+            throw new CloudRuntimeException("Storage snapshot transfer cleanup is pending; export ownership retained", e);
+        }
+    }
+
+    protected boolean finishStorageSnapshotImageTransfer(ImageTransferVO transfer, boolean cancelled) {
+        ImageTransferVO current = imageTransferDao.findById(transfer.getId());
+        if (current == null) {
+            ImageTransferVO previous = imageTransferDao.findByIdIncludingRemoved(transfer.getId());
+            return previous != null && (cancelled || previous.getPhase() == ImageTransfer.Phase.finished);
+        }
+        closeStorageSnapshotImageTransfer(transfer);
+        if (transfer.getDirection() == ImageTransfer.Direction.upload) {
+            VolumeVO volume = volumeDao.findById(transfer.getVolumeId());
+            if (volume.getState() == Volume.State.Restoring) {
+                try {
+                    Volume.State.getStateMachine().transitTo(volume,
+                            cancelled ? Volume.Event.OperationFailed : Volume.Event.RestoreSucceeded, null, volumeDao);
+                } catch (NoTransitionException e) {
+                    throw new CloudRuntimeException("Unable to finish Storage snapshot restore target", e);
+                }
+            }
+            volumeDetailsDao.removeDetail(volume.getId(), RestoreTargetDetail);
+        } else if (cancelled) {
+            BackupVO backup = backupDao.findById(transfer.getBackupId());
+            updateBackupState(backup, Backup.Status.Error);
+            releaseStorageSnapshot(backup, storageSnapshotBackupVolume(backup));
+        }
+        transfer.setPhase(cancelled ? ImageTransfer.Phase.failed : ImageTransfer.Phase.finished);
+        imageTransferDao.update(transfer.getId(), transfer);
+        imageTransferDao.remove(transfer.getId());
+        return true;
+    }
+
+    protected boolean isStorageSnapshotTransfer(ImageTransferVO transfer) {
+        if (transfer.getBackupId() != null) {
+            BackupVO backup = backupDao.findByIdIncludingRemoved(transfer.getBackupId());
+            return backup != null && storageSnapshotBackupVolume(backup) != null;
+        }
+        VolumeVO volume = volumeDao.findById(transfer.getVolumeId());
+        return volume != null && isStorageSnapshot(volume);
+    }
+
     private ImageTransfer.Backend getImageTransferBackend(ImageTransfer.Format format, ImageTransfer.Direction direction) {
         if (ImageTransfer.Format.cow.equals(format)) {
             if (ImageTransfer.Direction.download.equals(direction)) {
@@ -693,6 +1039,17 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             throw new CloudRuntimeException("Image transfer already exists for volume: " + volume.getUuid());
         }
 
+        if (isStorageSnapshot(volume)) {
+            BackupVO backup = backupId == null ? null : backupDao.findById(backupId);
+            String key = direction == ImageTransfer.Direction.download && backup != null ? "vm-" + backup.getVmId() : "volume-" + volumeId;
+            return withStorageSnapshotLock(key, () -> {
+                if (imageTransferDao.findByVolume(volumeId) != null) {
+                    throw new CloudRuntimeException("A transfer already exists for this Storage snapshot volume");
+                }
+                return createStorageSnapshotImageTransfer(volumeDao.findById(volumeId),
+                        backup == null ? null : backupDao.findById(backup.getId()), direction, format);
+            });
+        }
         ImageTransfer.Backend backend = getImageTransferBackend(format, direction);
         if (ImageTransfer.Direction.upload.equals(direction)) {
             imageTransfer = createUploadImageTransfer(volume, backend);
@@ -707,6 +1064,16 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     @Override
     public boolean cancelImageTransfer(long imageTransferId) {
+        ImageTransferVO transfer = imageTransferDao.findById(imageTransferId);
+        if (transfer == null) {
+            ImageTransferVO previous = imageTransferDao.findByIdIncludingRemoved(imageTransferId);
+            if (previous != null && isStorageSnapshotTransfer(previous)) {
+                return true;
+            }
+        }
+        if (transfer != null && isStorageSnapshotTransfer(transfer)) {
+            return withStorageSnapshotLock(storageSnapshotTransferLock(transfer), () -> finishStorageSnapshotImageTransfer(transfer, true));
+        }
         finalizeImageTransfer(imageTransferId);
         return true;
     }
@@ -730,7 +1097,7 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         }
 
         VMInstanceVO vm = vmInstanceDao.findById(backup.getVmId());
-        if (vm.getState() == State.Stopped) {
+        if (storageSnapshotBackupVolume(backup) != null || vm.getState() == State.Stopped) {
             boolean stopNbdServerResult = stopNBDServer(imageTransfer);
             if (!stopNbdServerResult) {
                 throw new CloudRuntimeException("Failed to stop the nbd server");
@@ -742,6 +1109,15 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         String transferId = imageTransfer.getUuid();
         String direction = imageTransfer.getDirection().toString();
         StopNBDServerCommand stopNbdServerCommand = new StopNBDServerCommand(transferId, direction);
+        VolumeVO volume = volumeDao.findById(imageTransfer.getVolumeId());
+        if (imageTransfer.getBackupId() != null) {
+            BackupVO backup = backupDao.findByIdIncludingRemoved(imageTransfer.getBackupId());
+            if (backup != null) {
+                stopNbdServerCommand.setStorageBackupVolume(storageSnapshotBackupVolume(backup));
+            }
+        } else if (volume != null && isStorageSnapshot(volume)) {
+            stopNbdServerCommand.setStorageBackupVolume(storageSnapshotIdentity(volume));
+        }
         Answer answer;
         try {
             answer = agentManager.send(imageTransfer.getHostId(), stopNbdServerCommand);
@@ -778,6 +1154,9 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         Volume.Event event = failureReason == null ? Volume.Event.RestoreSucceeded : Volume.Event.RestoreFailed;
 
         VolumeVO volume = volumeDao.findById(imageTransfer.getVolumeId());
+        if (isStorageSnapshot(volume)) {
+            volumeDetailsDao.removeDetail(volume.getId(), RestoreTargetDetail);
+        }
         try {
             final StateMachine2<Volume.State, Volume.Event, Volume> stateMachine = Volume.State.getStateMachine();
             stateMachine.transitTo(volume, event, null, volumeDao);
@@ -799,9 +1178,16 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
     public boolean finalizeImageTransfer(final long imageTransferId) {
         ImageTransferVO imageTransfer = imageTransferDao.findById(imageTransferId);
         if (imageTransfer == null) {
+            ImageTransferVO previous = imageTransferDao.findByIdIncludingRemoved(imageTransferId);
+            if (previous != null && isStorageSnapshotTransfer(previous)) {
+                return previous.getPhase() == ImageTransfer.Phase.finished;
+            }
             throw new CloudRuntimeException("Image transfer not found: " + imageTransferId);
         }
 
+        if (isStorageSnapshotTransfer(imageTransfer)) {
+            return withStorageSnapshotLock(storageSnapshotTransferLock(imageTransfer), () -> finishStorageSnapshotImageTransfer(imageTransfer, false));
+        }
         if (imageTransfer.getDirection().equals(ImageTransfer.Direction.download)) {
             finalizeDownloadImageTransfer(imageTransfer);
         } else {
@@ -848,6 +1234,9 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
             throw new CloudRuntimeException("VM not found: " + vmId);
         }
         List<CheckpointResponse> responses = new ArrayList<>();
+        if (volumeDao.findByInstance(vmId).stream().anyMatch(this::isStorageSnapshot)) {
+            return responses;
+        }
 
         Map<String, String> details = vmInstanceDetailsDao.listDetailsKeyPairs(vmId);
         String activeCheckpointId = details.get(VmDetailConstants.ACTIVE_CHECKPOINT_ID);
@@ -897,6 +1286,9 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
         VMInstanceVO vm = vmInstanceDao.findById(cmd.getVmId());
         if (vm == null) {
             throw new CloudRuntimeException("VM not found: " + cmd.getVmId());
+        }
+        if (volumeDao.findByInstance(vm.getId()).stream().anyMatch(this::isStorageSnapshot)) {
+            throw new CloudRuntimeException("Storage snapshot full backups do not have QCOW2 checkpoints");
         }
 
         verifyKVMBackupExportServiceSupported(vm.getDataCenterId());
@@ -975,12 +1367,72 @@ public class KVMBackupExportServiceImpl extends ManagerBase implements KVMBackup
 
     @Override
     public boolean start() {
+        storageSnapshotCleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread thread = new Thread(r, "storage-backup-cleanup");
+            thread.setDaemon(true);
+            return thread;
+        });
+        storageSnapshotCleanupExecutor.scheduleWithFixedDelay(this::reconcileStorageSnapshotSessions, 60, 60, TimeUnit.SECONDS);
         return true;
     }
 
     @Override
     public boolean stop() {
+        if (storageSnapshotCleanupExecutor != null) {
+            storageSnapshotCleanupExecutor.shutdownNow();
+        }
         return true;
+    }
+
+    protected boolean storageSnapshotSessionExpired(Date created, StoragePool pool) {
+        BackupStorageCapabilities capabilities = getStorageCapabilities(pool);
+        if (!capabilities.supportsNativeSnapshots()) {
+            throw new CloudRuntimeException("Storage provider is unavailable for session recovery");
+        }
+        long seconds = capabilities.getSessionTimeoutSeconds();
+        return created != null && System.currentTimeMillis() - created.getTime() > Math.max(60L, seconds) * 1000L;
+    }
+
+    protected void reconcileStorageSnapshotSessions() {
+        try {
+            // Only metadata belonging to this full-export implementation is eligible for recovery.
+            for (BackupVO backup : backupDao.listAll()) {
+                StorageBackupVolume volume = storageSnapshotBackupVolume(backup);
+                if (volume == null || (backup.getStatus() != Backup.Status.Error && !storageSnapshotSessionExpired(backup.getDate(), primaryDataStoreDao.findByUuid(volume.getPoolUuid())))) {
+                    continue;
+                }
+                try {
+                    withStorageSnapshotLock("vm-" + backup.getVmId(), () -> {
+                        BackupVO current = backupDao.findById(backup.getId());
+                        if (current == null || current.getStatus() == Backup.Status.BackedUp ||
+                                (current.getStatus() != Backup.Status.Error && !storageSnapshotSessionExpired(current.getDate(), primaryDataStoreDao.findByUuid(volume.getPoolUuid())))) {
+                            return true;
+                        }
+                        for (ImageTransferVO transfer : imageTransferDao.listByBackupId(backup.getId())) {
+                            finishStorageSnapshotImageTransfer(transfer, true);
+                        }
+                        releaseStorageSnapshot(backup, volume);
+                        updateBackupState(backup, Backup.Status.Error);
+                        backupDao.remove(backup.getId());
+                        return true;
+                    });
+                } catch (RuntimeException e) {
+                    logger.warn("Storage snapshot backup cleanup pending for {}; ownership metadata retained", backup.getUuid(), e);
+                }
+            }
+            for (ImageTransferVO transfer : imageTransferDao.listAll()) {
+                if (transfer.getDirection() == ImageTransfer.Direction.upload && isStorageSnapshotTransfer(transfer) &&
+                        storageSnapshotSessionExpired(transfer.getCreated(), primaryDataStoreDao.findById(volumeDao.findById(transfer.getVolumeId()).getPoolId()))) {
+                    try {
+                        withStorageSnapshotLock(storageSnapshotTransferLock(transfer), () -> finishStorageSnapshotImageTransfer(transfer, true));
+                    } catch (RuntimeException e) {
+                        logger.warn("Storage snapshot restore cleanup pending for {}; ownership metadata retained", transfer.getUuid(), e);
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Unable to reconcile Storage snapshot export sessions", e);
+        }
     }
 
     @ReflectionUse

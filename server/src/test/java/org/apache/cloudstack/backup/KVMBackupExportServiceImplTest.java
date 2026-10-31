@@ -92,6 +92,9 @@ public class KVMBackupExportServiceImplTest {
     BackupDao backupDao;
 
     @Mock
+    org.apache.cloudstack.backup.dao.BackupDetailsDao backupDetailsDao;
+
+    @Mock
     ImageTransferDao imageTransferDao;
 
     @Mock
@@ -102,6 +105,9 @@ public class KVMBackupExportServiceImplTest {
 
     @Mock
     PrimaryDataStoreDao primaryDataStoreDao;
+
+    @Mock
+    org.apache.cloudstack.engine.subsystem.api.storage.DataStoreManager dataStoreManager;
 
     @Mock
     AccountService accountService;

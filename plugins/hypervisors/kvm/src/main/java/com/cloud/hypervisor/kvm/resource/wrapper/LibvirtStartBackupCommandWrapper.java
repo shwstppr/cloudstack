@@ -46,10 +46,26 @@ public class LibvirtStartBackupCommandWrapper extends CommandWrapper<StartBackup
 
     @Override
     public Answer execute(StartBackupCommand cmd, LibvirtComputingResource resource) {
+        if (cmd.getStorageBackupVolume() != null) {
+            return startStorageSnapshotBackup(cmd, resource);
+        }
         if (cmd.isStoppedVM()) {
             return handleStoppedVmBackup(cmd, cmd.getToCheckpointId());
         }
         return handleRunningVmBackup(cmd, resource);
+    }
+
+    protected Answer startStorageSnapshotBackup(StartBackupCommand cmd, LibvirtComputingResource resource) {
+        try {
+            if (cmd.getFromCheckpointId() != null || cmd.getToCheckpointId() != null) {
+                throw new IllegalArgumentException("Storage snapshot full backup cannot create or reuse QCOW2 checkpoints");
+            }
+            StorageBackupCommandSupport.pool(cmd.getStorageBackupVolume(), resource).createFullBackupSnapshot(
+                    cmd.getStorageBackupVolume().getVolumePath(), cmd.getSocket());
+            return new StartBackupAnswer(cmd, true, "Storage snapshot full snapshot prepared");
+        } catch (RuntimeException e) {
+            return new StartBackupAnswer(cmd, false, "Unable to prepare Storage snapshot full snapshot: " + e.getMessage());
+        }
     }
 
     public Answer handleRunningVmBackup(StartBackupCommand cmd, LibvirtComputingResource resource) {

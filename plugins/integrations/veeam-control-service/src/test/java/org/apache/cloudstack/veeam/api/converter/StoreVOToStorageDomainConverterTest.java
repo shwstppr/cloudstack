@@ -18,6 +18,7 @@
 package org.apache.cloudstack.veeam.api.converter;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -33,6 +34,17 @@ import com.cloud.storage.Storage;
 import com.cloud.storage.StoragePoolStatus;
 
 public class StoreVOToStorageDomainConverterTest {
+
+    @Test
+    public void testNativeBlockProviderDoesNotAdvertiseAnNfsMount() {
+        StoragePoolJoinVO pool = mock(StoragePoolJoinVO.class);
+        when(pool.getPoolType()).thenReturn(Storage.StoragePoolType.Linstor);
+        when(pool.getUuid()).thenReturn("linstor-pool");
+
+        StorageDomain domain = StoreVOToStorageDomainConverter.toStorageDomain(pool, false);
+        assertEquals("linstor-pool", domain.getId());
+        assertNull(domain.getStorage());
+    }
 
     @Test
     public void testToStorageDomain_FromPrimaryPool() {

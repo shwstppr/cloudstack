@@ -95,3 +95,31 @@ python3 .codex/veeam-linstor/checks/test_deployment.py
 Validated against qa6 on 2026-10-30: read-only health PASS; fresh deployment
 plus cross-host cycle and expunge PASS; all five safety tests PASS. The
 retained `linstor-validation` VM was not cycled or destroyed by these runs.
+
+## Veeam control request summary
+
+After a VBR UI-triggered operation, collect the control request sequence:
+
+```sh
+python3 .codex/veeam-linstor/checks/veeam_trace.py --since 2026-10-30T14:00:00Z
+```
+
+Use the operation's actual UTC start time. This is read-only: it inspects
+the last 20,000 lines of the current management log and saves only time,
+method, sanitized path and status. Query strings, headers and bodies are
+not saved; resource UUIDs are replaced with consistent aliases. It neither
+enables logging nor starts a VBR job. Increase `--lines` (maximum 100,000)
+if needed; rotated logs are not included.
+
+Exit 0 means metadata was found; exit 2 means no evidence in the selected
+tail/window; exit 1 is a collection failure. This is **not** a full protocol
+body trace or proof of a successful backup/restore. Correlate it with VBR
+job/session results, and obtain selected redacted request bodies separately
+where needed to establish the contract. Do not enable broad credential/header
+logging just to collect this summary.
+
+Sanitizer regression checks:
+
+```sh
+python3 .codex/veeam-linstor/checks/test_veeam_trace.py
+```

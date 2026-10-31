@@ -17,6 +17,7 @@
 
 package org.apache.cloudstack.backup;
 
+import com.cloud.storage.StoragePool;
 import java.util.List;
 
 import org.apache.cloudstack.api.command.admin.backup.CreateImageTransferCmd;
@@ -37,6 +38,10 @@ import com.cloud.utils.component.PluggableService;
  * Service for Creating Backups and ImageTransfer sessions which will be consumed by an external orchestrator.
  */
 public interface KVMBackupExportService extends Configurable, PluggableService {
+    String RestoreTargetDetail = "backup.restore.target";
+
+    /** Evaluates the storage provider's capabilities without enabling unsupported backends. */
+    BackupStorageCapabilities getStorageCapabilities(StoragePool pool);
 
     ConfigKey<Integer> ImageTransferIdleTimeoutSeconds = new ConfigKey<>("Advanced", Integer.class,
             "image.transfer.idle.timeout.seconds",

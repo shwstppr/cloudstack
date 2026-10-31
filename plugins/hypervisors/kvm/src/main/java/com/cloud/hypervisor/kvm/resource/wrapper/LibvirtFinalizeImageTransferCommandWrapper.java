@@ -87,6 +87,15 @@ public class LibvirtFinalizeImageTransferCommandWrapper extends CommandWrapper<F
 
         int activeTransfers = ImageServerControlSocket.unregisterTransfer(transferId);
         if (activeTransfers < 0) {
+            if (cmd.isRequireSafeUnregister()) {
+                // A broken control socket does not establish that other transfers have stopped.
+                Script check = new Script("/bin/bash", logger);
+                check.add("-c");
+                check.add("systemctl is-active --quiet " + resource.IMAGE_SERVER_SYSTEMD_UNIT_NAME);
+                String result = check.execute();
+                boolean inactive = result != null && (check.getExitValue() == 3 || check.getExitValue() == 4);
+                return new Answer(cmd, inactive, inactive ? "Image server is confirmed stopped" : "Image server unregister is unresolved");
+            }
             logger.warn("Could not reach image server to unregister transfer {}; assuming server is down", transferId);
             stopImageServer(imageServerPort, resource);
             return new Answer(cmd, true, "Image transfer finalized (server unreachable, forced stop).");

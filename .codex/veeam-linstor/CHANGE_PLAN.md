@@ -1,7 +1,25 @@
 # Proposed file-by-file LINSTOR Veeam changes
 
-Analysis/proposal only; implementation approval pending. Findings and evidence
-are in `FEASIBILITY.md`. No backup was triggered during this assessment.
+The user approved proceeding on 2026-10-30. The first discovery/format slice
+is implemented locally and passed the complete 335-test Veeam control module
+suite. The second slice (single-disk full backup/raw restore) was implemented
+locally on 2026-10-31 after the user resumed implementation. Neither slice
+has been deployed. See `IMPLEMENTATION_STATUS.md` for boundaries and validation.
+Findings and evidence are in `FEASIBILITY.md`.
+
+Implementation note: the initial flag was introduced in `VeeamControlService` as
+`integration.veeam.control.linstor.discovery.enabled` (Zone scope, default
+false). It enables discovery only, leaving `validateInstanceStorage()`'s
+backup guard intact. The separate full-export capability is now
+`kvm.backup.linstor.full.enabled` (Zone scope, default false); it enables
+LINSTOR discovery and the single-disk transport together.
+Raw-format correction is based on pool identity in every disk/attachment
+conversion path; LINSTOR discovery does not fabricate NFS connection metadata.
+
+Provider-boundary refactor requested 2026-10-31: all three LINSTOR settings now
+live in `LinstorConfigurationManager`. Shared code obtains a generic
+`BackupStorageCapabilities` from `PrimaryDataStoreDriver`, and agent commands
+carry generic `StorageBackupVolume` identities. See IMPLEMENTATION_STATUS.md.
 
 ## First slice: truthful discovery, behind a feature flag
 
@@ -28,7 +46,9 @@ advertise application consistency without guest quiescing evidence.
 
 The existing NAS pull-mode scratch implementation is an alternative source
 of reusable mechanics, not a reason to route VBR through the NAS provider.
-Choose the final session/wire shape after the NFS VBR baseline trace.
+The implemented session shape uses the existing backup/image-transfer APIs
+with typed canonical identities in agent commands and ownership in backup
+details. See `VBR_VALIDATION.md` for the observed NFS protocol baseline.
 
 | File | Proposed change / invariant |
 | --- | --- |
@@ -83,8 +103,10 @@ VBR acceptance. Require two VBR incremental restore points plus restores to
 the full and incremental points, measured source/transferred bytes, and a
 tested fallback to full on lost/reset tracking before making claims.
 
-## Inputs still required
+## Baseline obtained; remaining acceptance
 
-VBR server/proxy addresses and access, VBR build, and a successful NFS job
-or approval to create a disposable NFS baseline job. The control API is
-now verified over HTTPS; the VBR/proxy session itself is not yet observed.
+Actual VBR full backup, incremental backup and restore were observed on NFS;
+the user confirmed the restored VM booted. Do not repeat that baseline.
+LINSTOR acceptance still requires deploying matching management/KVM artifacts,
+enabling the full flag in the lab zone, and a UI-triggered VBR full backup
+and independent restore with content verification and cleanup checks.

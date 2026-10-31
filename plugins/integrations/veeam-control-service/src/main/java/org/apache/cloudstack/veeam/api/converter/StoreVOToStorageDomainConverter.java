@@ -36,6 +36,10 @@ public class StoreVOToStorageDomainConverter {
 
     /** Primary storage -> oVirt storage_domain (type=data) */
     public static StorageDomain toStorageDomain(final StoragePoolJoinVO pool) {
+        return toStorageDomain(pool, true);
+    }
+
+    public static StorageDomain toStorageDomain(final StoragePoolJoinVO pool, boolean includeFileConnection) {
         final String basePath = VeeamControlService.ContextPath.value();
 
         final String id = pool.getUuid();
@@ -70,7 +74,10 @@ public class StoreVOToStorageDomainConverter {
         sd.setCriticalSpaceActionBlocker("5");
 
         // Nested storage (try to extract if available)
-        sd.setStorage(buildPrimaryStorage(pool));
+        // A native block-export provider has no file-storage connection metadata.
+        if (includeFileConnection) {
+            sd.setStorage(buildPrimaryStorage(pool));
+        }
 
         // dc attachment
         String dcId = pool.getZoneUuid();

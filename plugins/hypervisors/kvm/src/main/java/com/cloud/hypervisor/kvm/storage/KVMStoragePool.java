@@ -194,6 +194,29 @@ public interface KVMStoragePool {
                 getUuid(), getType()));
     }
 
+    /** Storage providers explicitly opt into the native raw snapshot export contract. */
+    default boolean supportsFullBackupSnapshot() {
+        return false;
+    }
+
+    /** Provider validates its volume identifier before any native export operation. */
+    default void validateBackupVolume(String volumePath) {
+        throw new CloudRuntimeException("Native backup volume validation is not supported by this storage pool");
+    }
+
+    /** Creates an owned native snapshot and returns its export device path. */
+    default String createFullBackupSnapshot(String volumePath, String backupUuid) {
+        throw new CloudRuntimeException("Full snapshot export is not supported by this storage pool");
+    }
+
+    default String getFullBackupSnapshotPath(String volumePath, String backupUuid) {
+        throw new CloudRuntimeException("Full snapshot export is not supported by this storage pool");
+    }
+
+    default void deleteFullBackupSnapshot(String volumePath, String backupUuid) {
+        throw new CloudRuntimeException("Full snapshot export is not supported by this storage pool");
+    }
+
     /**
      * Removes scratch space created by {@link #createBackupScratch(String, List)}. Only valid once the
      * backup job has ended and libvirt has released the devices.

@@ -1,5 +1,15 @@
 # Blockers Codex must resolve, not assume
 
+Status 2026-10-31: repository/topology details are recorded in FEASIBILITY.md
+and APPLIANCE_SETUP.md. VBR 13.1.0.308 with oVirt plugin 13.8.0.281 was
+observed performing NFS full/incremental backup and independent restore;
+see VBR_VALIDATION.md. Questions 1, 2, 4, 5, 6 and the NFS portion of 9 have
+baseline evidence. Full LINSTOR transport is implemented locally (see
+IMPLEMENTATION_STATUS.md); live LINSTOR acceptance remains open. Questions
+3, 7, 8 and LINSTOR incremental portions of 9 remain separate design gates.
+The approved first transport supports one crash-consistent disk; it does
+not establish multi-disk/application consistency or incremental baselines.
+
 1. What exact CloudStack branch and UHAPI code are present? Which VBR version/build?
 2. Which Veeam oVirt endpoints and image transfer modes are invoked for backup and restore?
 3. Does Veeam's oVirt workflow support a custom incremental source, or only vendor-specific CBT semantics?

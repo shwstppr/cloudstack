@@ -19,6 +19,8 @@ package com.cloud.hypervisor.kvm.resource.wrapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.UUID;
 
 import org.apache.cloudstack.backup.StartNBDServerAnswer;
 import org.apache.cloudstack.backup.StartNBDServerCommand;
@@ -30,6 +32,8 @@ import org.json.JSONObject;
 
 import com.cloud.agent.api.Answer;
 import com.cloud.hypervisor.kvm.resource.LibvirtComputingResource;
+import com.cloud.hypervisor.kvm.storage.KVMStoragePool;
+import org.apache.cloudstack.utils.qemu.QemuImg;
 import com.cloud.resource.CommandWrapper;
 import com.cloud.resource.ResourceWrapper;
 import com.cloud.utils.StringUtils;
@@ -39,10 +43,11 @@ import com.cloud.utils.script.Script;
 public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBDServerCommand, Answer, LibvirtComputingResource> {
     protected Logger logger = LogManager.getLogger(getClass());
 
-    private String createSystemdRunCmd(StartNBDServerCommand cmd, String unitName, String volumePath, String exportName, String socket) throws IOException {
+    protected String createSystemdRunCmd(StartNBDServerCommand cmd, String unitName, String volumePath, String exportName, String socket) throws IOException {
         String socketName = "/tmp/imagetransfer/" + socket + ".sock";
 
         String bitmapArg = "";
+        boolean raw = cmd.getStorageBackupVolume() != null;
         if (StringUtils.isNotBlank(cmd.getFromCheckpointId())
                 && isBitmapPresentOnDisk(volumePath, cmd.getFromCheckpointId())) {
             bitmapArg = "-B " + cmd.getFromCheckpointId();
@@ -50,7 +55,7 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
 
         byte[] passphrase = cmd.getPassphrase(); // may be null
         String readOnlyArg = cmd.getDirection().equals("download") ? "--read-only" : "";
-        String imageArg = volumePath;
+        String imageArg = raw ? "--format=raw " + volumePath : volumePath;
         String secretArg = "";
         if (passphrase != null && passphrase.length > 0) {
             KeyFile srcKey = new KeyFile(passphrase);
@@ -77,6 +82,13 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
     @Override
     public Answer execute(StartNBDServerCommand cmd, LibvirtComputingResource resource) {
         String volumePath = cmd.getVolumePath();
+        if (cmd.getStorageBackupVolume() != null) {
+            try {
+                volumePath = resolveStorageSnapshotPath(cmd, resource);
+            } catch (RuntimeException e) {
+                return new StartNBDServerAnswer(cmd, false, "Unable to resolve Storage snapshot export: " + e.getMessage());
+            }
+        }
         String socket = cmd.getSocket();
         String exportName = cmd.getExportName();
         String transferId = cmd.getTransferId();
@@ -91,7 +103,7 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
             return new StartNBDServerAnswer(cmd, false, "Socket is required for the nbd server");
         }
 
-        String unitName = "qemu-nbd-" + transferId.hashCode();
+        String unitName = cmd.getStorageBackupVolume() == null ? "qemu-nbd-" + transferId.hashCode() : StorageBackupCommandSupport.unitName(transferId);
 
         Script checkScript = new Script("/bin/bash", logger);
         checkScript.add("-c");
@@ -157,6 +169,32 @@ public class LibvirtStartNBDServerCommandWrapper extends CommandWrapper<StartNBD
         String transferUrl = String.format("nbd+unix:///%s", cmd.getSocket());
         return new StartNBDServerAnswer(cmd, true, "qemu-nbd service started for upload",
                     transferId, transferUrl);
+    }
+
+    protected String resolveStorageSnapshotPath(StartNBDServerCommand cmd, LibvirtComputingResource resource) {
+        UUID.fromString(cmd.getTransferId());
+        if (!cmd.getTransferId().equals(cmd.getSocket()) ||
+                !cmd.getStorageBackupVolume().getVolumeUuid().equals(cmd.getExportName()) ||
+                cmd.getFromCheckpointId() != null || cmd.getPassphrase() != null) {
+            throw new IllegalArgumentException("Invalid Storage snapshot full-transfer parameters");
+        }
+        KVMStoragePool pool = StorageBackupCommandSupport.pool(cmd.getStorageBackupVolume(), resource);
+        if ("download".equals(cmd.getDirection())) {
+            UUID.fromString(cmd.getBackupUuid());
+            return pool.getFullBackupSnapshotPath(cmd.getStorageBackupVolume().getVolumePath(), cmd.getBackupUuid());
+        }
+        if (!"upload".equals(cmd.getDirection()) || cmd.getBackupUuid() != null) {
+            throw new IllegalArgumentException("Invalid Storage snapshot transfer direction");
+        }
+        String path = cmd.getStorageBackupVolume().getVolumePath();
+        if (!pool.connectPhysicalDisk(path, Collections.emptyMap())) {
+            throw new IllegalStateException("Unable to attach the new Storage snapshot restore target");
+        }
+        com.cloud.hypervisor.kvm.storage.KVMPhysicalDisk disk = pool.getPhysicalDisk(path);
+        if (disk == null || disk.getFormat() != QemuImg.PhysicalDiskFormat.RAW || !disk.getPath().startsWith("/dev/")) {
+            throw new IllegalStateException("Storage snapshot restore target is not a raw block device");
+        }
+        return disk.getPath();
     }
 
     private boolean isBitmapPresentOnDisk(String volumePath, String fromCheckpointId) {

@@ -425,6 +425,33 @@ public class LinstorStoragePool implements KVMStoragePool {
     }
 
     @Override
+    public boolean supportsFullBackupSnapshot() {
+        return true;
+    }
+
+    @Override
+    public void validateBackupVolume(String volumePath) {
+        if (volumePath == null || !java.util.UUID.fromString(volumePath).toString().equals(volumePath)) {
+            throw new IllegalArgumentException("LINSTOR backup requires a canonical volume path UUID");
+        }
+    }
+
+    @Override
+    public String createFullBackupSnapshot(String volumePath, String backupUuid) {
+        return ((LinstorStorageAdaptor) _storageAdaptor).createFullBackupSnapshot(this, volumePath, backupUuid);
+    }
+
+    @Override
+    public String getFullBackupSnapshotPath(String volumePath, String backupUuid) {
+        return ((LinstorStorageAdaptor) _storageAdaptor).getFullBackupSnapshotPath(this, volumePath, backupUuid);
+    }
+
+    @Override
+    public void deleteFullBackupSnapshot(String volumePath, String backupUuid) {
+        ((LinstorStorageAdaptor) _storageAdaptor).deleteFullBackupSnapshot(this, volumePath, backupUuid);
+    }
+
+    @Override
     public Boolean hasVmActivity(HAStoragePool pool, HostTO host, Duration activityScriptTimeout, String volumeUUIDListString, String vmActivityCheckPath, long duration) {
         LOGGER.trace(String.format("Linstor.vmActivityCheck: %s, %s", pool.getPoolIp(), host.getPrivateNetwork().getIp()));
         return hasHeartBeat(pool, host);

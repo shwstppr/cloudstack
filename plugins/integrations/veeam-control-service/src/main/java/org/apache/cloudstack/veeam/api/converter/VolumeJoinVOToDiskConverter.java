@@ -41,6 +41,11 @@ import com.cloud.storage.Volume;
 
 public class VolumeJoinVOToDiskConverter {
     public static Disk toDisk(final VolumeJoinVO vol, final Function<VolumeJoinVO, Long> physicalSizeResolver) {
+        return toDisk(vol, physicalSizeResolver, null);
+    }
+
+    public static Disk toDisk(final VolumeJoinVO vol, final Function<VolumeJoinVO, Long> physicalSizeResolver,
+                              final Function<VolumeJoinVO, Storage.ImageFormat> formatResolver) {
         final Disk disk = new Disk();
         final String basePath = VeeamControlService.ContextPath.value();
         final String apiBasePath = basePath + ApiRouteHandler.BASE_ROUTE;
@@ -72,8 +77,11 @@ public class VolumeJoinVOToDiskConverter {
         }
 
         // Disk format
-        disk.setFormat(mapFormat(vol.getFormat()));
-        disk.setQcowVersion("qcow2_v3");
+        final Storage.ImageFormat format = formatResolver == null ? vol.getFormat() : formatResolver.apply(vol);
+        disk.setFormat(mapFormat(format));
+        if (!Storage.ImageFormat.RAW.equals(format)) {
+            disk.setQcowVersion("qcow2_v3");
+        }
 
         // Content & storage
         disk.setContentType("data");
@@ -116,8 +124,14 @@ public class VolumeJoinVOToDiskConverter {
 
     public static List<Disk> toDiskList(final List<VolumeJoinVO> srcList,
                         final Function<VolumeJoinVO, Long> physicalSizeResolver) {
+        return toDiskList(srcList, physicalSizeResolver, null);
+    }
+
+    public static List<Disk> toDiskList(final List<VolumeJoinVO> srcList,
+                        final Function<VolumeJoinVO, Long> physicalSizeResolver,
+                        final Function<VolumeJoinVO, Storage.ImageFormat> formatResolver) {
         return srcList.stream()
-                .map(vo -> toDisk(vo, physicalSizeResolver))
+                .map(vo -> toDisk(vo, physicalSizeResolver, formatResolver))
                 .collect(Collectors.toList());
     }
 
@@ -138,6 +152,12 @@ public class VolumeJoinVOToDiskConverter {
 
     public static  DiskAttachment toDiskAttachment(final VolumeJoinVO vol,
                            final Function<VolumeJoinVO, Long> physicalSizeResolver) {
+        return toDiskAttachment(vol, physicalSizeResolver, null);
+    }
+
+    public static DiskAttachment toDiskAttachment(final VolumeJoinVO vol,
+                           final Function<VolumeJoinVO, Long> physicalSizeResolver,
+                           final Function<VolumeJoinVO, Storage.ImageFormat> formatResolver) {
         final DiskAttachment da = new DiskAttachment();
         final String basePath = VeeamControlService.ContextPath.value();
 
@@ -148,7 +168,7 @@ public class VolumeJoinVOToDiskConverter {
         da.setHref(da.getVm().getHref() + "/diskattachments/" + diskAttachmentId);;
 
         // Links
-        da.setDisk(toDisk(vol, physicalSizeResolver));
+        da.setDisk(toDisk(vol, physicalSizeResolver, formatResolver));
 
         // Properties
         da.setActive("true");
@@ -165,8 +185,14 @@ public class VolumeJoinVOToDiskConverter {
 
     public static List<DiskAttachment> toDiskAttachmentList(final List<VolumeJoinVO> srcList,
                             final Function<VolumeJoinVO, Long> physicalSizeResolver) {
+        return toDiskAttachmentList(srcList, physicalSizeResolver, null);
+    }
+
+    public static List<DiskAttachment> toDiskAttachmentList(final List<VolumeJoinVO> srcList,
+                            final Function<VolumeJoinVO, Long> physicalSizeResolver,
+                            final Function<VolumeJoinVO, Storage.ImageFormat> formatResolver) {
         return srcList.stream()
-                .map(vo -> toDiskAttachment(vo, physicalSizeResolver))
+                .map(vo -> toDiskAttachment(vo, physicalSizeResolver, formatResolver))
                 .collect(Collectors.toList());
     }
 

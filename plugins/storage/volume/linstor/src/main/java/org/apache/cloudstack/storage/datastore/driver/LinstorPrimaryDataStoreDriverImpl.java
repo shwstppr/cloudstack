@@ -16,6 +16,7 @@
 // under the License.
 package org.apache.cloudstack.storage.datastore.driver;
 
+import org.apache.cloudstack.backup.BackupStorageCapabilities;
 import com.linbit.linstor.api.ApiException;
 import org.apache.cloudstack.storage.datastore.util.LinstorImportHelper;
 import com.linbit.linstor.api.CloneWaiter;
@@ -140,6 +141,15 @@ public class LinstorPrimaryDataStoreDriverImpl implements PrimaryDataStoreDriver
 
     public LinstorPrimaryDataStoreDriverImpl()
     {
+    }
+
+    @Override
+    public BackupStorageCapabilities getBackupStorageCapabilities(StoragePool pool) {
+        boolean enabled = Boolean.TRUE.equals(LinstorConfigurationManager.FullBackupEnabled.valueIn(pool.getDataCenterId()));
+        boolean discovery = enabled || Boolean.TRUE.equals(LinstorConfigurationManager.BackupDiscoveryEnabled.valueIn(pool.getDataCenterId()));
+        return new BackupStorageCapabilities(true, discovery, enabled,
+                com.cloud.storage.Storage.ImageFormat.RAW, 1,
+                LinstorConfigurationManager.BackupSessionTimeoutSeconds.valueIn(pool.getDataCenterId()));
     }
 
     @Override

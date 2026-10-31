@@ -23,6 +23,8 @@ public class StopBackupCommand extends Command {
     private String vmName;
     private Long vmId;
     private Long backupId;
+    private StorageBackupVolume storageBackupVolume;
+    private String backupUuid;
 
     public StopBackupCommand() {
     }
@@ -35,6 +37,13 @@ public class StopBackupCommand extends Command {
 
     public String getVmName() {
         return vmName;
+    }
+
+    public StorageBackupVolume getStorageBackupVolume() { return storageBackupVolume; }
+    public String getBackupUuid() { return backupUuid; }
+    public void setStorageSnapshot(StorageBackupVolume volume, String uuid) {
+        storageBackupVolume = volume;
+        backupUuid = uuid;
     }
 
     public Long getVmId() {

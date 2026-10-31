@@ -18,6 +18,7 @@
  */
 package org.apache.cloudstack.engine.subsystem.api.storage;
 
+import org.apache.cloudstack.backup.BackupStorageCapabilities;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +39,11 @@ public interface PrimaryDataStoreDriver extends DataStoreDriver {
         if (pool.getPoolType() == StoragePoolType.Linstor) {
             throw new UnsupportedOperationException("The storage driver cannot validate LINSTOR volume imports");
         }
+    }
+
+    /** Native backup export is opt-in; existing file-backed backup remains independent. */
+    default BackupStorageCapabilities getBackupStorageCapabilities(StoragePool pool) {
+        return BackupStorageCapabilities.UNSUPPORTED;
     }
 
     enum QualityOfServiceState { MIGRATION, NO_MIGRATION }

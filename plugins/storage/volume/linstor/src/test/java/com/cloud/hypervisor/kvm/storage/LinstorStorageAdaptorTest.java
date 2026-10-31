@@ -66,6 +66,15 @@ import com.linbit.linstor.api.model.VolumeDefinitionCreate;
 @RunWith(MockitoJUnitRunner.class)
 public class LinstorStorageAdaptorTest {
 
+    @Test
+    public void nativeBackupPathValidationIsProvidedByLinstorPool() {
+        Assert.assertTrue(pool.supportsFullBackupSnapshot());
+        pool.validateBackupVolume("00000000-0000-0000-0000-000000000001");
+        Assert.assertThrows(IllegalArgumentException.class, () -> pool.validateBackupVolume("provider-owned-handle"));
+        Assert.assertThrows(IllegalArgumentException.class, () -> pool.validateBackupVolume("/dev/drbd1000"));
+        Mockito.verifyNoInteractions(api);
+    }
+
     private static final String DEVICE = "/dev/drbd/by-res/cs-vol-1/0";
 
     private LinstorStorageAdaptor adaptor;
@@ -341,4 +350,98 @@ public class LinstorStorageAdaptorTest {
         Assert.assertSame(registered, adaptor.getStoragePool("pool-http://sweep-3:3370"));
         verify(api, never()).resourceDefinitionDelete(anyString());
     }
+    private static final String FULL_VOLUME = "00000000-0000-0000-0000-000000000002";
+    private static final String FULL_BACKUP = "00000000-0000-0000-0000-000000000003";
+
+    private java.util.Map<String, ResourceDefinition> fullBackupDefinitions() throws ApiException {
+        java.util.Map<String, ResourceDefinition> definitions = new java.util.HashMap<>();
+        ResourceDefinition source = new ResourceDefinition();
+        source.setName("cs-" + FULL_VOLUME);
+        source.setResourceGroupName(pool.getResourceGroup());
+        definitions.put(source.getName(), source);
+        when(api.resourceDefinitionList(Mockito.anyList(), eq(false), Mockito.isNull(), Mockito.isNull(), Mockito.isNull()))
+                .thenAnswer(invocation -> {
+                    List<String> names = invocation.getArgument(0);
+                    return definitions.values().stream().filter(rd -> names.contains(rd.getName())).collect(java.util.stream.Collectors.toList());
+                });
+        when(api.resourceDefinitionCreate(any())).thenAnswer(invocation -> {
+            ResourceDefinition rd = ((ResourceDefinitionCreate) invocation.getArgument(0)).getResourceDefinition();
+            definitions.put(rd.getName(), rd);
+            return success();
+        });
+        return definitions;
+    }
+
+    @Test
+    public void fullBackupCreatesOwnedSnapshotAndSeparateCloneWithoutMutatingSource() throws ApiException {
+        java.util.Map<String, ResourceDefinition> definitions = fullBackupDefinitions();
+        String name = LinstorStorageAdaptor.fullBackupName(FULL_BACKUP);
+        java.util.concurrent.atomic.AtomicReference<com.linbit.linstor.api.model.Snapshot> snapshot = new java.util.concurrent.atomic.AtomicReference<>();
+        when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenAnswer(invocation -> snapshot.get());
+        when(api.resourceSnapshotCreate(eq("cs-" + FULL_VOLUME), any())).thenAnswer(invocation -> {
+            snapshot.set(invocation.getArgument(1)); return success();
+        });
+        when(api.resourceSnapshotsRestoreVolumeDefinition(anyString(), anyString(), any())).thenReturn(success());
+        when(api.resourceSnapshotRestore(anyString(), anyString(), any())).thenReturn(success());
+        when(api.resourceMakeAvailableOnNode(eq(name), eq(localNode), any())).thenReturn(success());
+        when(api.viewResources(eq(Collections.singletonList(localNode)), eq(Collections.singletonList(name)), any(), any(), any(), any()))
+                .thenReturn(List.of(drbdResource()));
+
+        String path = adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP);
+        Assert.assertEquals("/dev/drbd/by-res/" + name + "/0", path);
+        Assert.assertEquals(FULL_BACKUP, snapshot.get().getProps().get(LinstorStorageAdaptor.FULL_BACKUP_OWNER_PROP));
+        Assert.assertEquals(FULL_VOLUME, definitions.get(name).getProps().get(LinstorStorageAdaptor.FULL_BACKUP_SOURCE_PROP));
+        Assert.assertEquals(path, adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
+        verify(api, times(1)).resourceSnapshotCreate(anyString(), any());
+        verify(api, times(1)).resourceDefinitionCreate(any());
+        verify(api, never()).resourceDefinitionDelete("cs-" + FULL_VOLUME);
+        verify(api, never()).resourceSnapshotRollback(anyString(), anyString(), any());
+    }
+
+    @Test
+    public void fullBackupRefusesForeignCloneAndLeavesItUntouched() throws ApiException {
+        java.util.Map<String, ResourceDefinition> definitions = fullBackupDefinitions();
+        String name = LinstorStorageAdaptor.fullBackupName(FULL_BACKUP);
+        ResourceDefinition foreign = new ResourceDefinition();
+        foreign.setName(name);
+        foreign.setProps(new Properties());
+        definitions.put(name, foreign);
+        Assert.assertThrows(CloudRuntimeException.class, () -> adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
+        verify(api, never()).resourceDefinitionDelete(anyString());
+        verify(api, never()).resourceSnapshotDelete(anyString(), anyString(), any());
+        verify(api, never()).resourceSnapshotCreate(anyString(), any());
+    }
+
+    @Test
+    public void fullBackupRestoreFailureDeletesOnlyOwnedCloneThenSnapshotAndCleanupIsIdempotent() throws ApiException {
+        java.util.Map<String, ResourceDefinition> definitions = fullBackupDefinitions();
+        String name = LinstorStorageAdaptor.fullBackupName(FULL_BACKUP);
+        java.util.concurrent.atomic.AtomicReference<com.linbit.linstor.api.model.Snapshot> snapshot = new java.util.concurrent.atomic.AtomicReference<>();
+        when(api.resourceSnapshotList("cs-" + FULL_VOLUME, name)).thenAnswer(invocation -> snapshot.get());
+        when(api.resourceSnapshotCreate(eq("cs-" + FULL_VOLUME), any())).thenAnswer(invocation -> {
+            snapshot.set(invocation.getArgument(1)); return success();
+        });
+        when(api.resourceSnapshotsRestoreVolumeDefinition(anyString(), anyString(), any())).thenReturn(success());
+        when(api.resourceSnapshotRestore(anyString(), anyString(), any())).thenReturn(error("restore failed"));
+        when(api.resourceDefinitionDelete(name)).thenAnswer(invocation -> { definitions.remove(name); return success(); });
+        when(api.resourceSnapshotDelete("cs-" + FULL_VOLUME, name, Collections.emptyList()))
+                .thenAnswer(invocation -> { snapshot.set(null); return success(); });
+        Assert.assertThrows(CloudRuntimeException.class, () -> adaptor.createFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP));
+        adaptor.deleteFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP);
+        InOrder order = Mockito.inOrder(api);
+        order.verify(api).resourceDefinitionDelete(name);
+        order.verify(api).resourceSnapshotDelete("cs-" + FULL_VOLUME, name, Collections.emptyList());
+        Assert.assertTrue(definitions.containsKey("cs-" + FULL_VOLUME));
+        verify(api, times(1)).resourceDefinitionDelete(name);
+        verify(api, times(1)).resourceSnapshotDelete("cs-" + FULL_VOLUME, name, Collections.emptyList());
+    }
+
+    @Test
+    public void fullBackupMissingObjectsCleanupDoesNotDeleteAnything() throws ApiException {
+        fullBackupDefinitions();
+        adaptor.deleteFullBackupSnapshot(pool, FULL_VOLUME, FULL_BACKUP);
+        verify(api, never()).resourceDefinitionDelete(anyString());
+        verify(api, never()).resourceSnapshotDelete(anyString(), anyString(), any());
+    }
+
 }
