@@ -6,9 +6,9 @@
 - Confirm resource placement, network reachability, supported LINSTOR driver, sufficient free disk, and backup repository space.
 
 ## Full backup
-- VBR discovers LINSTOR VM and disks.
-- Full backup finishes without requiring NFS primary storage.
-- Restore to a *new* VM/volume; compare filesystem hashes of test dataset and boot VM.
+- [x] VBR discovers the LINSTOR VM and disk.
+- [x] Full backup finishes without requiring NFS primary storage.
+- [x] Restore to a *new* VM/volume; user confirmed the restored VM boots. A selected-file hash comparison was not recorded.
 - Deleting/interrupting a backup does not corrupt source volume; temporary snapshots are cleaned.
 
 ## Incremental backup

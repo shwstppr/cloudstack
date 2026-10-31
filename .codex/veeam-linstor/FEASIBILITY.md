@@ -1,5 +1,84 @@
 # Phase 0: Veeam / LINSTOR feasibility
 
+## Update: full LINSTOR backup and restore accepted (2026-10-31)
+
+The full-only path is now validated in the live lab. VBR completed a LINSTOR
+full backup; the user restored it to a new VM and confirmed that VM booted.
+The earlier Oct 30 sections below record the state at that time and are
+superseded where they say live full backup/restore was still pending.
+
+Evidence from VBR 13.1.0.308 with oVirt plugin 13.8.0.281:
+
+- VBR reported the LINSTOR disk as `Raw`, `can be backed up incrementally:
+  False`, requested extents with `dirty: False`, and warned that a null
+  `ToCheckpointId` prevents a later incremental. It completed the 8 GiB disk
+  backup successfully (read 8,589,934,592 bytes; transferred 749,644,736
+  bytes). The transfer size reflects Veeam processing/compression and does
+  not establish changed-block tracking.
+- Restore created a new LINSTOR target volume, uploaded through raw NBD,
+  finalized the image transfer, and attached the disk to
+  `linstor-validation-restored`. The user confirmed the VM booted.
+- LINSTOR clone/snapshot and NBD export cleanup completed. The read-only
+  deployment health check passed after restore.
+
+Private VBR archives and sanitized traces are in `/tmp/veeam-linstor-attempt1`
+and `/tmp/linstor-restore-trace-upload4.json`; these are local lab evidence,
+not repository artifacts. The earlier size-bound and ownership-tag fixes
+were included in the packages used for this successful run.
+
+## Incremental feasibility update (2026-10-31)
+
+**Current result: feasible in principle, not implemented or VBR-validated for
+LINSTOR.** The current LINSTOR export is explicitly full-only, and the live
+VBR session confirms why: Veeam reports raw disks cannot be backed up
+incrementally, receives no checkpoint ID, and asks for clean/full extents.
+The control API currently omits LINSTOR checkpoints and the NBD dirty-extents
+backend marks all allocated extents dirty when no bitmap is supplied.
+
+The NFS baseline shows the VBR protocol this integration must satisfy:
+Veeam reused a prior checkpoint, requested `dirty: True` extents, accepted
+the disk as incrementally backed up, and later restored an incremental point.
+This is protocol evidence for the existing NFS path only. Veeam's oVirt backup
+chain documentation also describes incrementals as restore points dependent
+on a full and preceding chain members
+([Veeam oVirt backup chain](https://helpcenter.veeam.com/docs/vbr/userguide/ovirt_backup.html)).
+
+There are two candidate changed-extent sources:
+
+1. **QEMU dirty bitmaps on the live raw disk.** QEMU supports transient
+   bitmaps on raw images, but does not save them on QEMU exit; only qcow2
+   supports persistent bitmap storage. A bitmap-based implementation would
+   need safe checkpoint/rotation semantics, a way to expose those ranges to
+   the Veeam image-transfer `dirty` extents endpoint, and a guaranteed full
+   fallback after QEMU exit, host migration, or lost/inconsistent bitmap.
+   See [QEMU dirty bitmaps](https://www.qemu.org/docs/master/interop/bitmaps.html).
+2. **Content-diff snapshots.** CloudStack already has a LINSTOR NAS-backup
+   path that compares a point-in-time raw export with a parent QCOW2 using a
+   safe `qemu-img rebase`, producing a QCOW2 delta. The Veeam service does not
+   use that path today. Integrating a similar delta view with VBR's COW format,
+   checkpoint IDs, and dirty extents may reduce transferred bytes, but the
+   rebase compares disk contents and can still read the full disk each run.
+
+LINSTOR snapshots on the deployed thin-LVM backing are a valid point-in-time
+baseline mechanism, but snapshot existence alone provides no changed-block
+map. LINBIT documents resource snapshots for thin-LVM/ZFS; this does not
+establish a LINSTOR CBT interface
+([LINSTOR snapshots](https://linbit.com/drbd-user-guide/linstor-guide-1_0-en/)).
+
+**Recommended next step:** implement the content-diff candidate first behind
+a provider-owned opt-in capability. It uses code paths already present for
+LINSTOR NAS backup, avoids relying on raw-image persistent bitmaps, and can
+produce real Veeam incremental restore points if the live VBR run accepts the
+COW/checkpoint/dirty-extents contract. Its initial performance limit is a
+full-disk source comparison per incremental; only changed extents should
+cross the Veeam data path. Keep QEMU bitmap tracking as a later optimization
+if its raw-disk lifecycle and exposure can be proven safely.
+
+The file-by-file proposal is in
+[`INCREMENTAL_CHANGE_PLAN.md`](INCREMENTAL_CHANGE_PLAN.md). Per the handover
+gate, implementation source changes wait for approval of that plan. No source
+code was changed as part of this feasibility update.
+
 Assessment date: 2026-10-30. Repository branch `poc-veeam-kvm-linstor`,
 HEAD `9cf255f8c47b24eb088223d1a37988e2e87df22d`, root Maven version
 `24.0.0-SNAPSHOT`. Existing user changes preserved. This phase changed

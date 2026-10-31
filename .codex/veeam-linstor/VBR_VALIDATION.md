@@ -254,3 +254,33 @@ no controlled guest mutation dataset was established. Earlier outstanding
 restore statements above describe the state at collection time and are now
 resolved. LINSTOR full/incremental compatibility remains unproven.
 The user requested that NFS validation stop; use this baseline for implementation.
+
+### LINSTOR full backup and new-VM restore passed
+
+On 2026-10-31, after the user installed the updated packages, VBR 13.1.0.308
+with oVirt plugin 13.8.0.281 completed a full backup of
+`linstor-validation` (CloudStack VM 3, disk ROOT-3). The VBR VM-task log says
+`Disk backup complete 1/1`; the Veeam agent session finished successfully.
+The 8 GiB disk reported `format: Raw`,
+`can be backed up incrementally: False`, `dirty: False`, and no checkpoint
+(`ToCheckpointId` null). Veeam reported 8,589,934,592 bytes read and
+749,644,736 bytes transferred. This confirms the raw-size export fix and
+successful full transfer, but explicitly confirms that this full point does
+not provide an incremental baseline.
+
+The user then completed a VBR restore to the new VM
+`linstor-validation-restored` (CloudStack VM 17). The target root volume
+`b1056e36-1815-4549-a016-09bf19cba956` reached `Ready` on LINSTOR-POC;
+the image transfer finalized and the disk attachment was created. The user
+confirmed that the restored VM booted. The upload used the writable,
+size-bounded 8 GiB raw NBD export. The temporary image transfer and NBD
+process ended, and no `cs-vbr-*` backup resource or snapshot remained. The
+deployment health check passed after this run. No selected-file hash
+comparison was recorded for the LINSTOR restore.
+
+The LINSTOR VBR full path is accepted for this single-disk lab case. Genuine
+LINSTOR incremental backup remains unimplemented and unproven. The VBR log
+distinguishes it from the validated NFS chain above: the LINSTOR raw disk
+cannot be backed up incrementally, has no `toCheckpointId`, and requests
+`dirty: False`. See `FEASIBILITY.md` and the proposed
+`INCREMENTAL_CHANGE_PLAN.md` before making changes.

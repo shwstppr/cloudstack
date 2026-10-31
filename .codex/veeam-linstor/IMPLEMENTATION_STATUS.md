@@ -3,8 +3,10 @@
 Later lab update: user-deployed packages were exercised in the first LINSTOR
 VBR job. It failed on raw export size, then snapshot-tag cleanup. See
 [LINSTOR_FIRST_BACKUP.md](LINSTOR_FIRST_BACKUP.md) for evidence, manual recovery
-and local fixes awaiting updated packages. Earlier local-only statements
-below describe the original implementation/refactor turns.
+and the fixes made after that run. On 2026-10-31 the user installed updated
+packages; the LINSTOR VBR full backup and new-VM restore then passed, and the
+user confirmed the restored VM booted. Earlier local-only statements below
+describe the original implementation/refactor turns.
 
 The user resumed implementation after the actual VBR NFS full, incremental,
 and independent restore baseline. Changes remain local and uncommitted;
@@ -100,14 +102,20 @@ mvn -o -pl plugins/storage/volume/linstor,plugins/hypervisors/kvm,plugins/integr
   -Dsurefire.failIfNoSpecifiedTests=false -Ddownload.plugin.skip=true -Dcheckstyle.skip -Drat.skip=true test
 ```
 
-Live LINSTOR acceptance is still required: deploy matching management and all
-KVM agent artifacts, enable the zone flag, run a VBR full job and independent
-new-VM restore, verify guest data/boot and absence of owned resource leaks,
-then exercise cancellation/service restart recovery. The VBR oVirt plugin
-does not expose supported job/restore automation in this environment; user
-UI initiation remains necessary. Use existing health and Veeam trace checks
-for evidence collection. Do not substitute a synthetic export for VBR acceptance.
-Incremental LINSTOR implementation remains a separate approved-design gate.
+Live LINSTOR full-path acceptance passed on 2026-10-31 using packages
+installed by the user: VBR completed a full backup, restored it to a new
+LINSTOR-backed VM, and the user confirmed that VM booted. Transfer finalization
+and temporary clone/snapshot cleanup completed; the read-only deployment
+health check passed. Exact evidence and limits are in `VBR_VALIDATION.md` and
+`FEASIBILITY.md`. A selected-file hash comparison was not recorded for this
+LINSTOR restore.
+
+Remaining work: cancellation/service-restart recovery for the full path, then
+LINSTOR incremental implementation and live VBR validation. The VBR oVirt
+plugin does not expose supported job/restore automation in this environment;
+user UI initiation remains necessary. Use existing health and Veeam trace
+checks for evidence collection. Do not substitute a synthetic export for VBR
+incremental acceptance.
 
 ### Final local results
 

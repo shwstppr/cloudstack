@@ -1,11 +1,15 @@
 # Proposed file-by-file LINSTOR Veeam changes
 
-The user approved proceeding on 2026-10-30. The first discovery/format slice
-is implemented locally and passed the complete 335-test Veeam control module
-suite. The second slice (single-disk full backup/raw restore) was implemented
-locally on 2026-10-31 after the user resumed implementation. Neither slice
-has been deployed. See `IMPLEMENTATION_STATUS.md` for boundaries and validation.
+The user approved the discovery/format and full backup/restore slices on
+2026-10-30. Those slices were implemented and passed the recorded targeted
+tests. The user installed the resulting packages; on 2026-10-31 a real VBR
+full backup and independent new-VM restore completed, and the user confirmed
+the restored VM booted. See `IMPLEMENTATION_STATUS.md` and `VBR_VALIDATION.md`.
 Findings and evidence are in `FEASIBILITY.md`.
+
+The user approved proceeding with LINSTOR incrementals on 2026-10-31 after the
+full path passed. The separate file-by-file proposal is
+`INCREMENTAL_CHANGE_PLAN.md`; incremental implementation is now underway.
 
 Implementation note: the initial flag was introduced in `VeeamControlService` as
 `integration.veeam.control.linstor.discovery.enabled` (Zone scope, default
