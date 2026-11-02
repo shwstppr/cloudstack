@@ -5,7 +5,12 @@ Goal: extend the existing CloudStack oVirt-compatible UHAPI integration to suppo
 Current local implementation and validation: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
 Actual VBR NFS full/incremental/restore evidence: [VBR_VALIDATION.md](VBR_VALIDATION.md).
 LINSTOR full/raw restore is implemented locally behind a default-off flag;
-live LINSTOR VBR acceptance and LINSTOR incremental design remain pending.
+LINSTOR full backup/restore and a live QCOW2 baseline plus incremental
+backup/restore are validated for the tested single-disk VM. The incremental
+restore matched both the backup-time full-disk hash and a guest test-file MD5;
+VBR transferred 56.3% fewer bytes than the baseline. Broader failure/recovery
+testing and investigation of a VBR disk-reduction warning remain. See
+`VBR_VALIDATION.md`.
 
 ## Existing environment (verify in repository and lab)
 - CloudStack KVM with embedded Jetty UHAPI at `/ovirt-engine/api` on port 8090 (HTTPS configured and exercised by VBR).

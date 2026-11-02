@@ -278,9 +278,91 @@ process ended, and no `cs-vbr-*` backup resource or snapshot remained. The
 deployment health check passed after this run. No selected-file hash
 comparison was recorded for the LINSTOR restore.
 
-The LINSTOR VBR full path is accepted for this single-disk lab case. Genuine
-LINSTOR incremental backup remains unimplemented and unproven. The VBR log
-distinguishes it from the validated NFS chain above: the LINSTOR raw disk
-cannot be backed up incrementally, has no `toCheckpointId`, and requests
-`dirty: False`. See `FEASIBILITY.md` and the proposed
-`INCREMENTAL_CHANGE_PLAN.md` before making changes.
+The LINSTOR VBR full path is accepted for this single-disk lab case. This
+earlier raw-format run had no checkpoint and was not incrementally eligible.
+The later QCOW2 baseline and incremental run are recorded below.
+
+### LINSTOR QCOW2 baseline and first incremental run
+
+On 2026-10-31 the global `kvm.backup.linstor.incremental.enabled` setting was
+enabled. The VBR UI initially classified a run as a full scan; the preceding
+full-only backup had no checkpoint lineage. The subsequent baseline used the
+incremental-capable path: the oVirt-compatible disk endpoint advertised
+`format: cow` (QCOW2), and CloudStack created a full backup with a new
+`to_checkpoint_id` and no `from_checkpoint_id`.
+
+Baseline backup `79174bbc-bfd3-40d8-92d5-dc9e1badf40f` was created at
+16:41:00 UTC. Its image transfer and backup finalized successfully at
+16:43:52 UTC; CloudStack marked it `BackedUp` and retained active checkpoint
+`3a9312e8-e03e-419c-bef9-0f6f5df9e757`.
+The VBR session reports 8,589,934,592 bytes read and 1,207,842,294 bytes
+transferred for the full baseline.
+
+The next backup, `31cedb1c-df3b-47cf-bef7-67801a00b1c9`, was created at
+16:47:13 UTC. The user confirmed that VBR displayed it as **incremental**.
+CloudStack recorded type `INCREMENTAL`, with `from_checkpoint_id`
+`3a9312e8-e03e-419c-bef9-0f6f5df9e757` and new `to_checkpoint_id`
+`446f6697-8b82-4484-b745-da1d8f505fba`. Image-transfer finalization and backup
+finalization returned HTTP 200 at 16:48:00 UTC; CloudStack marked the backup
+`BackedUp` and advanced the active checkpoint to the new ID. The older
+checkpoint became the retained previous checkpoint.
+
+The Windows VBR backup archive confirms `format: Cow`,
+`can be backed up incrementally: True`, `dirty: True`, and the same from/to
+checkpoint IDs. It reports 544,210,944 bytes read and 528,379,776 bytes
+transferred out of 8,589,934,592 processed bytes. Private archive:
+`/tmp/linstor-incremental-backup-vbr.zip`. Relative to the full baseline,
+the incremental transferred 56.3% fewer bytes and read 93.7% fewer bytes.
+
+This is live evidence that VBR selected an incremental point and that the
+checkpoint chain advanced. The sanitized control trace is
+`/tmp/veeam-trace-4ab47b2c479e.json`; DB state was checked read-only on the
+management server. The user initiated a new-VM restore of the incremental
+point to verify a test file created before the incremental run. Image upload
+finalized at 16:53:14 UTC; target VM
+`linstor-incremental-restored` (`598c129f-1665-4178-a069-96fd2b499bd2`) is
+stopped and its LINSTOR root volume `7128ecab-2551-4e5d-801c-4a61345c3382` is
+`Ready`.
+
+VBR restore archive `/tmp/linstor-incremental-restore-vbr.zip` confirms it
+selected restore point `0f05b53c-57e8-48fd-956b-7085720645b2`, type
+`vmb_restore_point_incremental`, creation time 16:47:07 UTC, with
+`isCorrupted=false`. Veeam opened both the incremental
+`linstor-incremental Backup_2026-10-31T094711.vib` and baseline
+`linstor-incremental Backup_2026-10-31T094058.vbk`. The restore task reported
+Success and the upload finalized. The user initially reported the expected
+test file absent from the first restore target, so they repeated the restore.
+VBR also logged a `NullReferenceException` while attempting to reduce the
+restored disk; its effect was not established.
+
+The user repeated the restore and explicitly selected the second restore point.
+The second VBR archive independently confirms the same point ID
+`0f05b53c-57e8-48fd-956b-7085720645b2`, type
+`vmb_restore_point_incremental`, creation time 16:47:07 UTC, and
+`isCorrupted=false`. Veeam again opened the incremental `.vib` together with
+the baseline `.vbk`, loaded data regions, and reported task `57c07b5c-4253-4fab-930a-77d5fe19a5b1` Success. Its upload finalized and the disk attached to
+`linstor-incremental11` (`cc81a933-1bf4-4088-a6ad-aef1ce8283df`); the root
+volume is `Ready`. This second attempt logged the same disk-reduction
+`NullReferenceException`. Private archive:
+`/tmp/linstor-incremental-restore2-vbr.zip`.
+
+The user booted `linstor-incremental11` and compared `testfile.img` on the
+original VM and restored VM. Both reported MD5
+`0a3835886f78638ce7000704f0719ca5`.
+
+An additional whole-volume comparison used the retained, successful LINSTOR
+checkpoint `cs-vbr-446f66978b824484b745da1d8f505fba`, which represents the
+incremental point and is not attached to a VM. SHA-256 of its first logical
+8 GiB matched SHA-256 of the preserved pre-boot restored image:
+`4539ad23069a358e36ead3cffff7b561be3247b45c9cb8db209e12aad66fe2dd`.
+The preserved compressed image is `/tmp/linstor-incremental11-root.raw.gz`;
+its uncompressed size is exactly 8 GiB and its gzip integrity check passed.
+This confirms the second restore contains the incremental-point disk contents;
+the first restore's missing-file observation was not reproduced or explained.
+
+Incremental-point restore content is validated for this lab VM. VBR's repeated
+disk-reduction warning remains unexplained. A full-versus-incremental transfer
+byte comparison is complete. Broader failure/recovery testing remains
+outstanding. The first restore target was later observed Running, so its
+earlier missing-file report was not diagnosed from its live disk; the second
+restore independently matched the checkpoint and test-file hashes.

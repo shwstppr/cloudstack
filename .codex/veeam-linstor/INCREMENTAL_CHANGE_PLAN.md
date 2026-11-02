@@ -1,10 +1,11 @@
 # Proposed LINSTOR Veeam incremental implementation
 
-Status: implementation in progress after full backup and independent restore
-passed on 2026-10-31. Local uncommitted changes now include the provider
-capability/flag, LINSTOR snapshot checkpoint lifecycle, QCOW2 COW export, and
-allocation-depth dirty extents. Java build/test validation and live VBR
-acceptance remain pending. The feature is default-off. See
+Status: live baseline, incremental backup, and restore completed on 2026-10-31.
+VBR classified the second point as incremental; checkpoint lineage advanced;
+restored disk and test-file hashes matched the backup-time source checkpoint.
+VBR transferred 56.3% fewer bytes on the incremental than on the full baseline.
+Broader failure/recovery tests and investigation of a VBR disk-reduction
+warning remain. The feature is default-off. See
 [FEASIBILITY.md](FEASIBILITY.md) for protocol and storage evidence. Existing
 NFS behavior must remain unchanged.
 

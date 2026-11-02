@@ -140,12 +140,19 @@ health check passed. Exact evidence and limits are in `VBR_VALIDATION.md` and
 `FEASIBILITY.md`. A selected-file hash comparison was not recorded for this
 LINSTOR restore.
 
-Remaining work: cancellation/service-restart recovery for the full path, then
-LINSTOR incremental implementation and live VBR validation. The VBR oVirt
-plugin does not expose supported job/restore automation in this environment;
-user UI initiation remains necessary. Use existing health and Veeam trace
-checks for evidence collection. Do not substitute a synthetic export for VBR
-incremental acceptance.
+Current live status: the user enabled the global incremental setting, VBR
+completed a QCOW2-capable full baseline, and the following VBR run was
+user-confirmed as incremental. CloudStack finalized the transfer and advanced
+the active checkpoint. VBR transferred 56.3% fewer bytes and read 93.7% fewer
+bytes than on the full baseline. The user restored the incremental point to a
+new VM; its test-file MD5 matched the source, and a comparison of the full
+logical disk against the backup-time LINSTOR checkpoint also matched.
+End-to-end incremental backup/restore is validated for this single-disk lab
+case. Outstanding work is failure/recovery coverage (cancellation, service
+restart, interrupted transfer, resize/lost baseline) and investigation of
+VBR's disk-reduction warning. The VBR oVirt plugin does not expose supported
+job/restore automation in this environment; user UI initiation remains
+necessary. Use existing health and Veeam trace checks for evidence.
 
 ### Final local results
 
